@@ -1,0 +1,11 @@
+[project]
+name = "qd-mnp"
+version = "2.1.0"
+description = "Модель гибридной системы квантовая точка - металлическая наночастица (КТ-МНЧ)"
+readme = "README_qd_mnp_scripts.md"
+requires-python = ">=3.14"
+dependencies = [
+    "numpy>=2.3",
+    "scipy>=1.16",
+    "matplotlib>=3.10.6",
+]
