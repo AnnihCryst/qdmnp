@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import warnings
 from dataclasses import dataclass, field, replace
 from datetime import datetime
 from pathlib import Path
@@ -38,7 +39,7 @@ AU_ENERGY_EV = physical_constants['Hartree energy in eV'][0]
 AU_FIELD_V_M = AU_ENERGY_J / (E_CHARGE * AU_LENGTH_M)
 AU_DIPOLE_C_M = E_CHARGE * AU_LENGTH_M
 DEBYE_C_M = 3.33564e-30
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 def eV_to_au(value: float | np.ndarray) -> float | np.ndarray:
@@ -105,6 +106,26 @@ class MaterialDispersion:
     n: np.ndarray
     k: np.ndarray
 
+    def __post_init__(self) -> None:
+        energy = np.array(self.energy_eV, dtype=float, order='C', copy=True)
+        n = np.array(self.n, dtype=float, order='C', copy=True)
+        k = np.array(self.k, dtype=float, order='C', copy=True)
+        if energy.ndim != 1 or n.ndim != 1 or k.ndim != 1:
+            raise ValueError('Material arrays energy_eV, n and k must be one-dimensional.')
+        if not (len(energy) == len(n) == len(k)) or len(energy) < 2:
+            raise ValueError('Material arrays energy_eV, n and k must have the same length >= 2.')
+        if not (np.all(np.isfinite(energy)) and np.all(np.isfinite(n)) and np.all(np.isfinite(k))):
+            raise ValueError('Material arrays must contain only finite values.')
+        if np.any(np.diff(energy) <= 0.0):
+            raise ValueError('Material energy_eV values must be strictly increasing.')
+        if np.any(energy <= 0.0) or np.any(n < 0.0) or np.any(k < 0.0):
+            raise ValueError('Material energies must be positive and optical constants non-negative.')
+        for values in (energy, n, k):
+            values.setflags(write=False)
+        object.__setattr__(self, 'energy_eV', energy)
+        object.__setattr__(self, 'n', n)
+        object.__setattr__(self, 'k', k)
+
     @property
     def epsilon(self) -> np.ndarray:
         return (self.n + 1j * self.k) ** 2
@@ -146,7 +167,18 @@ class HybridSystemParams:
     omega0_au: float
     gamma_au: float
     Gamma_au: float
+    qd_radius_au: float = field(default=0.0, kw_only=True)
     material: MaterialDispersion = field(default_factory=lambda: DEFAULT_AU_MATERIAL)
+
+    @property
+    def axial_surface_gap_au(self) -> float:
+        """Surface-to-surface gap for a QD on the ellipsoid long axis."""
+        return float(self.R_au - self.c_au - self.qd_radius_au)
+
+    @property
+    def pure_dephasing_au(self) -> float:
+        """Pure-dephasing contribution implied by Gamma2=gamma1/2+gamma_phi."""
+        return float(self.Gamma_au - 0.5 * self.gamma_au)
 
 
 @dataclass(frozen=True)
@@ -155,6 +187,19 @@ class GaussianPulse:
     omegaL_au: float
     tau_au: float
     tau_kind: Literal['sigma', 'fwhm_intensity'] = 'fwhm_intensity'
+
+    def __post_init__(self) -> None:
+        scalars = (self.E0_au, self.omegaL_au, self.tau_au)
+        if not all(np.isfinite(value) for value in scalars):
+            raise ValueError('Pulse amplitude, carrier frequency and duration must be finite.')
+        if self.E0_au == 0.0:
+            raise ValueError('Pulse amplitude E0_au must be non-zero because cross sections divide by fluence.')
+        if self.omegaL_au <= 0.0:
+            raise ValueError('Pulse carrier frequency omegaL_au must be positive.')
+        if self.tau_au <= 0.0:
+            raise ValueError('Pulse duration tau_au must be positive.')
+        if self.tau_kind not in {'sigma', 'fwhm_intensity'}:
+            raise ValueError(f'Unsupported tau_kind={self.tau_kind!r}')
 
     @property
     def sigma_t_au(self) -> float:
@@ -182,17 +227,32 @@ class GaussianPulse:
             - self.omegaL_au * np.sin(self.omegaL_au * t)
         )
 
-    def peak_intensity_w_cm2(self, cycle_averaged: bool = True) -> float:
+    @staticmethod
+    def _refractive_index(eps_m: float) -> float:
+        if not np.isfinite(eps_m) or eps_m <= 0.0:
+            raise ValueError('The real host permittivity eps_m must be finite and positive.')
+        return float(np.sqrt(eps_m))
+
+    def peak_intensity_w_cm2(
+        self,
+        cycle_averaged: bool = True,
+        *,
+        eps_m: float = 1.0,
+    ) -> float:
+        """Peak intensity in a nonmagnetic, lossless host with n=sqrt(eps_m)."""
         E0_si = float(field_au_to_si(self.E0_au))
         prefactor = 0.5 if cycle_averaged else 1.0
-        return prefactor * epsilon_0 * C_SI * E0_si**2 * 1e-4
+        n_m = self._refractive_index(eps_m)
+        return prefactor * n_m * epsilon_0 * C_SI * E0_si**2 * 1e-4
 
-    def fluence_j_cm2(self) -> float:
+    def fluence_j_cm2(self, *, eps_m: float = 1.0) -> float:
+        """Exact integral of n*eps0*c*E(t)^2 for the real Gaussian carrier."""
         E0_si = float(field_au_to_si(self.E0_au))
         sigma_s = self.sigma_t_au * AU_TIME_S
         osc = np.exp(-(self.omegaL_au * self.sigma_t_au) ** 2)
         integral_E2 = 0.5 * np.sqrt(np.pi) * sigma_s * E0_si**2 * (1.0 + osc)
-        fluence_j_m2 = epsilon_0 * C_SI * integral_E2
+        n_m = self._refractive_index(eps_m)
+        fluence_j_m2 = n_m * epsilon_0 * C_SI * integral_E2
         return fluence_j_m2 * 1e-4
 
 
@@ -210,6 +270,82 @@ class RationalLorentzFit:
     rms_alpha: float
     rms_inv_alpha: float
     cost: float
+    min_imag_alpha_fit_window: float = 0.0
+    passivity_grid_points: int = 0
+    passive_on_fit_window: bool = True
+
+
+@dataclass(frozen=True)
+class DipoleCrossSections:
+    """Dipole cross sections in the alpha_eff=mu/(eps_m E_inc) convention."""
+
+    extinction_cm2: np.ndarray
+    scattering_cm2: np.ndarray
+    absorption_cm2: np.ndarray
+
+
+@dataclass(frozen=True)
+class LinearStabilityDiagnostics:
+    """Poles of the full field-free Jacobian at the QD ground state."""
+
+    poles_au: np.ndarray
+    spectral_abscissa_au: float
+    tolerance_au: float
+    stable: bool
+
+
+def dipole_cross_sections_cm2(
+    alpha_eff_au: float | complex | np.ndarray,
+    omega_au: float | np.ndarray,
+    eps_m: float,
+) -> DipoleCrossSections:
+    """Return extinction, scattering and material absorption cross sections.
+
+    No negative absorption is clipped.  It flags that the supplied effective
+    dipole response does not satisfy the passive optical-theorem partition
+    under these assumptions; possible causes include a missing radiative
+    correction, nonlinear frequency conversion, a finite Fourier window or a
+    poor rational approximation.
+    """
+    if not np.isfinite(eps_m) or eps_m <= 0.0:
+        raise ValueError('The real host permittivity eps_m must be finite and positive.')
+    alpha_au = np.asarray(alpha_eff_au, dtype=complex)
+    omega = np.asarray(omega_au, dtype=float)
+    if np.any(~np.isfinite(alpha_au)) or np.any(~np.isfinite(omega)) or np.any(omega < 0.0):
+        raise ValueError('Polarizability and non-negative angular frequencies must be finite.')
+
+    alpha_si = alpha_au * (AU_DIPOLE_C_M / AU_FIELD_V_M)
+    omega_si = omega / AU_TIME_S
+    k_si = np.sqrt(eps_m) * omega_si / C_SI
+    extinction_m2 = (k_si / epsilon_0) * alpha_si.imag
+    scattering_m2 = k_si**4 * np.abs(alpha_si) ** 2 / (6.0 * np.pi * epsilon_0**2)
+    absorption_m2 = extinction_m2 - scattering_m2
+    return DipoleCrossSections(
+        extinction_cm2=np.asarray(extinction_m2 * 1e4),
+        scattering_cm2=np.asarray(scattering_m2 * 1e4),
+        absorption_cm2=np.asarray(absorption_m2 * 1e4),
+    )
+
+
+@dataclass(frozen=True)
+class HybridSolveDiagnostics:
+    solver_success: bool
+    solver_status: int
+    solver_message: str
+    n_steps: int
+    nfev: int
+    njev: int | None
+    nlu: int | None
+    t_final_reached: bool
+    state_is_finite: bool
+    min_step_au: float
+    max_step_au: float
+    W_min: float
+    W_max: float
+    excited_population_min: float
+    excited_population_max: float
+    max_bloch_radius: float
+    min_density_eigenvalue: float
 
 
 @dataclass(frozen=True)
@@ -220,11 +356,40 @@ class HybridSolveResult:
     mu_d_au: np.ndarray
     mu_total_au: np.ndarray
     mu_dot_total_au: np.ndarray
-    sigma_abs_cm2: float
-    absorbed_energy_j: float
+    sigma_energy_transfer_cm2: float
+    work_from_incident_field_j: float
     fluence_j_cm2: float
     peak_intensity_w_cm2: float
     solve_ivp_result: object
+    diagnostics: HybridSolveDiagnostics
+
+    @property
+    def sigma_abs_cm2(self) -> float:
+        """Compatibility alias; historically this was mislabeled absorption."""
+        warnings.warn(
+            'sigma_abs_cm2 was mislabeled; use sigma_energy_transfer_cm2.',
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.sigma_energy_transfer_cm2
+
+    @property
+    def absorbed_energy_j(self) -> float:
+        """Compatibility alias for work_from_incident_field_j."""
+        warnings.warn(
+            'absorbed_energy_j was mislabeled; use work_from_incident_field_j.',
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.work_from_incident_field_j
+
+    @property
+    def max_bloch_radius(self) -> float:
+        return self.diagnostics.max_bloch_radius
+
+    @property
+    def min_density_eigenvalue(self) -> float:
+        return self.diagnostics.min_density_eigenvalue
 
 
 # ================================================================
@@ -257,6 +422,18 @@ class HybridQDPlasmonModel:
     ) -> None:
         if n_modes < 1:
             raise ValueError('n_modes must be >= 1')
+        if orientation not in {'long', 'trans'}:
+            raise ValueError("orientation must be either 'long' or 'trans'.")
+        if len(fit_window_eV) != 2 or not np.all(np.isfinite(fit_window_eV)):
+            raise ValueError('fit_window_eV must contain two finite values.')
+        if fit_window_eV[0] <= 0.0 or fit_window_eV[1] <= fit_window_eV[0]:
+            raise ValueError('fit_window_eV must satisfy 0 < min < max.')
+        if weight_sigma_eV is not None and weight_sigma_eV <= 0.0:
+            raise ValueError('weight_sigma_eV must be positive when specified.')
+        if alpha_objective_weight < 0.0 or inv_alpha_objective_weight < 0.0:
+            raise ValueError('Fit objective weights must be non-negative.')
+        if alpha_objective_weight == 0.0 and inv_alpha_objective_weight == 0.0:
+            raise ValueError('At least one fit objective weight must be positive.')
 
         self.params = params
         self.orientation = orientation
@@ -268,6 +445,7 @@ class HybridQDPlasmonModel:
         self.inv_alpha_objective_weight = float(inv_alpha_objective_weight)
         self.seed = int(seed)
         self.verbose = bool(verbose)
+        self._validate_physical_parameters()
 
         self.L_long, self.L_trans = self._depolarization_factors()
         self.L = self.L_long if orientation == 'long' else self.L_trans
@@ -278,6 +456,7 @@ class HybridQDPlasmonModel:
         self.alpha_tab = self._alpha_dimless(self.L)
         self.inv_alpha_tab = 1.0 / self.alpha_tab
         self.fit = self._fit_rational_alpha()
+        self.linear_stability = self.assert_linearized_ground_state_stable()
 
         if self.verbose:
             self.print_fit_summary()
@@ -285,9 +464,52 @@ class HybridQDPlasmonModel:
     # ------------------------------------------------------------
     # Geometry and tabulated optical response
     # ------------------------------------------------------------
+    def _validate_physical_parameters(self) -> None:
+        p = self.params
+        scalar_values = {
+            'c_au': p.c_au,
+            'a_au': p.a_au,
+            'R_au': p.R_au,
+            'qd_radius_au': p.qd_radius_au,
+            'G': p.G,
+            'eps_m': p.eps_m,
+            'd_au': p.d_au,
+            'omega0_au': p.omega0_au,
+            'gamma_au': p.gamma_au,
+            'Gamma_au': p.Gamma_au,
+        }
+        nonfinite = [name for name, value in scalar_values.items() if not np.isfinite(value)]
+        if nonfinite:
+            raise ValueError(f'Physical parameters must be finite; invalid: {", ".join(nonfinite)}.')
+        if p.a_au <= 0.0 or p.c_au <= 0.0 or p.R_au <= 0.0:
+            raise ValueError('MNP semiaxes and center-to-center distance R must be positive.')
+        if p.c_au < p.a_au:
+            raise ValueError('This implementation supports prolate/spherical MNPs and requires c >= a.')
+        if p.qd_radius_au < 0.0:
+            raise ValueError('QD radius must be non-negative; zero denotes the point-QD limit.')
+        if p.axial_surface_gap_au <= 0.0:
+            gap_nm = float(au_to_nm(p.axial_surface_gap_au))
+            raise ValueError(
+                'Non-positive QD-MNP surface gap: require R > c + qd_radius '
+                f'(current gap={gap_nm:.6g} nm). The particles overlap or touch.'
+            )
+        if p.eps_m <= 0.0:
+            raise ValueError('The real host permittivity eps_m must be positive.')
+        if p.d_au < 0.0 or p.omega0_au <= 0.0:
+            raise ValueError('QD transition-dipole magnitude must be non-negative and omega0 positive.')
+        if p.gamma_au < 0.0 or p.Gamma_au < 0.0:
+            raise ValueError('Relaxation rates gamma1 and Gamma2 must be non-negative.')
+        if p.Gamma_au < 0.5 * p.gamma_au:
+            raise ValueError(
+                'Unphysical coherence decay: Gamma2 must satisfy Gamma2 >= gamma1/2. '
+                'Gamma_au is the total coherence-decay rate, not pure dephasing.'
+            )
+
     def _depolarization_factors(self) -> tuple[float, float]:
         c_au = self.params.c_au
         a_au = self.params.a_au
+        if np.isclose(c_au, a_au, rtol=1e-12, atol=0.0):
+            return 1.0 / 3.0, 1.0 / 3.0
         xi2 = c_au**2 / (c_au**2 - a_au**2)
         xi = np.sqrt(xi2)
         log_term = np.log((xi + 1.0) / (xi - 1.0))
@@ -347,6 +569,12 @@ class HybridQDPlasmonModel:
         strength_scale = max(alpha_scale * omega_peak**2, 1e-4)
 
         rng = np.random.default_rng(self.seed)
+        passivity_omega = np.asarray(
+            eV_to_au(np.linspace(e_min, e_max, max(1024, 256 * self.n_modes))),
+            dtype=float,
+        )
+        passivity_scale = max(float(np.max(np.abs(alpha_true.imag))), 1.0)
+        passivity_tol = 1e-9 * passivity_scale
 
         alpha_inf_lo = alpha_med - 5.0 * alpha_scale
         alpha_inf_hi = alpha_med + 5.0 * alpha_scale
@@ -447,6 +675,10 @@ class HybridQDPlasmonModel:
 
             alpha_fit = self._alpha_model_from_params(omega, u)
             inv_fit = 1.0 / alpha_fit
+            alpha_passivity = self._alpha_model_from_params(passivity_omega, u)
+            min_imag_alpha = float(np.min(alpha_passivity.imag))
+            if min_imag_alpha < -passivity_tol:
+                continue
             rms_alpha = float(np.sqrt(np.mean(np.abs(alpha_fit - alpha_true) ** 2)))
             rms_inv = float(np.sqrt(np.mean(np.abs(inv_fit - inv_true) ** 2)))
             score = float(np.sqrt(np.mean(residual(u) ** 2)))
@@ -457,10 +689,11 @@ class HybridQDPlasmonModel:
                     'score': score,
                     'rms_alpha': rms_alpha,
                     'rms_inv': rms_inv,
+                    'min_imag_alpha': min_imag_alpha,
                 }
 
         if best is None:
-            raise RuntimeError('Stable rational fit was not found.')
+            raise RuntimeError('A stable and passive rational fit was not found on fit_window_eV.')
 
         u = best['u']
         alpha_inf = float(u[0])
@@ -478,6 +711,9 @@ class HybridQDPlasmonModel:
             rms_alpha=float(best['rms_alpha']),
             rms_inv_alpha=float(best['rms_inv']),
             cost=float(best['score']),
+            min_imag_alpha_fit_window=float(best['min_imag_alpha']),
+            passivity_grid_points=int(passivity_omega.size),
+            passive_on_fit_window=True,
         )
 
     # ------------------------------------------------------------
@@ -538,6 +774,11 @@ class HybridQDPlasmonModel:
         print(f'RMS alpha error   : {self.fit.rms_alpha:.6e}')
         print(f'RMS 1/alpha error : {self.fit.rms_inv_alpha:.6e}')
         print(f'weighted score    : {self.fit.cost:.6e}')
+        print(f'min Im[alpha]     : {self.fit.min_imag_alpha_fit_window:.6e} (fit window)')
+        print(f'passivity grid    : {self.fit.passivity_grid_points} points')
+        print(f'passive in window : {self.fit.passive_on_fit_window}')
+        print(f'max Re[pole]      : {self.linear_stability.spectral_abscissa_au:.6e} au')
+        print(f'coupled stable    : {self.linear_stability.stable}')
         for idx, (f_k, w_k, g_k) in enumerate(zip(self.fit.strengths_au2, self.fit.omega_modes_au, self.fit.gamma_modes_au), start=1):
             print(
                 f'mode {idx}: strength={f_k:.6e} au^2, '
@@ -556,6 +797,107 @@ class HybridQDPlasmonModel:
     def default_time_span(self, pulse: GaussianPulse, n_sigma: float = 10.0) -> tuple[float, float]:
         sigma = pulse.sigma_t_au
         return -0.5 * n_sigma * sigma, n_sigma * sigma
+
+    def recommended_post_pulse_time_au(self, decay_times: float = 8.0) -> float:
+        """Tail duration needed for coherent QD/MNP dipoles to decay.
+
+        Lorentz oscillator amplitudes decay as exp(-gamma_k*t/2), whereas QD
+        coherence decays as exp(-Gamma2*t). The population lifetime is not used
+        because population alone has no optical dipole after the field is off.
+        """
+        if not np.isfinite(decay_times) or decay_times <= 0.0:
+            raise ValueError('decay_times must be finite and positive.')
+        rates = [float(self.params.Gamma_au)]
+        rates.extend(float(gamma) / 2.0 for gamma in self.fit.gamma_modes_au)
+        if any(not np.isfinite(rate) or rate <= 0.0 for rate in rates):
+            raise ValueError('A finite post-pulse tail cannot be inferred with an undamped coherent mode.')
+        return float(decay_times / min(rates))
+
+    def linearized_ground_state_jacobian(
+        self,
+        *,
+        d_au: float | None = None,
+        omega0_au: float | None = None,
+        gamma1_au: float | None = None,
+        gamma2_au: float | None = None,
+        g_factor: float | None = None,
+    ) -> np.ndarray:
+        """Return the full field-free Jacobian at W=-1, Q=P=q_k=v_k=0.
+
+        Optional values let parameter scans test each candidate without
+        refitting the MNP response.
+        """
+        p = self.params
+        d = float(p.d_au if d_au is None else d_au)
+        omega0 = float(p.omega0_au if omega0_au is None else omega0_au)
+        gamma1 = float(p.gamma_au if gamma1_au is None else gamma1_au)
+        gamma2 = float(p.Gamma_au if gamma2_au is None else gamma2_au)
+        coupling_factor = float(p.G if g_factor is None else g_factor)
+        scalars = np.asarray([d, omega0, gamma1, gamma2, coupling_factor], dtype=float)
+        if np.any(~np.isfinite(scalars)):
+            raise ValueError('Linear-stability parameters must be finite.')
+        if d < 0.0 or omega0 <= 0.0 or gamma1 < 0.0 or gamma2 < 0.0:
+            raise ValueError('Linear-stability dipole/frequency/rates must be physically non-negative.')
+        if gamma2 < 0.5 * gamma1:
+            raise ValueError('Linear-stability check requires Gamma2 >= gamma1/2.')
+
+        n = self.n_modes
+        size = 2 * n + 3
+        W_index, Q_index, P_index = 2 * n, 2 * n + 1, 2 * n + 2
+        jacobian = np.zeros((size, size), dtype=float)
+        J = coupling_factor / (p.eps_m * p.R_au**3)
+
+        for k, (strength, mode_omega, mode_gamma) in enumerate(
+            zip(self.fit.strengths_au2, self.fit.omega_modes_au, self.fit.gamma_modes_au)
+        ):
+            q_index = 2 * k
+            v_index = q_index + 1
+            jacobian[q_index, v_index] = 1.0
+            jacobian[v_index, q_index] = -(mode_omega**2)
+            jacobian[v_index, v_index] = -mode_gamma
+            jacobian[v_index, P_index] = strength * J * d
+
+        jacobian[W_index, W_index] = -gamma1
+        jacobian[Q_index, 0 : 2 * n : 2] = 2.0 * d * J * self.C
+        jacobian[Q_index, Q_index] = -gamma2
+        jacobian[Q_index, P_index] = (
+            -omega0 + 2.0 * d**2 * J**2 * self.C * self.fit.alpha_inf
+        )
+        jacobian[P_index, Q_index] = omega0
+        jacobian[P_index, P_index] = -gamma2
+        return jacobian
+
+    def linearized_ground_state_stability(self, **overrides) -> LinearStabilityDiagnostics:
+        """Evaluate whether the coupled ground state has an unstable pole."""
+        jacobian = self.linearized_ground_state_jacobian(**overrides)
+        poles = np.asarray(np.linalg.eigvals(jacobian), dtype=complex)
+        poles.setflags(write=False)
+        spectral_abscissa = float(np.max(poles.real))
+        scale = max(
+            abs(float(self.params.omega0_au if overrides.get('omega0_au') is None else overrides['omega0_au'])),
+            float(np.max(np.abs(self.fit.omega_modes_au))) if self.n_modes else 0.0,
+            float(np.max(np.abs(self.fit.gamma_modes_au))) if self.n_modes else 0.0,
+            1e-15,
+        )
+        tolerance = 1e-10 * scale
+        return LinearStabilityDiagnostics(
+            poles_au=poles,
+            spectral_abscissa_au=spectral_abscissa,
+            tolerance_au=float(tolerance),
+            stable=bool(spectral_abscissa <= tolerance),
+        )
+
+    def assert_linearized_ground_state_stable(self, **overrides) -> LinearStabilityDiagnostics:
+        """Raise before propagation when the passive ground state self-excites."""
+        diagnostics = self.linearized_ground_state_stability(**overrides)
+        if not diagnostics.stable:
+            raise RuntimeError(
+                'Unstable coupled QD-MNP ground state: the full field-free Jacobian '
+                f'has max Re(lambda)={diagnostics.spectral_abscissa_au:.6e} au, '
+                f'above tolerance {diagnostics.tolerance_au:.6e} au. Reduce coupling '
+                'or revise the rational fit/model applicability.'
+            )
+        return diagnostics
 
     def _unpack_mode_states(self, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         q = y[: 2 * self.n_modes : 2]
@@ -594,13 +936,30 @@ class HybridQDPlasmonModel:
         atol: float = 1e-10,
         max_step_au: float | None = None,
         t_span_au: tuple[float, float] | None = None,
+        positivity_tol: float = 1e-6,
+        positivity_policy: Literal['raise', 'warn', 'ignore'] = 'raise',
     ) -> HybridSolveResult:
+        # Recheck here as callers can replace params after model construction.
+        self._validate_physical_parameters()
+        self.assert_linearized_ground_state_stable()
+        if positivity_policy not in {'raise', 'warn', 'ignore'}:
+            raise ValueError("positivity_policy must be 'raise', 'warn' or 'ignore'.")
+        if not np.isfinite(positivity_tol) or positivity_tol < 0.0:
+            raise ValueError('positivity_tol must be finite and non-negative.')
         if t_span_au is None:
             t_span_au = self.default_time_span(pulse)
+        if (
+            len(t_span_au) != 2
+            or not np.all(np.isfinite(t_span_au))
+            or t_span_au[1] <= t_span_au[0]
+        ):
+            raise ValueError('t_span_au must contain finite values with t_end > t_start.')
 
         if max_step_au is None:
             carrier_period = 2.0 * np.pi / pulse.omegaL_au
             max_step_au = 0.10 * carrier_period
+        if not np.isfinite(max_step_au) or max_step_au <= 0.0:
+            raise ValueError('max_step_au must be finite and positive.')
 
         sol = solve_ivp(
             fun=lambda t, y: self.rhs(t, y, pulse),
@@ -617,10 +976,33 @@ class HybridQDPlasmonModel:
 
         t = sol.t
         y = sol.y
+        state_is_finite = bool(np.all(np.isfinite(t)) and np.all(np.isfinite(y)))
+        if not state_is_finite:
+            raise RuntimeError('solve_ivp returned non-finite times or state values.')
+        if len(t) < 2 or np.any(np.diff(t) <= 0.0):
+            raise RuntimeError('solve_ivp returned an invalid or non-monotone time grid.')
+        end_scale = max(1.0, abs(float(t_span_au[1])))
+        t_final_reached = bool(abs(float(t[-1]) - float(t_span_au[1])) <= 1e-10 * end_scale)
+        if not t_final_reached:
+            raise RuntimeError('solve_ivp reported success but did not reach the requested final time.')
+
         p = self.params
         q = y[: 2 * self.n_modes : 2]
         v = y[1 : 2 * self.n_modes : 2]
         W, Q, P = y[2 * self.n_modes : 2 * self.n_modes + 3]
+        bloch_radius = np.sqrt(W**2 + Q**2 + P**2)
+        max_bloch_radius = float(np.max(bloch_radius))
+        min_density_eigenvalue = float(np.min(0.5 * (1.0 - bloch_radius)))
+        if min_density_eigenvalue < -positivity_tol:
+            message = (
+                'Density-matrix positivity violation: trajectory left the Bloch ball; '
+                f'max radius={max_bloch_radius:.9g}, min eigenvalue={min_density_eigenvalue:.9g}. '
+                'Check Gamma2>=gamma1/2 and tighten solver tolerances.'
+            )
+            if positivity_policy == 'raise':
+                raise RuntimeError(message)
+            if positivity_policy == 'warn':
+                warnings.warn(message, RuntimeWarning, stacklevel=2)
 
         E = pulse.field(t)
         E_dot = pulse.field_dot(t)
@@ -634,10 +1016,36 @@ class HybridQDPlasmonModel:
         mu_total = mu_p + mu_d
         mu_total_dot = mu_p_dot + mu_d_dot
 
-        absorbed_energy_au = np.trapezoid(mu_total_dot * E, t)
-        absorbed_energy_j = float(absorbed_energy_au * AU_ENERGY_J)
-        fluence_j_cm2 = float(pulse.fluence_j_cm2())
-        sigma_abs_cm2 = absorbed_energy_j / fluence_j_cm2
+        work_from_incident_field_au = np.trapezoid(mu_total_dot * E, t)
+        work_from_incident_field_j = float(work_from_incident_field_au * AU_ENERGY_J)
+        fluence_j_cm2 = float(pulse.fluence_j_cm2(eps_m=p.eps_m))
+        sigma_energy_transfer_cm2 = work_from_incident_field_j / fluence_j_cm2
+        reconstructed = (mu_p, mu_d, mu_total, mu_total_dot)
+        if not all(np.all(np.isfinite(values)) for values in reconstructed):
+            raise RuntimeError('Non-finite reconstructed dipole or dipole derivative.')
+        if not np.isfinite(work_from_incident_field_j) or not np.isfinite(sigma_energy_transfer_cm2):
+            raise RuntimeError('Non-finite external-field work or pulse cross section.')
+
+        steps = np.diff(t)
+        diagnostics = HybridSolveDiagnostics(
+            solver_success=bool(sol.success),
+            solver_status=int(sol.status),
+            solver_message=str(sol.message),
+            n_steps=int(len(t)),
+            nfev=int(sol.nfev),
+            njev=None if getattr(sol, 'njev', None) is None else int(sol.njev),
+            nlu=None if getattr(sol, 'nlu', None) is None else int(sol.nlu),
+            t_final_reached=t_final_reached,
+            state_is_finite=state_is_finite,
+            min_step_au=float(np.min(steps)),
+            max_step_au=float(np.max(steps)),
+            W_min=float(np.min(W)),
+            W_max=float(np.max(W)),
+            excited_population_min=float(np.min(0.5 * (W + 1.0))),
+            excited_population_max=float(np.max(0.5 * (W + 1.0))),
+            max_bloch_radius=max_bloch_radius,
+            min_density_eigenvalue=min_density_eigenvalue,
+        )
 
         return HybridSolveResult(
             t_au=t,
@@ -646,14 +1054,15 @@ class HybridQDPlasmonModel:
             mu_d_au=mu_d,
             mu_total_au=mu_total,
             mu_dot_total_au=mu_total_dot,
-            sigma_abs_cm2=float(sigma_abs_cm2),
-            absorbed_energy_j=absorbed_energy_j,
+            sigma_energy_transfer_cm2=float(sigma_energy_transfer_cm2),
+            work_from_incident_field_j=work_from_incident_field_j,
             fluence_j_cm2=fluence_j_cm2,
-            peak_intensity_w_cm2=float(pulse.peak_intensity_w_cm2()),
+            peak_intensity_w_cm2=float(pulse.peak_intensity_w_cm2(eps_m=p.eps_m)),
             solve_ivp_result=sol,
+            diagnostics=diagnostics,
         )
 
-    def sweep_absorption_vs_peak_intensity(
+    def sweep_energy_transfer_vs_peak_intensity(
         self,
         tau_fs: float,
         E0_values_V_m: Iterable[float],
@@ -680,10 +1089,20 @@ class HybridQDPlasmonModel:
             )
             res = self.solve(pulse, method=method, rtol=rtol, atol=atol)
             I_peaks.append(res.peak_intensity_w_cm2)
-            sigmas.append(res.sigma_abs_cm2)
+            sigmas.append(res.sigma_energy_transfer_cm2)
             results.append(res)
 
         return np.asarray(I_peaks), np.asarray(sigmas), results
+
+    def sweep_absorption_vs_peak_intensity(self, *args, **kwargs):
+        """Compatibility alias for sweep_energy_transfer_vs_peak_intensity."""
+        warnings.warn(
+            'sweep_absorption_vs_peak_intensity() was mislabeled; use '
+            'sweep_energy_transfer_vs_peak_intensity().',
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.sweep_energy_transfer_vs_peak_intensity(*args, **kwargs)
 
 
 # ================================================================
@@ -693,12 +1112,14 @@ def make_default_params() -> HybridSystemParams:
     return HybridSystemParams(
         c_au=float(nm_to_au(15.0)),
         a_au=float(nm_to_au(7.0)),
-        R_au=float(nm_to_au(16.0)), # 17
+        R_au=float(nm_to_au(18.0)),
         G=2.0, eps_m=1.0,
         d_au=float(dipole_si_to_au(7.5e-29)),
         omega0_au=float(eV_to_au(2.042)),
         gamma_au=float(1.0 / ns_to_au(30.0)),
-        Gamma_au=float(1.0 / fs_to_au(330.0)))
+        Gamma_au=float(1.0 / fs_to_au(330.0)),
+        qd_radius_au=float(nm_to_au(2.0)),
+    )
 
 
 def make_params_with_overrides(
@@ -706,11 +1127,13 @@ def make_params_with_overrides(
     c_nm: float | None = None,
     a_nm: float | None = None,
     r_nm: float | None = None,
+    qd_radius_nm: float | None = None,
     g_factor: float | None = None,
     eps_m: float | None = None,
     d_debye: float | None = None,
     omega0_ev: float | None = None,
     gamma_population_mev: float | None = None,
+    gamma2_coherence_mev: float | None = None,
     gamma_dephasing_mev: float | None = None,
 ) -> HybridSystemParams:
     params = make_default_params()
@@ -721,6 +1144,8 @@ def make_params_with_overrides(
         updates['a_au'] = float(nm_to_au(a_nm))
     if r_nm is not None:
         updates['R_au'] = float(nm_to_au(r_nm))
+    if qd_radius_nm is not None:
+        updates['qd_radius_au'] = float(nm_to_au(qd_radius_nm))
     if g_factor is not None:
         updates['G'] = float(g_factor)
     if eps_m is not None:
@@ -731,8 +1156,14 @@ def make_params_with_overrides(
         updates['omega0_au'] = float(eV_to_au(omega0_ev))
     if gamma_population_mev is not None:
         updates['gamma_au'] = float(eV_to_au(gamma_population_mev / 1000.0))
-    if gamma_dephasing_mev is not None:
-        updates['Gamma_au'] = float(eV_to_au(gamma_dephasing_mev / 1000.0))
+    if gamma2_coherence_mev is not None and gamma_dephasing_mev is not None:
+        if float(gamma2_coherence_mev) != float(gamma_dephasing_mev):
+            raise ValueError(
+                'gamma2_coherence_mev and legacy gamma_dephasing_mev must agree when both are provided.'
+            )
+    gamma2_mev = gamma2_coherence_mev if gamma2_coherence_mev is not None else gamma_dephasing_mev
+    if gamma2_mev is not None:
+        updates['Gamma_au'] = float(eV_to_au(float(gamma2_mev) / 1000.0))
     return replace(params, **updates)
 
 
@@ -741,11 +1172,16 @@ def params_to_physical_dict(params: HybridSystemParams, orientation: str = 'long
         'c_nm': float(au_to_nm(params.c_au)),
         'a_nm': float(au_to_nm(params.a_au)),
         'R_nm': float(au_to_nm(params.R_au)),
+        'qd_radius_nm': float(au_to_nm(params.qd_radius_au)),
+        'surface_gap_nm': float(au_to_nm(params.axial_surface_gap_au)),
         'G': float(params.G),
         'eps_m': float(params.eps_m),
         'd_debye': float(dipole_au_to_debye(params.d_au)),
         'omega0_ev': float(au_to_eV(params.omega0_au)),
         'gamma_population_mev': float(au_to_eV(params.gamma_au) * 1000.0),
+        'gamma2_coherence_mev': float(au_to_eV(params.Gamma_au) * 1000.0),
+        'gamma_pure_dephasing_mev': float(au_to_eV(params.pure_dephasing_au) * 1000.0),
+        # Schema-1 compatibility alias: this has always been the total Gamma2.
         'gamma_dephasing_mev': float(au_to_eV(params.Gamma_au) * 1000.0),
         'orientation': orientation,
     }
@@ -920,12 +1356,13 @@ def build_rational_fit_artifact(args: argparse.Namespace) -> Path:
         c_nm=args.c_nm,
         a_nm=args.a_nm,
         r_nm=args.r_nm,
+        qd_radius_nm=args.qd_radius_nm,
         g_factor=args.g_factor,
         eps_m=args.eps_m,
         d_debye=args.d_debye,
         omega0_ev=args.omega0_ev,
         gamma_population_mev=args.gamma_population_mev,
-        gamma_dephasing_mev=args.gamma_dephasing_mev,
+        gamma2_coherence_mev=args.gamma2_coherence_mev,
     )
     fit_window_ev = (args.fit_min_ev, args.fit_max_ev)
     energy_plot = np.linspace(args.energy_min_ev, args.energy_max_ev, args.points)
@@ -936,6 +1373,8 @@ def build_rational_fit_artifact(args: argparse.Namespace) -> Path:
     rms_alpha_by_mode = []
     rms_inv_alpha_by_mode = []
     fit_cost_by_mode = []
+    fit_min_imag_alpha_by_mode = []
+    fit_passivity_grid_points_by_mode = []
     inv_alpha_table = None
     energy_table = params.material.energy_eV.copy()
 
@@ -959,6 +1398,8 @@ def build_rational_fit_artifact(args: argparse.Namespace) -> Path:
         rms_alpha_by_mode.append(model.fit.rms_alpha)
         rms_inv_alpha_by_mode.append(model.fit.rms_inv_alpha)
         fit_cost_by_mode.append(model.fit.cost)
+        fit_min_imag_alpha_by_mode.append(model.fit.min_imag_alpha_fit_window)
+        fit_passivity_grid_points_by_mode.append(model.fit.passivity_grid_points)
 
     dynamics_model = HybridQDPlasmonModel(
         params,
@@ -994,6 +1435,11 @@ def build_rational_fit_artifact(args: argparse.Namespace) -> Path:
             'points': int(args.points),
             'alpha_objective_weight': 1.0,
             'inv_alpha_objective_weight': 1.2,
+            'passivity_requirement': (
+                'Im(alpha_fit) >= -tol on a finite dense grid over fit_window_ev; '
+                'tol = 1e-9 * max(max(abs(Im(alpha_table))), 1)'
+            ),
+            'passivity_grid_points_by_mode': [int(x) for x in fit_passivity_grid_points_by_mode],
         },
         'dynamics': {
             'n_modes': int(args.dynamics_n_modes),
@@ -1001,11 +1447,24 @@ def build_rational_fit_artifact(args: argparse.Namespace) -> Path:
             'omega_l_ev': float(args.omega_l_ev),
             'tau_fs': float(args.tau_fs),
             'tau_kind': 'fwhm_intensity',
+            'linearized_ground_state_stability': {
+                'stable': bool(dynamics_model.linear_stability.stable),
+                'spectral_abscissa_au': float(dynamics_model.linear_stability.spectral_abscissa_au),
+                'tolerance_au': float(dynamics_model.linear_stability.tolerance_au),
+            },
         },
         'solver': {
             'method': args.method,
             'rtol': float(args.rtol),
             'atol': float(args.atol),
+        },
+        'observables': {
+            'sigma_energy_transfer_cm2': 'external-field work divided by incident fluence',
+            'work_from_incident_field_j': 'integral E_inc(t) * d(mu_total)/dt dt',
+            'legacy_aliases': {
+                'sigma_abs_cm2': 'sigma_energy_transfer_cm2',
+                'absorbed_energy_j': 'work_from_incident_field_j',
+            },
         },
     }
 
@@ -1021,6 +1480,12 @@ def build_rational_fit_artifact(args: argparse.Namespace) -> Path:
         rms_alpha_by_mode=np.asarray(rms_alpha_by_mode, dtype=float),
         rms_inv_alpha_by_mode=np.asarray(rms_inv_alpha_by_mode, dtype=float),
         fit_cost_by_mode=np.asarray(fit_cost_by_mode, dtype=float),
+        fit_min_imag_alpha_by_mode=np.asarray(fit_min_imag_alpha_by_mode, dtype=float),
+        fit_passivity_grid_points_by_mode=np.asarray(fit_passivity_grid_points_by_mode, dtype=np.int64),
+        linearized_ground_state_poles_au=dynamics_model.linear_stability.poles_au,
+        linearized_ground_state_spectral_abscissa_au=np.asarray(
+            dynamics_model.linear_stability.spectral_abscissa_au
+        ),
         t_au=result.t_au,
         t_fs=au_to_fs(result.t_au),
         e_field_au=pulse.field(result.t_au),
@@ -1029,10 +1494,17 @@ def build_rational_fit_artifact(args: argparse.Namespace) -> Path:
         mu_total_au=result.mu_total_au,
         mu_dot_total_au=result.mu_dot_total_au,
         y=result.y,
-        sigma_abs_cm2=np.asarray(result.sigma_abs_cm2),
-        absorbed_energy_j=np.asarray(result.absorbed_energy_j),
+        sigma_energy_transfer_cm2=np.asarray(result.sigma_energy_transfer_cm2),
+        work_from_incident_field_j=np.asarray(result.work_from_incident_field_j),
+        # Schema-1 compatibility aliases.
+        sigma_abs_cm2=np.asarray(result.sigma_energy_transfer_cm2),
+        absorbed_energy_j=np.asarray(result.work_from_incident_field_j),
         fluence_j_cm2=np.asarray(result.fluence_j_cm2),
         peak_intensity_w_cm2=np.asarray(result.peak_intensity_w_cm2),
+        max_bloch_radius=np.asarray(result.max_bloch_radius),
+        min_density_eigenvalue=np.asarray(result.min_density_eigenvalue),
+        solver_n_steps=np.asarray(result.diagnostics.n_steps),
+        solver_nfev=np.asarray(result.diagnostics.nfev),
     )
     write_json(run_dir / 'params.json', metadata)
 
@@ -1050,12 +1522,28 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--c-nm', type=float, default=None)
     parser.add_argument('--a-nm', type=float, default=None)
     parser.add_argument('--r-nm', type=float, default=None)
+    parser.add_argument('--qd-radius-nm', type=float, default=None)
     parser.add_argument('--G', dest='g_factor', type=float, default=None)
     parser.add_argument('--eps-m', type=float, default=None)
     parser.add_argument('--d-debye', type=float, default=None)
     parser.add_argument('--omega0-ev', type=float, default=None)
     parser.add_argument('--gamma-population-mev', type=float, default=None)
-    parser.add_argument('--gamma-dephasing-mev', type=float, default=None)
+    parser.add_argument(
+        '--gamma2-coherence-mev',
+        dest='gamma2_coherence_mev',
+        metavar='GAMMA2_MEV',
+        type=float,
+        default=None,
+        help='Total coherence HWHM hbar*Gamma2 in meV (not pure dephasing); requires Gamma2 >= gamma1/2.',
+    )
+    parser.add_argument(
+        '--gamma-dephasing-mev',
+        dest='gamma_dephasing_mev',
+        metavar='GAMMA2_MEV',
+        type=float,
+        default=None,
+        help='Deprecated alias for --gamma2-coherence-mev.',
+    )
     parser.add_argument('--modes', nargs='+', type=int, default=[1, 2, 3, 4])
     parser.add_argument('--fit-min-ev', type=float, default=0.8)
     parser.add_argument('--fit-max-ev', type=float, default=3.0)
@@ -1072,7 +1560,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--rtol', type=float, default=1e-8)
     parser.add_argument('--atol', type=float, default=1e-10)
     parser.add_argument('--no-show', action='store_true')
-    return parser.parse_args()
+    args = parser.parse_args()
+    if (
+        args.gamma2_coherence_mev is not None
+        and args.gamma_dephasing_mev is not None
+        and args.gamma2_coherence_mev != args.gamma_dephasing_mev
+    ):
+        parser.error('--gamma2-coherence-mev and --gamma-dephasing-mev must agree when both are supplied.')
+    if args.gamma2_coherence_mev is None:
+        args.gamma2_coherence_mev = args.gamma_dephasing_mev
+    return args
 
 
 if __name__ == '__main__':

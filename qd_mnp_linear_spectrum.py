@@ -1,13 +1,13 @@
-"""Слабополевой линейный спектр поглощения системы КТ-МНЧ.
+"""Слабополевой линейный спектр экстинкции системы КТ-МНЧ.
 
 Скрипт не интегрирует импульсную динамику. Он берет подогнанную поляризуемость
 МНЧ из ``qd_mnp_rational_fit.py`` и линейный отклик двухуровневой КТ,
-после чего считает спектральное сечение связанной системы, голой МНЧ и их
-отношение.
+после чего разделяет дипольные сечения экстинкции, рассеяния и материального
+поглощения связанной системы, голой МНЧ и изолированной КТ.
 
 Запускай его перед нелинейными расчетами, чтобы понять, есть ли около рабочей
 энергии Фано-провал. Главные настройки: ``--omega0-ev`` задает расстройку КТ,
-``--gamma-dephasing-mev`` - ширину линии, ``--d-debye`` - силу осциллятора,
+``--gamma2-coherence-mev`` - полную ширину когерентности, ``--d-debye`` - силу осциллятора,
 ``--G`` и ``--r-nm`` - диполь-дипольную связь, ``--eps-m`` - среду.
 """
 
@@ -16,18 +16,16 @@ from __future__ import annotations
 import argparse
 import csv
 from pathlib import Path
+import warnings
 
 import matplotlib.pyplot as plt
 import numpy as np
 
 from qd_mnp_rational_fit import (
-    AU_DIPOLE_C_M,
-    AU_FIELD_V_M,
-    AU_TIME_S,
-    C_SI,
     HybridQDPlasmonModel,
+    SCHEMA_VERSION,
+    dipole_cross_sections_cm2,
     eV_to_au,
-    epsilon_0,
 )
 from qd_mnp_params import make_params_with_overrides
 
@@ -41,11 +39,30 @@ def qd_linear_polarizability_au(omega_au: np.ndarray, d_au: float, omega0_au: fl
     return 2.0 * d_au**2 * omega0_au / (omega0_au**2 + (gamma2_au - 1j * omega_au) ** 2)
 
 
+def extinction_cross_section_cm2(alpha_au: np.ndarray, omega_au: np.ndarray, eps_m: float) -> np.ndarray:
+    """Dipole extinction k*Im(alpha_eff)/eps0 in cm^2."""
+    return dipole_cross_sections_cm2(alpha_au, omega_au, eps_m).extinction_cm2
+
+
+def scattering_cross_section_cm2(alpha_au: np.ndarray, omega_au: np.ndarray, eps_m: float) -> np.ndarray:
+    """Dipole scattering in cm^2 for alpha_eff=mu/(eps_m E_inc)."""
+    return dipole_cross_sections_cm2(alpha_au, omega_au, eps_m).scattering_cm2
+
+
+def absorption_cross_section_cm2(alpha_au: np.ndarray, omega_au: np.ndarray, eps_m: float) -> np.ndarray:
+    """Material absorption sigma_ext-sigma_sca; negative values are not clipped."""
+    return dipole_cross_sections_cm2(alpha_au, omega_au, eps_m).absorption_cm2
+
+
 def cross_section_cm2(alpha_au: np.ndarray, omega_au: np.ndarray, eps_m: float) -> np.ndarray:
-    alpha_si = alpha_au * (AU_DIPOLE_C_M / AU_FIELD_V_M)
-    omega_si = omega_au / AU_TIME_S
-    k_si = np.sqrt(eps_m) * omega_si / C_SI
-    return (k_si / epsilon_0) * alpha_si.imag * 1e4
+    """Schema-1 compatibility alias; the old function always returned extinction."""
+    warnings.warn(
+        "cross_section_cm2() was ambiguous and returned extinction; use "
+        "extinction_cross_section_cm2().",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return extinction_cross_section_cm2(alpha_au, omega_au, eps_m)
 
 
 def linear_coupled_alpha_au(
@@ -91,23 +108,31 @@ def compute_spectrum(
     c_nm: float | None,
     a_nm: float | None,
     r_nm: float | None,
+    qd_radius_nm: float | None = None,
     g_factor: float | None,
     eps_m: float | None,
     d_debye: float | None,
     omega0_ev: float | None,
     gamma_population_mev: float | None,
-    gamma_dephasing_mev: float | None,
+    gamma_dephasing_mev: float | None = None,
+    gamma2_coherence_mev: float | None = None,
 ) -> list[dict[str, float]]:
+    if points < 2:
+        raise ValueError("points must be at least 2.")
+    if not (np.isfinite(energy_min_ev) and np.isfinite(energy_max_ev) and 0.0 < energy_min_ev < energy_max_ev):
+        raise ValueError("Energy bounds must be finite, positive and strictly increasing.")
     params = make_params_with_overrides(
         c_nm=c_nm,
         a_nm=a_nm,
         r_nm=r_nm,
+        qd_radius_nm=qd_radius_nm,
         g_factor=g_factor,
         eps_m=eps_m,
         d_debye=d_debye,
         omega0_ev=omega0_ev,
         gamma_population_mev=gamma_population_mev,
         gamma_dephasing_mev=gamma_dephasing_mev,
+        gamma2_coherence_mev=gamma2_coherence_mev,
     )
     model = HybridQDPlasmonModel(
         params,
@@ -123,23 +148,51 @@ def compute_spectrum(
 
     energies = np.linspace(energy_min_ev, energy_max_ev, points)
     omega = eV_to_au(energies)
-    alpha_coupled, alpha_bare, alpha_qd, alpha_delta = linear_coupled_alpha_au(model, energies)
+    alpha_coupled, alpha_bare, alpha_qd, _ = linear_coupled_alpha_au(model, energies)
 
-    sigma_coupled = cross_section_cm2(alpha_coupled, omega, params.eps_m)
-    sigma_bare = cross_section_cm2(alpha_bare, omega, params.eps_m)
-    sigma_qd = cross_section_cm2(alpha_qd, omega, params.eps_m)
-    sigma_delta = cross_section_cm2(alpha_delta, omega, params.eps_m)
+    coupled = dipole_cross_sections_cm2(alpha_coupled, omega, params.eps_m)
+    bare = dipole_cross_sections_cm2(alpha_bare, omega, params.eps_m)
+    isolated_qd = dipole_cross_sections_cm2(alpha_qd, omega, params.eps_m)
 
     rows: list[dict[str, float]] = []
-    for e, sc, sb, sq, sd in zip(energies, sigma_coupled, sigma_bare, sigma_qd, sigma_delta):
+    for idx, e in enumerate(energies):
+        ext_c = float(coupled.extinction_cm2[idx])
+        sca_c = float(coupled.scattering_cm2[idx])
+        abs_c = float(coupled.absorption_cm2[idx])
+        ext_b = float(bare.extinction_cm2[idx])
+        sca_b = float(bare.scattering_cm2[idx])
+        abs_b = float(bare.absorption_cm2[idx])
+        ext_q = float(isolated_qd.extinction_cm2[idx])
+        sca_q = float(isolated_qd.scattering_cm2[idx])
+        abs_q = float(isolated_qd.absorption_cm2[idx])
+        ratio_ext = float(ext_c / ext_b) if ext_b != 0.0 else np.nan
         rows.append(
             {
+                "schema_version": SCHEMA_VERSION,
                 "energy_ev": float(e),
-                "sigma_coupled_cm2": float(sc),
-                "sigma_bare_mnp_cm2": float(sb),
-                "sigma_isolated_qd_cm2": float(sq),
-                "sigma_coupled_minus_bare_cm2": float(sd),
-                "ratio_coupled_to_bare": float(sc / sb) if sb != 0.0 else np.nan,
+                "linearized_ground_state_stable": bool(model.linear_stability.stable),
+                "linearized_ground_state_spectral_abscissa_au": float(
+                    model.linear_stability.spectral_abscissa_au
+                ),
+                "sigma_ext_coupled_cm2": ext_c,
+                "sigma_sca_coupled_cm2": sca_c,
+                "sigma_abs_coupled_cm2": abs_c,
+                "sigma_ext_bare_mnp_cm2": ext_b,
+                "sigma_sca_bare_mnp_cm2": sca_b,
+                "sigma_abs_bare_mnp_cm2": abs_b,
+                "sigma_ext_isolated_qd_cm2": ext_q,
+                "sigma_sca_isolated_qd_cm2": sca_q,
+                "sigma_abs_isolated_qd_cm2": abs_q,
+                "delta_sigma_ext_cm2": ext_c - ext_b,
+                "delta_sigma_sca_cm2": sca_c - sca_b,
+                "delta_sigma_abs_cm2": abs_c - abs_b,
+                "ratio_ext_coupled_to_bare": ratio_ext,
+                # Schema-1 compatibility aliases: these all meant extinction.
+                "sigma_coupled_cm2": ext_c,
+                "sigma_bare_mnp_cm2": ext_b,
+                "sigma_isolated_qd_cm2": ext_q,
+                "sigma_coupled_minus_bare_cm2": ext_c - ext_b,
+                "ratio_coupled_to_bare": ratio_ext,
             }
         )
     return rows
@@ -155,15 +208,15 @@ def write_csv(rows: list[dict[str, float]], path: Path) -> None:
 
 def plot_spectrum(rows: list[dict[str, float]], output_path: Path | None, show: bool) -> None:
     energy = np.array([row["energy_ev"] for row in rows])
-    coupled = np.array([row["sigma_coupled_cm2"] for row in rows])
-    bare = np.array([row["sigma_bare_mnp_cm2"] for row in rows])
-    delta = np.array([row["sigma_coupled_minus_bare_cm2"] for row in rows])
-    ratio = np.array([row["ratio_coupled_to_bare"] for row in rows])
+    coupled = np.array([row["sigma_ext_coupled_cm2"] for row in rows])
+    bare = np.array([row["sigma_ext_bare_mnp_cm2"] for row in rows])
+    delta = np.array([row["delta_sigma_ext_cm2"] for row in rows])
+    ratio = np.array([row["ratio_ext_coupled_to_bare"] for row in rows])
 
     fig, axes = plt.subplots(2, 1, figsize=(9, 8), sharex=True)
     axes[0].plot(energy, bare, lw=2.0, label="bare MNP")
     axes[0].plot(energy, coupled, lw=2.0, label="coupled QD+MNP")
-    axes[0].set_ylabel(r"$\sigma_{abs}(\omega)$, cm$^2$")
+    axes[0].set_ylabel(r"$\sigma_{ext}(\omega)$, cm$^2$")
     axes[0].legend()
 
     axes[1].axhline(0.0, color="0.25", lw=1.2)
@@ -194,31 +247,41 @@ def plot_spectrum(rows: list[dict[str, float]], output_path: Path | None, show: 
 
 def print_diagnostics(rows: list[dict[str, float]], target_ev: float) -> None:
     closest = min(rows, key=lambda row: abs(row["energy_ev"] - target_ev))
-    minimum = min(rows, key=lambda row: row["ratio_coupled_to_bare"])
-    maximum = max(rows, key=lambda row: row["ratio_coupled_to_bare"])
+    minimum = min(rows, key=lambda row: row["ratio_ext_coupled_to_bare"])
+    maximum = max(rows, key=lambda row: row["ratio_ext_coupled_to_bare"])
 
     print("\n=== Linear-spectrum diagnostics ===")
     print(
         f"At {closest['energy_ev']:.6f} eV: "
-        f"coupled={closest['sigma_coupled_cm2']:.6e} cm^2, "
-        f"bare={closest['sigma_bare_mnp_cm2']:.6e} cm^2, "
-        f"ratio={closest['ratio_coupled_to_bare']:.6g}, "
-        f"delta={closest['sigma_coupled_minus_bare_cm2']:.6e} cm^2"
+        f"ext_coupled={closest['sigma_ext_coupled_cm2']:.6e} cm^2, "
+        f"ext_bare={closest['sigma_ext_bare_mnp_cm2']:.6e} cm^2, "
+        f"ratio={closest['ratio_ext_coupled_to_bare']:.6g}, "
+        f"delta_ext={closest['delta_sigma_ext_cm2']:.6e} cm^2"
     )
     print(
         f"Deepest relative dip: {minimum['energy_ev']:.6f} eV, "
-        f"ratio={minimum['ratio_coupled_to_bare']:.6g}, "
-        f"delta={minimum['sigma_coupled_minus_bare_cm2']:.6e} cm^2"
+        f"ratio={minimum['ratio_ext_coupled_to_bare']:.6g}, "
+        f"delta_ext={minimum['delta_sigma_ext_cm2']:.6e} cm^2"
     )
     print(
         f"Largest relative enhancement: {maximum['energy_ev']:.6f} eV, "
-        f"ratio={maximum['ratio_coupled_to_bare']:.6g}, "
-        f"delta={maximum['sigma_coupled_minus_bare_cm2']:.6e} cm^2"
+        f"ratio={maximum['ratio_ext_coupled_to_bare']:.6g}, "
+        f"delta_ext={maximum['delta_sigma_ext_cm2']:.6e} cm^2"
     )
+
+    min_abs = min(row["sigma_abs_coupled_cm2"] for row in rows)
+    if min_abs < 0.0:
+        print(
+            "WARNING: sigma_abs=sigma_ext-sigma_sca becomes negative "
+            f"(minimum {min_abs:.6e} cm^2). The effective dipole response fails the "
+            "passive optical-theorem partition under these assumptions; a missing "
+            "radiation-reaction correction or fit error must be excluded before "
+            "material absorption is interpreted quantitatively."
+        )
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Weak-field linear QD-MNP absorption spectrum.")
+    parser = argparse.ArgumentParser(description="Weak-field linear QD-MNP dipole extinction spectrum.")
     parser.add_argument("--energy-min-ev", type=float, default=1.6)
     parser.add_argument("--energy-max-ev", type=float, default=2.8)
     parser.add_argument("--points", type=int, default=1000)
@@ -231,17 +294,42 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--c-nm", type=float, default=None)
     parser.add_argument("--a-nm", type=float, default=None)
     parser.add_argument("--r-nm", type=float, default=None)
+    parser.add_argument("--qd-radius-nm", type=float, default=None)
     parser.add_argument("--G", dest="g_factor", type=float, default=None)
     parser.add_argument("--eps-m", type=float, default=None)
     parser.add_argument("--d-debye", type=float, default=None)
     parser.add_argument("--omega0-ev", type=float, default=None)
     parser.add_argument("--gamma-population-mev", type=float, default=None)
-    parser.add_argument("--gamma-dephasing-mev", type=float, default=None)
+    parser.add_argument(
+        "--gamma2-coherence-mev",
+        dest="gamma2_coherence_mev",
+        metavar="GAMMA2_MEV",
+        type=float,
+        default=None,
+        help="Total coherence HWHM hbar*Gamma2 in meV; requires Gamma2 >= gamma1/2.",
+    )
+    parser.add_argument(
+        "--gamma-dephasing-mev",
+        dest="gamma_dephasing_mev",
+        metavar="GAMMA2_MEV",
+        type=float,
+        default=None,
+        help="Deprecated alias for --gamma2-coherence-mev.",
+    )
     parser.add_argument("--csv", type=Path, default=Path("results/linear_spectrum.csv"))
     parser.add_argument("--figure", type=Path, default=Path("results/linear_spectrum.png"))
     parser.add_argument("--no-show", action="store_true")
     parser.add_argument("--no-save-figure", action="store_true")
-    return parser.parse_args()
+    args = parser.parse_args()
+    if (
+        args.gamma2_coherence_mev is not None
+        and args.gamma_dephasing_mev is not None
+        and args.gamma2_coherence_mev != args.gamma_dephasing_mev
+    ):
+        parser.error("--gamma2-coherence-mev and --gamma-dephasing-mev must agree when both are supplied.")
+    if args.gamma2_coherence_mev is None:
+        args.gamma2_coherence_mev = args.gamma_dephasing_mev
+    return args
 
 
 def main() -> None:
@@ -257,12 +345,13 @@ def main() -> None:
         c_nm=args.c_nm,
         a_nm=args.a_nm,
         r_nm=args.r_nm,
+        qd_radius_nm=args.qd_radius_nm,
         g_factor=args.g_factor,
         eps_m=args.eps_m,
         d_debye=args.d_debye,
         omega0_ev=args.omega0_ev,
         gamma_population_mev=args.gamma_population_mev,
-        gamma_dephasing_mev=args.gamma_dephasing_mev,
+        gamma2_coherence_mev=args.gamma2_coherence_mev,
     )
     write_csv(rows, args.csv)
     print(f"Wrote {len(rows)} rows to {args.csv}")

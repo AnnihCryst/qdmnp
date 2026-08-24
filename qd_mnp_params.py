@@ -29,20 +29,23 @@ def make_params_with_overrides(
     c_nm: float | None = None,
     a_nm: float | None = None,
     r_nm: float | None = None,
+    qd_radius_nm: float | None = None,
     g_factor: float | None = None,
     eps_m: float | None = None,
     d_debye: float | None = None,
     omega0_ev: float | None = None,
     gamma_population_mev: float | None = None,
+    gamma2_coherence_mev: float | None = None,
     gamma_dephasing_mev: float | None = None,
 ):
     """Вернуть параметры модели с необязательной заменой физических величин.
 
     Значения None оставляют параметры по умолчанию. c/a - полуоси эллипсоида
-    МНЧ, R - расстояние между центрами КТ и МНЧ, G - геометрическая или
+    МНЧ, R - расстояние между центрами КТ и МНЧ, qd_radius - радиус КТ для
+    проверки поверхностного зазора, G - геометрическая или
     эффективная сила диполь-дипольной связи, eps_m - проницаемость среды,
     d - переходный диполь КТ, omega0 - энергия перехода, gamma - релаксация
-    населенности, Gamma - дефазировка когерентности.
+    населенности, Gamma - полная скорость затухания когерентности Gamma2.
     """
     params = make_default_params()
     updates = {}
@@ -52,6 +55,8 @@ def make_params_with_overrides(
         updates["a_au"] = float(nm_to_au(a_nm))
     if r_nm is not None:
         updates["R_au"] = float(nm_to_au(r_nm))
+    if qd_radius_nm is not None:
+        updates["qd_radius_au"] = float(nm_to_au(qd_radius_nm))
     if g_factor is not None:
         updates["G"] = float(g_factor)
     if eps_m is not None:
@@ -62,6 +67,12 @@ def make_params_with_overrides(
         updates["omega0_au"] = float(eV_to_au(omega0_ev))
     if gamma_population_mev is not None:
         updates["gamma_au"] = float(eV_to_au(gamma_population_mev / 1000.0))
-    if gamma_dephasing_mev is not None:
-        updates["Gamma_au"] = float(eV_to_au(gamma_dephasing_mev / 1000.0))
+    if gamma2_coherence_mev is not None and gamma_dephasing_mev is not None:
+        if float(gamma2_coherence_mev) != float(gamma_dephasing_mev):
+            raise ValueError(
+                "gamma2_coherence_mev and legacy gamma_dephasing_mev must agree when both are provided."
+            )
+    gamma2_mev = gamma2_coherence_mev if gamma2_coherence_mev is not None else gamma_dephasing_mev
+    if gamma2_mev is not None:
+        updates["Gamma_au"] = float(eV_to_au(float(gamma2_mev) / 1000.0))
     return replace(params, **updates)

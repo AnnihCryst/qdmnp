@@ -1,0 +1,165 @@
+"""Physical-domain validation for relaxation rates and particle geometry."""
+
+import unittest
+from unittest.mock import patch
+
+import numpy as np
+
+from qd_mnp_rational_fit import (
+    HybridQDPlasmonModel,
+    HybridSystemParams,
+    RationalLorentzFit,
+    au_to_nm,
+    make_default_params,
+    nm_to_au,
+)
+from qd_mnp_params import make_params_with_overrides
+
+
+def _dummy_fit() -> RationalLorentzFit:
+    return RationalLorentzFit(
+        alpha_inf=0.0,
+        strengths_au2=np.array([1.0e-4]),
+        omega_modes_au=np.array([0.08]),
+        gamma_modes_au=np.array([0.01]),
+        energies_used_eV=np.array([2.0]),
+        alpha_used=np.array([1.0j]),
+        rms_alpha=0.0,
+        rms_inv_alpha=0.0,
+        cost=0.0,
+    )
+
+
+def _construct_model_without_fitting(params: HybridSystemParams) -> HybridQDPlasmonModel:
+    with patch.object(HybridQDPlasmonModel, "_fit_rational_alpha", return_value=_dummy_fit()):
+        return HybridQDPlasmonModel(params, n_modes=1, verbose=False)
+
+
+class ParameterValidationTests(unittest.TestCase):
+    def test_default_fixture_has_one_nanometre_surface_gap(self) -> None:
+        params = make_default_params()
+        try:
+            qd_radius_au = params.qd_radius_au
+        except AttributeError as exc:
+            self.fail(f"HybridSystemParams.qd_radius_au is missing: {exc}")
+
+        gap_nm = float(au_to_nm(params.R_au - params.c_au - qd_radius_au))
+        self.assertAlmostEqual(float(au_to_nm(params.R_au)), 18.0, places=12)
+        self.assertAlmostEqual(float(au_to_nm(qd_radius_au)), 2.0, places=12)
+        self.assertAlmostEqual(gap_nm, 1.0, places=12)
+
+    def test_legacy_parameter_construction_defaults_to_point_qd(self) -> None:
+        """Adding qd_radius_au must not break callers using the old signature."""
+        base = make_default_params()
+        params = HybridSystemParams(
+            c_au=base.c_au,
+            a_au=base.a_au,
+            R_au=base.R_au,
+            G=base.G,
+            eps_m=base.eps_m,
+            d_au=base.d_au,
+            omega0_au=base.omega0_au,
+            gamma_au=base.gamma_au,
+            Gamma_au=base.Gamma_au,
+            material=base.material,
+        )
+        try:
+            qd_radius_au = params.qd_radius_au
+        except AttributeError as exc:
+            self.fail(f"Backward-compatible qd_radius_au default is missing: {exc}")
+        self.assertEqual(qd_radius_au, 0.0)
+
+    def test_legacy_positional_material_argument_is_preserved(self) -> None:
+        base = make_default_params()
+        params = HybridSystemParams(
+            base.c_au,
+            base.a_au,
+            base.R_au,
+            base.G,
+            base.eps_m,
+            base.d_au,
+            base.omega0_au,
+            base.gamma_au,
+            base.Gamma_au,
+            base.material,
+        )
+        self.assertIs(params.material, base.material)
+        self.assertEqual(params.qd_radius_au, 0.0)
+
+    def test_model_rejects_nonpositive_surface_gap(self) -> None:
+        base = make_default_params()
+        try:
+            overlapping = HybridSystemParams(
+                c_au=base.c_au,
+                a_au=base.a_au,
+                R_au=base.c_au + float(nm_to_au(1.0)),
+                G=base.G,
+                eps_m=base.eps_m,
+                d_au=base.d_au,
+                omega0_au=base.omega0_au,
+                gamma_au=base.gamma_au,
+                Gamma_au=base.Gamma_au,
+                material=base.material,
+                qd_radius_au=float(nm_to_au(2.0)),
+            )
+        except TypeError as exc:
+            self.fail(f"Finite-QD geometry API is missing: {exc}")
+
+        with self.assertRaisesRegex(ValueError, "gap|R.*c|overlap"):
+            _construct_model_without_fitting(overlapping)
+
+    def test_model_accepts_strictly_positive_surface_gap(self) -> None:
+        params = make_default_params()
+        model = _construct_model_without_fitting(params)
+        self.assertIs(model.params, params)
+
+    def test_qd_radius_override_reaches_canonical_parameters(self) -> None:
+        params = make_params_with_overrides(qd_radius_nm=3.0, r_nm=19.5)
+        self.assertAlmostEqual(float(au_to_nm(params.qd_radius_au)), 3.0, places=12)
+        self.assertAlmostEqual(float(au_to_nm(params.axial_surface_gap_au)), 1.5, places=12)
+        _construct_model_without_fitting(params)
+
+    def test_model_rejects_gamma2_below_half_population_decay(self) -> None:
+        base = make_default_params()
+        kwargs = dict(
+            c_au=base.c_au,
+            a_au=base.a_au,
+            R_au=base.R_au,
+            G=base.G,
+            eps_m=base.eps_m,
+            d_au=base.d_au,
+            omega0_au=base.omega0_au,
+            gamma_au=2.0e-4,
+            Gamma_au=np.nextafter(1.0e-4, 0.0),
+            material=base.material,
+        )
+        if hasattr(base, "qd_radius_au"):
+            kwargs["qd_radius_au"] = base.qd_radius_au
+        invalid = HybridSystemParams(**kwargs)
+
+        with self.assertRaisesRegex(ValueError, "Gamma|gamma|dephas|coherence"):
+            _construct_model_without_fitting(invalid)
+
+    def test_gamma2_equal_to_half_population_decay_is_allowed(self) -> None:
+        base = make_default_params()
+        kwargs = dict(
+            c_au=base.c_au,
+            a_au=base.a_au,
+            R_au=base.R_au,
+            G=base.G,
+            eps_m=base.eps_m,
+            d_au=base.d_au,
+            omega0_au=base.omega0_au,
+            gamma_au=2.0e-4,
+            Gamma_au=1.0e-4,
+            material=base.material,
+        )
+        if hasattr(base, "qd_radius_au"):
+            kwargs["qd_radius_au"] = base.qd_radius_au
+        boundary = HybridSystemParams(**kwargs)
+        model = _construct_model_without_fitting(boundary)
+        self.assertIs(model.params, boundary)
+
+
+if __name__ == "__main__":
+    unittest.main()

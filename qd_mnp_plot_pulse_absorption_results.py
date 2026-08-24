@@ -1,10 +1,11 @@
-"""Восстановление графиков pulse-sweep расчета из data.npz и params.json."""
+"""Восстановление графиков pulse-sweep отклика из data.npz и params.json."""
 
 from __future__ import annotations
 
 import argparse
 import json
 from pathlib import Path
+import warnings
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -23,13 +24,16 @@ X_LABELS = {
 }
 
 
-def plot_absorption_sweep(data, x_axis: str, output_path: Path, show: bool) -> None:
+def plot_pulse_response_sweep(data, x_axis: str, output_path: Path, show: bool) -> None:
     x_key = X_KEYS[x_axis]
     tau_grid = data["tau_fs_grid"]
     x_grid = data[x_key]
-    sigma_energy = data["sigma_energy_cm2"]
-    sigma_spectral = data["sigma_spectral_cm2"]
-    sigma_bare = float(np.ravel(data["sigma_bare_mnp_cm2"])[0])
+    sigma_energy_key = "sigma_energy_transfer_cm2" if "sigma_energy_transfer_cm2" in data.files else "sigma_energy_cm2"
+    sigma_spectral_key = "sigma_spectral_ext_cm2" if "sigma_spectral_ext_cm2" in data.files else "sigma_spectral_cm2"
+    sigma_bare_key = "sigma_bare_mnp_ext_cm2" if "sigma_bare_mnp_ext_cm2" in data.files else "sigma_bare_mnp_cm2"
+    sigma_energy = data[sigma_energy_key]
+    sigma_spectral = data[sigma_spectral_key]
+    sigma_bare = float(np.ravel(data[sigma_bare_key])[0])
 
     fig, axes = plt.subplots(2, 1, figsize=(9, 8), sharex=True)
     for tau_index, tau_fs in enumerate(tau_grid[:, 0]):
@@ -39,8 +43,8 @@ def plot_absorption_sweep(data, x_axis: str, output_path: Path, show: bool) -> N
         axes[0].plot(x, sigma_energy[tau_index, order], marker="o", ms=4, lw=1.8, label=label)
         axes[1].plot(x, sigma_spectral[tau_index, order], marker="s", ms=4, lw=1.8, label=label)
 
-    axes[0].set_ylabel(r"$\sigma_E = W_{abs}/\mathcal{F}$, cm$^2$")
-    axes[1].set_ylabel(r"$\sigma_{abs}(\omega_L)$, cm$^2$")
+    axes[0].set_ylabel(r"$\sigma_E = W_{ext}/\mathcal{F}$, cm$^2$")
+    axes[1].set_ylabel(r"$\sigma_{ext,eff}(\omega_L)$, cm$^2$")
     axes[1].set_xlabel(X_LABELS[x_axis])
     axes[1].axhline(sigma_bare, color="0.25", lw=1.4, ls=":", label="bare MNP")
     if x_axis in {"fluence", "intensity"}:
@@ -55,6 +59,16 @@ def plot_absorption_sweep(data, x_axis: str, output_path: Path, show: bool) -> N
         plt.show()
     else:
         plt.close(fig)
+
+
+def plot_absorption_sweep(data, x_axis: str, output_path: Path, show: bool) -> None:
+    """Compatibility alias for the historically named plotting helper."""
+    warnings.warn(
+        "plot_absorption_sweep() was mislabeled; use plot_pulse_response_sweep().",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    plot_pulse_response_sweep(data, x_axis=x_axis, output_path=output_path, show=show)
 
 
 def _trace_slice(data, trace_index: int) -> slice:
@@ -100,7 +114,7 @@ def plot_trace(data, trace_index: int, output_path: Path, show: bool) -> None:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Rebuild pulse absorption plots from saved NPZ/JSON artifacts.")
+    parser = argparse.ArgumentParser(description="Rebuild pulse-response plots from saved NPZ/JSON artifacts.")
     parser.add_argument("--run-dir", type=Path, required=True)
     parser.add_argument("--x-axis", choices=["auto", "fluence", "intensity", "pulse_area"], default="auto")
     parser.add_argument("--output-dir", type=Path, default=None)
@@ -120,7 +134,7 @@ def main() -> None:
     x_axis = metadata.get("sweep", {}).get("x_axis", "fluence") if args.x_axis == "auto" else args.x_axis
 
     with np.load(run_dir / "data.npz") as data:
-        plot_absorption_sweep(
+        plot_pulse_response_sweep(
             data,
             x_axis=x_axis,
             output_path=output_dir / "absorption_sweep.png",
@@ -134,7 +148,7 @@ def main() -> None:
                 show=not args.no_show,
             )
 
-    print(f"Rebuilt pulse absorption plots in {output_dir}")
+    print(f"Rebuilt pulse-response plots in {output_dir}")
 
 
 if __name__ == "__main__":
