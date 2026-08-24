@@ -2,6 +2,7 @@
 
 from dataclasses import replace
 import unittest
+from unittest.mock import patch
 
 import numpy as np
 
@@ -20,7 +21,7 @@ class SolverDiagnosticsTests(unittest.TestCase):
     def _solve(self, *, rtol: float = 1.0e-8, atol: float = 1.0e-10):
         model = make_zero_mode_model()
         pulse = make_test_pulse()
-        t_span = (-3.0 * pulse.sigma_t_au, 5.0 * pulse.sigma_t_au)
+        t_span = (-8.0 * pulse.sigma_t_au, 8.0 * pulse.sigma_t_au)
         result = model.solve(
             pulse,
             method="DOP853",
@@ -80,6 +81,16 @@ class SolverDiagnosticsTests(unittest.TestCase):
         tight_final = tight.y[2 * model_tight.n_modes :, -1]
         np.testing.assert_allclose(loose_final, tight_final, rtol=2.0e-6, atol=2.0e-8)
 
+    def test_solver_rejects_a_time_window_that_truncates_the_pulse(self) -> None:
+        model = make_zero_mode_model()
+        pulse = make_test_pulse()
+        with self.assertRaisesRegex(ValueError, "truncates the incident pulse"):
+            model.solve(
+                pulse,
+                method="DOP853",
+                t_span_au=(-3.0 * pulse.sigma_t_au, 5.0 * pulse.sigma_t_au),
+            )
+
     def test_solver_rejects_material_bloch_ball_violation(self) -> None:
         """The post-solve guard must catch more than floating-point overshoot.
 
@@ -113,6 +124,22 @@ class SolverDiagnosticsTests(unittest.TestCase):
                 atol=1.0e-11,
                 t_span_au=(-5.0 * pulse.sigma_t_au, 5.0 * pulse.sigma_t_au),
             )
+
+    def test_completed_passive_run_rejects_materially_negative_external_work(self) -> None:
+        model = make_zero_mode_model()
+        pulse = make_test_pulse()
+        with patch(
+            "qd_mnp_rational_fit.np.trapezoid",
+            side_effect=[-1.0, 1.0],
+        ):
+            with self.assertRaisesRegex(RuntimeError, "negative.*external-field work"):
+                model.solve(
+                    pulse,
+                    method="DOP853",
+                    rtol=1.0e-8,
+                    atol=1.0e-10,
+                    t_span_au=(-8.0 * pulse.sigma_t_au, 8.0 * pulse.sigma_t_au),
+                )
 
 
 if __name__ == "__main__":

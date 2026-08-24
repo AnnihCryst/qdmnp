@@ -20,7 +20,7 @@ X_KEYS = {
 X_LABELS = {
     "fluence": r"Fluence, J/cm$^2$",
     "intensity": r"Peak intensity, W/cm$^2$",
-    "pulse_area": r"Isolated-QD pulse area",
+    "pulse_area": r"Isolated-QD envelope/RWA area (calibration)",
 }
 
 
@@ -29,8 +29,20 @@ def plot_pulse_response_sweep(data, x_axis: str, output_path: Path, show: bool) 
     tau_grid = data["tau_fs_grid"]
     x_grid = data[x_key]
     sigma_energy_key = "sigma_energy_transfer_cm2" if "sigma_energy_transfer_cm2" in data.files else "sigma_energy_cm2"
-    sigma_spectral_key = "sigma_spectral_ext_cm2" if "sigma_spectral_ext_cm2" in data.files else "sigma_spectral_cm2"
-    sigma_bare_key = "sigma_bare_mnp_ext_cm2" if "sigma_bare_mnp_ext_cm2" in data.files else "sigma_bare_mnp_cm2"
+    sigma_spectral_key = (
+        "sigma_spectral_qs_work_loss_cm2"
+        if "sigma_spectral_qs_work_loss_cm2" in data.files
+        else "sigma_spectral_ext_cm2"
+        if "sigma_spectral_ext_cm2" in data.files
+        else "sigma_spectral_cm2"
+    )
+    sigma_bare_key = (
+        "sigma_bare_mnp_qs_work_loss_cm2"
+        if "sigma_bare_mnp_qs_work_loss_cm2" in data.files
+        else "sigma_bare_mnp_ext_cm2"
+        if "sigma_bare_mnp_ext_cm2" in data.files
+        else "sigma_bare_mnp_cm2"
+    )
     sigma_energy = data[sigma_energy_key]
     sigma_spectral = data[sigma_spectral_key]
     sigma_bare = float(np.ravel(data[sigma_bare_key])[0])
@@ -43,8 +55,8 @@ def plot_pulse_response_sweep(data, x_axis: str, output_path: Path, show: bool) 
         axes[0].plot(x, sigma_energy[tau_index, order], marker="o", ms=4, lw=1.8, label=label)
         axes[1].plot(x, sigma_spectral[tau_index, order], marker="s", ms=4, lw=1.8, label=label)
 
-    axes[0].set_ylabel(r"$\sigma_E = W_{ext}/\mathcal{F}$, cm$^2$")
-    axes[1].set_ylabel(r"$\sigma_{ext,eff}(\omega_L)$, cm$^2$")
+    axes[0].set_ylabel(r"$\sigma_E = W_{inc}/\mathcal{F}$, cm$^2$")
+    axes[1].set_ylabel(r"$k\,\mathrm{Im}\,\alpha_{QS}/\epsilon_0$, cm$^2$")
     axes[1].set_xlabel(X_LABELS[x_axis])
     axes[1].axhline(sigma_bare, color="0.25", lw=1.4, ls=":", label="bare MNP")
     if x_axis in {"fluence", "intensity"}:
@@ -137,7 +149,7 @@ def main() -> None:
         plot_pulse_response_sweep(
             data,
             x_axis=x_axis,
-            output_path=output_dir / "absorption_sweep.png",
+            output_path=output_dir / "pulse_response_sweep.png",
             show=not args.no_show,
         )
         if args.trace_index is not None:

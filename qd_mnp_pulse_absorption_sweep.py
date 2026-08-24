@@ -1,8 +1,9 @@
 """Нелинейный импульсный расчет энергетического и спектрального отклика КТ-МНЧ.
 Скрипт решает временную задачу из ``qd_mnp_rational_fit.py`` для сетки
 амплитуд и длительностей лазерного импульса. На выходе он сохраняет CSV и
-график с работой внешнего поля на диполе, делённой на fluence, и эффективной
-спектральной экстинкцией, полученной из Фурье-компоненты временного отклика.
+график с работой внешнего поля на диполе, делённой на fluence, и формальной
+квазистатической оценкой ``k Im(alpha_eff)/eps0``, полученной из
+Фурье-компоненты временного отклика на выбранной частоте.
 Работать с ним лучше после проверки слабополевого спектра в
 ``qd_mnp_linear_spectrum.py``. Физические параметры настраиваются аргументами
 ``--omega0-ev``, ``--gamma2-coherence-mev``, ``--d-debye``, ``--G``,
@@ -29,11 +30,12 @@ from qd_mnp_rational_fit import (
     HybridQDPlasmonModel,
     SCHEMA_VERSION,
     au_to_fs,
-    dipole_cross_sections_cm2,
+    quasistatic_dipole_cross_section_estimates_cm2,
     eV_to_au,
     field_si_to_au,
     fs_to_au,
     params_to_physical_dict,
+    response_tail_ratio,
     timestamped_run_dir,
     write_json,
 )
@@ -45,38 +47,82 @@ TAIL_WINDOW_FRACTION = 0.05
 MAX_AUTO_TAIL_EXTENSIONS = 3
 
 
+def _enforce_spectral_leakage(
+    *,
+    leakage: float,
+    maximum: float,
+    policy: str,
+    message: str,
+) -> None:
+    """Apply the user-selected verdict to an already computed leakage."""
+
+    if leakage <= maximum:
+        return
+    if policy == "raise":
+        raise ValueError(message)
+    if policy == "warn":
+        warnings.warn(message, RuntimeWarning, stacklevel=3)
+
+
 def spectral_cross_sections_cm2(
     result,
     pulse: GaussianPulse,
     eps_m: float,
     omega_eval_au: float | None = None,
 ) -> DipoleCrossSections:
-    """Fourier-domain dipole cross sections at one angular frequency.
+    """Fourier-domain strict-QS response estimates at one frequency.
 
-    This follows the pulsed-response convention used by Shah et al.:
+    The native model uses
 
-        alpha(omega) = int exp(-i omega t) mu(t) dt
-                       / [eps_m int exp(-i omega t) E(t) dt]
-        sigma_ext(omega) = k / eps0 * Im alpha(omega)
+        alpha(omega) = int exp(+i omega t) mu(t) dt
+                       / [eps_m int exp(+i omega t) E(t) dt]
+        sigma_qs_work(omega) = k / eps0 * Im alpha(omega)
 
     The solver stores real fields written as cos(omega t). With this real-time
     convention the positive-frequency response compatible with p = alpha E is
     selected by exp(+i omega t); using exp(-i omega t) would return the complex
     conjugate and reverse the sign of Im alpha. The time integrals are evaluated
     in atomic units. The ratio is an atomic polarizability and is converted to
-    SI before applying the cross-section formula.
+    SI before applying the work-loss formula.  In a nonlinear pulse this
+    Fourier ratio is amplitude-dependent and the Rayleigh term at one selected
+    frequency is only a coherent carrier-frequency estimate, not the total
+    radiated energy over generated harmonics.
     """
     omega_au = pulse.omegaL_au if omega_eval_au is None else float(omega_eval_au)
-    phase = np.exp(1j * omega_au * result.t_au)
+    alpha_au = spectral_effective_alpha_au(
+        result,
+        pulse,
+        eps_m,
+        omega_eval_au=omega_au,
+    )
+    if not np.isfinite(alpha_au):
+        nan = np.asarray(np.nan)
+        return DipoleCrossSections(nan, nan, nan)
+    return quasistatic_dipole_cross_section_estimates_cm2(
+        alpha_au,
+        omega_au,
+        eps_m,
+    )
 
+
+def spectral_effective_alpha_au(
+    result,
+    pulse: GaussianPulse,
+    eps_m: float,
+    omega_eval_au: float | None = None,
+) -> complex:
+    """Return Fourier alpha_eff=mu_total/(eps_m*E_inc) for regression tests."""
+    if not np.isfinite(eps_m) or eps_m <= 0.0:
+        raise ValueError("eps_m must be finite and positive.")
+    omega_au = pulse.omegaL_au if omega_eval_au is None else float(omega_eval_au)
+    if not np.isfinite(omega_au) or omega_au < 0.0:
+        raise ValueError("omega_eval_au must be finite and non-negative.")
+    phase = np.exp(1j * omega_au * result.t_au)
     mu_omega_au = np.trapezoid(result.mu_total_au * phase, result.t_au)
     e_omega_au = np.trapezoid(pulse.field(result.t_au) * phase, result.t_au)
     if abs(e_omega_au) < 1e-30:
-        nan = np.asarray(np.nan)
-        return DipoleCrossSections(nan, nan, nan)
-
-    alpha_au = mu_omega_au / (eps_m * e_omega_au)
-    return dipole_cross_sections_cm2(alpha_au, omega_au, eps_m)
+        return complex(np.nan, np.nan)
+    return complex(mu_omega_au / (eps_m * e_omega_au))
 
 
 def spectral_absorption_cross_section_cm2(
@@ -88,17 +134,33 @@ def spectral_absorption_cross_section_cm2(
     """Schema-1 compatibility alias; the old function returned extinction."""
     warnings.warn(
         "spectral_absorption_cross_section_cm2() is a deprecated schema-1 name; "
-        "use spectral_cross_sections_cm2(...).extinction_cm2 instead.",
+        "use spectral_cross_sections_cm2(...).quasistatic_work_loss_cm2 instead.",
         DeprecationWarning,
         stacklevel=2,
     )
     sections = spectral_cross_sections_cm2(result, pulse, eps_m, omega_eval_au)
-    return float(sections.extinction_cm2)
+    return float(sections.quasistatic_work_loss_cm2)
 
 
-def isolated_qd_pulse_area(pulse: GaussianPulse, d_au: float) -> float:
-    """Envelope pulse area for an isolated resonant two-level QD."""
-    return float(d_au * pulse.E0_au * np.sqrt(2.0 * np.pi) * pulse.sigma_t_au)
+def isolated_qd_pulse_area(
+    pulse: GaussianPulse,
+    d_au: float,
+    local_field_factor: float = 1.0,
+) -> float:
+    """Return the conventional isolated-QD envelope/RWA pulse-area label.
+
+    The time solver itself uses the full real carrier and does not make the
+    rotating-wave approximation.  This quantity is therefore a calibration
+    coordinate, especially for few-cycle pulses, and omits the self-consistent
+    MNP near-field enhancement.
+    """
+    return float(
+        local_field_factor
+        * d_au
+        * pulse.E0_au
+        * np.sqrt(2.0 * np.pi)
+        * pulse.sigma_t_au
+    )
 
 
 def bare_mnp_spectral_cross_sections_cm2(
@@ -106,10 +168,14 @@ def bare_mnp_spectral_cross_sections_cm2(
     omega_ev: float,
     eps_m: float,
 ) -> DipoleCrossSections:
-    """Bare-MNP dipole cross sections from the fitted polarizability."""
+    """Bare-MNP strict-QS response estimates from the modal polarizability."""
     omega_au = float(eV_to_au(omega_ev))
     alpha_mnp_au = model.C * model.alpha_from_fit(np.array([omega_ev]))[0] / eps_m
-    return dipole_cross_sections_cm2(alpha_mnp_au, omega_au, eps_m)
+    return quasistatic_dipole_cross_section_estimates_cm2(
+        alpha_mnp_au,
+        omega_au,
+        eps_m,
+    )
 
 
 def bare_mnp_spectral_cross_section_cm2(
@@ -120,87 +186,15 @@ def bare_mnp_spectral_cross_section_cm2(
     """Schema-1 compatibility alias; the old function returned extinction."""
     warnings.warn(
         "bare_mnp_spectral_cross_section_cm2() is a deprecated schema-1 name; "
-        "use bare_mnp_spectral_cross_sections_cm2(...).extinction_cm2 instead.",
+        "use bare_mnp_spectral_cross_sections_cm2(...).quasistatic_work_loss_cm2 instead.",
         DeprecationWarning,
         stacklevel=2,
     )
-    return float(bare_mnp_spectral_cross_sections_cm2(model, omega_ev, eps_m).extinction_cm2)
-
-
-def response_tail_ratio(
-    mu_total_au: np.ndarray,
-    t_au: np.ndarray | None = None,
-    mu_p_au: np.ndarray | None = None,
-    mu_d_au: np.ndarray | None = None,
-    *,
-    tail_fraction: float = TAIL_WINDOW_FRACTION,
-) -> float:
-    """Return a normalized residual-dipole metric near the final time.
-
-    ``response_tail_ratio(mu_total_au)`` preserves the schema-1 behavior: an
-    unweighted RMS over the final 5% of samples, normalized by the peak total
-    dipole.  When ``t_au`` is supplied, the RMS is integrated over the final
-    ``tail_fraction`` of the *time interval*, so adaptive solver sampling cannot
-    bias the metric.  In that mode the returned value is the maximum individual
-    ratio for ``mu_total_au``, ``mu_p_au`` and ``mu_d_au`` (when supplied), which
-    also detects a slowly decaying component hidden by dipole cancellation.
-    """
-    values = np.asarray(mu_total_au, dtype=float)
-    if t_au is None:
-        if mu_p_au is not None or mu_d_au is not None:
-            raise ValueError('t_au is required when component dipoles are supplied.')
-        if values.size == 0:
-            return np.nan
-        peak = float(np.max(np.abs(values)))
-        if peak == 0.0:
-            return 0.0
-        n_tail = max(8, int(np.ceil(TAIL_WINDOW_FRACTION * values.size)))
-        n_tail = min(n_tail, values.size)
-        return float(np.sqrt(np.mean(values[-n_tail:] ** 2)) / peak)
-
-    times = np.asarray(t_au, dtype=float)
-    if not np.isfinite(tail_fraction) or not 0.0 < tail_fraction <= 1.0:
-        raise ValueError('tail_fraction must be finite and lie in (0, 1].')
-    if times.ndim != 1 or times.size < 2:
-        raise ValueError('t_au must be a one-dimensional array with at least two samples.')
-    if np.any(~np.isfinite(times)) or np.any(np.diff(times) <= 0.0):
-        raise ValueError('t_au must contain finite, strictly increasing values.')
-
-    responses = [values]
-    responses.extend(
-        np.asarray(component, dtype=float)
-        for component in (mu_p_au, mu_d_au)
-        if component is not None
+    return float(
+        bare_mnp_spectral_cross_sections_cm2(
+            model, omega_ev, eps_m
+        ).quasistatic_work_loss_cm2
     )
-    if any(response.ndim != 1 or response.size != times.size for response in responses):
-        raise ValueError('Each dipole response must be one-dimensional and aligned with t_au.')
-    if any(np.any(~np.isfinite(response)) for response in responses):
-        raise ValueError('Dipole responses must contain only finite values.')
-
-    window_start = float(times[-1] - tail_fraction * (times[-1] - times[0]))
-    start_index = int(np.searchsorted(times, window_start, side='left'))
-    ratios: list[float] = []
-    for response in responses:
-        peak = float(np.max(np.abs(response)))
-        if peak == 0.0:
-            ratios.append(0.0)
-            continue
-
-        if times[start_index] == window_start:
-            tail_times = times[start_index:]
-            tail_values = response[start_index:]
-        else:
-            left = start_index - 1
-            weight = (window_start - times[left]) / (times[start_index] - times[left])
-            value_at_start = response[left] + weight * (response[start_index] - response[left])
-            tail_times = np.concatenate(([window_start], times[start_index:]))
-            tail_values = np.concatenate(([value_at_start], response[start_index:]))
-
-        duration = float(tail_times[-1] - tail_times[0])
-        mean_square = float(np.trapezoid(tail_values**2, tail_times) / duration)
-        ratios.append(float(np.sqrt(max(mean_square, 0.0)) / peak))
-
-    return max(ratios)
 
 
 def compute_sweep(
@@ -228,6 +222,11 @@ def compute_sweep(
     gamma_population_mev: float | None,
     gamma2_coherence_mev: float | None = None,
     gamma_dephasing_mev: float | None = None,
+    eps_qd: float | None = None,
+    orientation: str = "long",
+    qd_dipole_convention: str = "effective_external",
+    spectral_window_policy: str = "raise",
+    max_spectral_leakage: float = 1.0e-3,
 ) -> tuple[list[dict[str, float]], list[dict[str, object]], object]:
     tau_array = np.asarray(tau_values_fs, dtype=float)
     e0_array = np.asarray(e0_values_v_m, dtype=float)
@@ -241,6 +240,10 @@ def compute_sweep(
         raise ValueError('pre_sigma must be finite and positive when explicitly specified.')
     if post_fs is not None and (not np.isfinite(post_fs) or post_fs <= 0.0):
         raise ValueError('post_fs must be finite and positive when explicitly specified.')
+    if spectral_window_policy not in {"raise", "warn", "ignore"}:
+        raise ValueError("spectral_window_policy must be 'raise', 'warn' or 'ignore'.")
+    if not np.isfinite(max_spectral_leakage) or not 0.0 <= max_spectral_leakage < 1.0:
+        raise ValueError("max_spectral_leakage must be finite and lie in [0, 1).")
 
     params = make_params_with_overrides(
         c_nm=c_nm,
@@ -254,10 +257,13 @@ def compute_sweep(
         gamma_population_mev=gamma_population_mev,
         gamma2_coherence_mev=gamma2_coherence_mev,
         gamma_dephasing_mev=gamma_dephasing_mev,
+        eps_qd=eps_qd,
+        qd_dipole_convention=qd_dipole_convention,
+        orientation=orientation,
     )
     model = HybridQDPlasmonModel(
         params,
-        orientation="long",
+        orientation=orientation,
         n_modes=n_modes,
         fit_window_eV=fit_window_ev,
         weight_center_eV=weight_center_ev,
@@ -266,14 +272,32 @@ def compute_sweep(
         inv_alpha_objective_weight=1.2,
         verbose=True,
     )
+    model_fit = model.fit
+    physical_provenance = params_to_physical_dict(
+        params,
+        orientation=orientation,
+    )
+    fit_modal_parameters = {
+        "alpha_inf": float(model_fit.alpha_inf),
+        "strengths_au2": [float(value) for value in model_fit.strengths_au2],
+        "omega_modes_au": [float(value) for value in model_fit.omega_modes_au],
+        "gamma_modes_au": [float(value) for value in model_fit.gamma_modes_au],
+    }
 
     rows: list[dict[str, float]] = []
     traces: list[dict[str, object]] = []
     omega_l_au = float(eV_to_au(omega_l_ev))
+    # The pulse may occupy the whole validated material window.  Evaluating
+    # kc and kR only at the carrier can incorrectly certify a broadband run,
+    # so the conservative guide uses the upper fit-window frequency.
+    applicability_energy_ev = float(fit_window_ev[1])
+    applicability = model.dipole_applicability_diagnostics(
+        energy_eV=applicability_energy_ev
+    )
     bare_sections = bare_mnp_spectral_cross_sections_cm2(model, omega_l_ev, params.eps_m)
-    bare_ext = float(bare_sections.extinction_cm2)
-    bare_sca = float(bare_sections.scattering_cm2)
-    bare_abs = float(bare_sections.absorption_cm2)
+    bare_work = float(bare_sections.quasistatic_work_loss_cm2)
+    bare_rayleigh = float(bare_sections.rayleigh_scattering_estimate_cm2)
+    bare_residual = float(bare_sections.optical_theorem_residual_cm2)
     auto_tail_fs = float(au_to_fs(model.recommended_post_pulse_time_au(decay_times=8.0)))
 
     for tau_index, tau_fs in enumerate(tau_array):
@@ -283,6 +307,21 @@ def compute_sweep(
                 omegaL_au=omega_l_au,
                 tau_au=float(fs_to_au(tau_fs)),
                 tau_kind="fwhm_intensity",
+            )
+            incident_spectral_leakage = pulse.spectral_leakage_fraction(
+                fit_window_ev
+            )
+            _enforce_spectral_leakage(
+                leakage=incident_spectral_leakage,
+                maximum=max_spectral_leakage,
+                policy=spectral_window_policy,
+                message=(
+                    f"The incident pulse has {incident_spectral_leakage:.6g} "
+                    f"of its positive-frequency energy outside fit_window_eV="
+                    f"{fit_window_ev}, above the allowed "
+                    f"{max_spectral_leakage:.6g}. Widen the validated modal-fit "
+                    "window before running this pulse."
+                ),
             )
             effective_pre_sigma = 8.0 if pre_sigma is None else float(pre_sigma)
             if effective_pre_sigma <= 0.0:
@@ -301,7 +340,19 @@ def compute_sweep(
                     -effective_pre_sigma * pulse.sigma_t_au,
                     float(fs_to_au(effective_post_fs)),
                 )
-                result = model.solve(pulse, method=method, rtol=rtol, atol=atol, t_span_au=t_span_au)
+                result = model.solve(
+                    pulse,
+                    method=method,
+                    rtol=rtol,
+                    atol=atol,
+                    t_span_au=t_span_au,
+                    # The drive-spectrum FFT is meaningful only after the
+                    # response tail has converged.  Intermediate automatic
+                    # windows therefore compute the diagnostic but defer its
+                    # raise/warn verdict until the loop below has finished.
+                    spectral_window_policy="ignore",
+                    max_spectral_leakage=max_spectral_leakage,
+                )
                 tail_ratio = response_tail_ratio(
                     result.mu_total_au,
                     result.t_au,
@@ -320,15 +371,53 @@ def compute_sweep(
                 effective_post_fs *= 2.0
                 tail_extension_count += 1
 
+            if tail_below_tolerance:
+                drive_leakage = float(
+                    result.diagnostics.mnp_drive_spectral_leakage
+                )
+                _enforce_spectral_leakage(
+                    leakage=drive_leakage,
+                    maximum=max_spectral_leakage,
+                    policy=spectral_window_policy,
+                    message=(
+                        "The converged self-consistent field driving the MNP has "
+                        f"{drive_leakage:.6g} of its sampled spectral energy "
+                        f"outside fit_window_eV={fit_window_ev}, above the "
+                        f"allowed {max_spectral_leakage:.6g}. Nonlinear "
+                        "frequency generation requires a wider validated "
+                        "material fit."
+                    ),
+                )
+                mnp_dipole_leakage = float(
+                    result.diagnostics.mnp_dipole_spectral_leakage
+                )
+                _enforce_spectral_leakage(
+                    leakage=mnp_dipole_leakage,
+                    maximum=max_spectral_leakage,
+                    policy=spectral_window_policy,
+                    message=(
+                        "The converged MNP dipole response has "
+                        f"{mnp_dipole_leakage:.6g} of its sampled spectral "
+                        f"energy outside fit_window_eV={fit_window_ev}, above "
+                        f"the allowed {max_spectral_leakage:.6g}. The result "
+                        "is sensitive to an unvalidated continuation of the "
+                        "material response."
+                    ),
+                )
+
             spectral_sections = spectral_cross_sections_cm2(
                 result,
                 pulse,
                 eps_m=params.eps_m,
                 omega_eval_au=omega_l_au,
             )
-            spectral_ext = float(spectral_sections.extinction_cm2)
-            spectral_sca = float(spectral_sections.scattering_cm2)
-            spectral_abs = float(spectral_sections.absorption_cm2)
+            spectral_work = float(spectral_sections.quasistatic_work_loss_cm2)
+            spectral_rayleigh = float(
+                spectral_sections.rayleigh_scattering_estimate_cm2
+            )
+            spectral_residual = float(
+                spectral_sections.optical_theorem_residual_cm2
+            )
             W, Q, P = result.y[2 * n_modes : 2 * n_modes + 3]
             bloch_radius = np.sqrt(W**2 + Q**2 + P**2)
             traces.append(
@@ -347,32 +436,121 @@ def compute_sweep(
                     "P": P,
                     "excited_population": 0.5 * (W + 1.0),
                     "bloch_radius": bloch_radius,
+                    "mnp_fit_modal_parameters": fit_modal_parameters,
                 }
             )
 
             rows.append(
                 {
+                    **physical_provenance,
                     "schema_version": SCHEMA_VERSION,
                     "tau_fwhm_intensity_fs": float(tau_fs),
                     "e0_v_m": float(e0_v_m),
                     "omega_l_ev": float(omega_l_ev),
+                    "applicability_diagnostic_energy_ev": applicability_energy_ev,
                     "linearized_ground_state_stable": bool(model.linear_stability.stable),
                     "linearized_ground_state_spectral_abscissa_au": float(
                         model.linear_stability.spectral_abscissa_au
                     ),
+                    "medium_size_parameter_kc": float(
+                        applicability.medium_size_parameter_kc
+                    ),
+                    "medium_separation_parameter_kR": float(
+                        applicability.medium_separation_parameter_kR
+                    ),
+                    "mnp_size_to_separation_ratio_c_over_R": float(
+                        applicability.mnp_size_to_separation_ratio
+                    ),
+                    "qd_size_to_separation_ratio_rqd_over_R": float(
+                        applicability.qd_size_to_separation_ratio
+                    ),
+                    "particle_quasistatic_guide_satisfied": bool(
+                        applicability.particle_quasistatic_guide_satisfied
+                    ),
+                    "near_field_coupling_guide_satisfied": bool(
+                        applicability.near_field_coupling_guide_satisfied
+                    ),
+                    "quasistatic_guide_satisfied": bool(
+                        applicability.quasistatic_guide_satisfied
+                    ),
+                    "mnp_point_dipole_guide_satisfied": bool(
+                        applicability.mnp_point_dipole_guide_satisfied
+                    ),
+                    "qd_point_dipole_guide_satisfied": bool(
+                        applicability.qd_point_dipole_guide_satisfied
+                    ),
+                    "point_dipole_guide_satisfied": bool(
+                        applicability.point_dipole_guide_satisfied
+                    ),
+                    "mnp_fit_n_modes": int(model.n_modes),
+                    "mnp_fit_alpha_inf": float(model.fit.alpha_inf),
+                    "mnp_fit_window_min_ev": float(fit_window_ev[0]),
+                    "mnp_fit_window_max_ev": float(fit_window_ev[1]),
+                    "mnp_fit_normalized_rms_alpha": float(
+                        model.fit.normalized_rms_alpha
+                    ),
+                    "mnp_fit_normalized_rms_inv_alpha": float(
+                        model.fit.normalized_rms_inv_alpha
+                    ),
+                    "mnp_fit_max_relative_alpha_error": float(
+                        model.fit.max_normalized_alpha_error
+                    ),
+                    "mnp_fit_nonnegative_imaginary_part_all_positive_frequencies": bool(
+                        model.fit.nonnegative_imaginary_part_all_positive_frequencies
+                    ),
+                    "mnp_fit_globally_passive": bool(
+                        model.fit.nonnegative_imaginary_part_all_positive_frequencies
+                    ),
                     "peak_intensity_w_cm2": float(result.peak_intensity_w_cm2),
                     "fluence_j_cm2": float(result.fluence_j_cm2),
-                    "pulse_area_isolated_qd": isolated_qd_pulse_area(pulse, params.d_au),
+                    "pulse_area_isolated_qd": isolated_qd_pulse_area(
+                        pulse,
+                        params.d_au,
+                        params.qd_local_field_factor,
+                    ),
+                    "pulse_spectral_fraction_in_fit_window": float(
+                        result.diagnostics.pulse_spectral_fraction_in_fit_window
+                    ),
+                    "pulse_spectral_leakage": float(
+                        result.diagnostics.pulse_spectral_leakage
+                    ),
+                    "mnp_drive_spectral_fraction_in_fit_window": float(
+                        result.diagnostics.mnp_drive_spectral_fraction_in_fit_window
+                    ),
+                    "mnp_drive_spectral_leakage": float(
+                        result.diagnostics.mnp_drive_spectral_leakage
+                    ),
+                    "mnp_dipole_spectral_fraction_in_fit_window": float(
+                        result.diagnostics.mnp_dipole_spectral_fraction_in_fit_window
+                    ),
+                    "mnp_dipole_spectral_leakage": float(
+                        result.diagnostics.mnp_dipole_spectral_leakage
+                    ),
+                    "work_passivity_checked": bool(
+                        result.diagnostics.work_passivity_checked
+                    ),
+                    "work_passivity_tolerance_au": float(
+                        result.diagnostics.work_passivity_tolerance_au
+                    ),
+                    "work_nonnegative_within_tolerance": bool(
+                        result.diagnostics.work_nonnegative_within_tolerance
+                    ),
                     "sigma_energy_transfer_cm2": float(result.sigma_energy_transfer_cm2),
-                    "sigma_spectral_ext_cm2": spectral_ext,
-                    "sigma_spectral_sca_cm2": spectral_sca,
-                    "sigma_spectral_abs_cm2": spectral_abs,
-                    "sigma_bare_mnp_ext_cm2": bare_ext,
-                    "sigma_bare_mnp_sca_cm2": bare_sca,
-                    "sigma_bare_mnp_abs_cm2": bare_abs,
-                    "delta_sigma_spectral_ext_cm2": spectral_ext - bare_ext,
-                    "delta_sigma_spectral_sca_cm2": spectral_sca - bare_sca,
-                    "delta_sigma_spectral_abs_cm2": spectral_abs - bare_abs,
+                    "sigma_spectral_qs_work_loss_cm2": spectral_work,
+                    "sigma_spectral_rayleigh_sca_estimate_cm2": spectral_rayleigh,
+                    "sigma_spectral_optical_theorem_residual_cm2": spectral_residual,
+                    "sigma_bare_mnp_qs_work_loss_cm2": bare_work,
+                    "sigma_bare_mnp_rayleigh_sca_estimate_cm2": bare_rayleigh,
+                    "sigma_bare_mnp_optical_theorem_residual_cm2": bare_residual,
+                    "delta_sigma_spectral_qs_work_loss_cm2": (
+                        spectral_work - bare_work
+                    ),
+                    "delta_sigma_spectral_rayleigh_sca_estimate_cm2": (
+                        spectral_rayleigh - bare_rayleigh
+                    ),
+                    "delta_sigma_spectral_optical_theorem_residual_cm2": (
+                        spectral_residual - bare_residual
+                    ),
                     "work_from_incident_field_j": float(result.work_from_incident_field_j),
                     "post_fs_effective": effective_post_fs,
                     "response_tail_ratio": tail_ratio,
@@ -384,11 +562,57 @@ def compute_sweep(
                     "solver_nfev": int(result.diagnostics.nfev),
                     "solver_success": bool(result.diagnostics.solver_success),
                     "t_final_reached": bool(result.diagnostics.t_final_reached),
-                    # Schema-1 compatibility aliases. Spectral aliases mean extinction.
+                    "solver_max_step_limit_au": float(
+                        getattr(result.diagnostics, "max_step_limit_au", np.nan)
+                    ),
+                    "integration_frequency_ceiling_au": float(
+                        getattr(
+                            result.diagnostics,
+                            "integration_frequency_ceiling_au",
+                            np.nan,
+                        )
+                    ),
+                    "incident_peak_rabi_frequency_au": float(
+                        getattr(
+                            result.diagnostics,
+                            "incident_peak_rabi_frequency_au",
+                            np.nan,
+                        )
+                    ),
+                    "observed_peak_rabi_frequency_au": float(
+                        getattr(
+                            result.diagnostics,
+                            "observed_peak_rabi_frequency_au",
+                            np.nan,
+                        )
+                    ),
+                    "rabi_step_refinement_count": int(
+                        getattr(
+                            result.diagnostics,
+                            "rabi_step_refinement_count",
+                            0,
+                        )
+                    ),
+                    # Historical aliases: ``ext`` meant the formal QS work
+                    # proxy and ``abs`` meant only the residual.
+                    "sigma_spectral_formal_k_im_alpha_cm2": spectral_work,
+                    "sigma_spectral_ext_cm2": spectral_work,
+                    "sigma_spectral_sca_cm2": spectral_rayleigh,
+                    "sigma_spectral_abs_cm2": spectral_residual,
+                    "sigma_bare_mnp_ext_cm2": bare_work,
+                    "sigma_bare_mnp_sca_cm2": bare_rayleigh,
+                    "sigma_bare_mnp_abs_cm2": bare_residual,
+                    "delta_sigma_spectral_ext_cm2": spectral_work - bare_work,
+                    "delta_sigma_spectral_sca_cm2": (
+                        spectral_rayleigh - bare_rayleigh
+                    ),
+                    "delta_sigma_spectral_abs_cm2": (
+                        spectral_residual - bare_residual
+                    ),
                     "sigma_energy_cm2": float(result.sigma_energy_transfer_cm2),
-                    "sigma_spectral_cm2": spectral_ext,
-                    "sigma_bare_mnp_cm2": bare_ext,
-                    "sigma_spectral_minus_bare_cm2": spectral_ext - bare_ext,
+                    "sigma_spectral_cm2": spectral_work,
+                    "sigma_bare_mnp_cm2": bare_work,
+                    "sigma_spectral_minus_bare_cm2": spectral_work - bare_work,
                     "absorbed_energy_j": float(result.work_from_incident_field_j),
                 }
             )
@@ -396,37 +620,37 @@ def compute_sweep(
     unconverged = sum(not bool(row["tail_below_tolerance"]) for row in rows)
     if unconverged:
         if post_fs is None:
-            advice = (
+            raise RuntimeError(
+                f'{unconverged} pulse response(s) retain a tail ratio above '
+                f'{TAIL_RATIO_TOL:g}; '
                 f'automatic doubling reached its limit of {MAX_AUTO_TAIL_EXTENSIONS} extension(s); '
-                'inspect the response or repeat with a larger explicit --post-fs.'
+                'the Fourier/work observables are not converged. Inspect the response '
+                'or repeat with a larger explicit --post-fs.'
             )
-        else:
-            advice = 'the explicit --post-fs is diagnostic only; increase it and verify convergence.'
         warnings.warn(
             f'{unconverged} pulse response(s) retain a tail ratio above {TAIL_RATIO_TOL:g}; '
-            + advice,
+            'the explicit --post-fs is diagnostic only; increase it and verify convergence.',
             RuntimeWarning,
             stacklevel=2,
         )
 
-    optical_balance_failures = sum(
-        np.isfinite(row["sigma_spectral_abs_cm2"])
-        and row["sigma_spectral_abs_cm2"]
+    negative_optical_residuals = sum(
+        np.isfinite(row["sigma_spectral_optical_theorem_residual_cm2"])
+        and row["sigma_spectral_optical_theorem_residual_cm2"]
         < -1e-9
         * max(
-            abs(row["sigma_spectral_ext_cm2"]),
-            abs(row["sigma_spectral_sca_cm2"]),
+            abs(row["sigma_spectral_qs_work_loss_cm2"]),
+            abs(row["sigma_spectral_rayleigh_sca_estimate_cm2"]),
             1e-30,
         )
         for row in rows
     )
-    if optical_balance_failures:
+    if negative_optical_residuals:
         warnings.warn(
-            f'{optical_balance_failures} effective pulsed response(s) have '
-            'sigma_ext-sigma_sca < 0 beyond numerical tolerance. This quantity '
-            'cannot be interpreted as material absorption until radiative correction, '
-            'nonlinear frequency conversion, Fourier-window convergence and fit error '
-            'have been checked.',
+            f'{negative_optical_residuals} effective pulsed response(s) have a '
+            'negative formal optical-theorem residual. The native undressed '
+            'alpha_QS does not define an extinction/scattering/material-absorption '
+            'partition; this residual is retained only as a diagnostic.',
             RuntimeWarning,
             stacklevel=2,
         )
@@ -452,24 +676,26 @@ def plot_sweeps(rows: list[dict[str, float]], x_axis: str, output_path: Path | N
     x_label = {
         "fluence": r"Fluence, J/cm$^2$",
         "intensity": r"Peak intensity, W/cm$^2$",
-        "pulse_area": r"Isolated-QD pulse area",
+        "pulse_area": r"Isolated-QD envelope/RWA area (calibration)",
     }[x_axis]
 
     fig, axes = plt.subplots(2, 1, figsize=(9, 8), sharex=True)
-    sigma_bare = rows[0].get("sigma_bare_mnp_ext_cm2")
+    sigma_bare = rows[0].get("sigma_bare_mnp_qs_work_loss_cm2")
     for tau_fs in tau_values:
         group = [row for row in rows if row["tau_fwhm_intensity_fs"] == tau_fs]
         group.sort(key=lambda row: row[x_key])
         x = np.array([row[x_key] for row in group])
         sigma_energy = np.array([row["sigma_energy_transfer_cm2"] for row in group])
-        sigma_spectral = np.array([row["sigma_spectral_ext_cm2"] for row in group])
+        sigma_spectral = np.array(
+            [row["sigma_spectral_qs_work_loss_cm2"] for row in group]
+        )
 
         label = f"{tau_fs:g} fs"
         axes[0].plot(x, sigma_energy, marker="o", ms=4, lw=1.8, label=label)
         axes[1].plot(x, sigma_spectral, marker="s", ms=4, lw=1.8, label=label)
 
-    axes[0].set_ylabel(r"$\sigma_E = W_{ext}/\mathcal{F}$, cm$^2$")
-    axes[1].set_ylabel(r"$\sigma_{ext,eff}(\omega_L)$, cm$^2$")
+    axes[0].set_ylabel(r"$\sigma_E = W_{inc}/\mathcal{F}$, cm$^2$")
+    axes[1].set_ylabel(r"$k\,\mathrm{Im}\,\alpha_{eff}/\epsilon_0$, cm$^2$")
     axes[1].set_xlabel(x_label)
     if sigma_bare is not None:
         axes[1].axhline(
@@ -525,13 +751,30 @@ def save_artifact_run(
     trace_offsets = np.zeros_like(trace_lengths)
     if len(trace_lengths) > 1:
         trace_offsets[1:] = np.cumsum(trace_lengths[:-1])
+    modal_parameters = (
+        traces[0].get("mnp_fit_modal_parameters", {})
+        if traces
+        else {}
+    )
+    first_row = rows[0] if rows else {}
+
+    def maximum_finite_row_value(key: str) -> float | None:
+        values = np.asarray(
+            [row.get(key, np.nan) for row in rows],
+            dtype=float,
+        )
+        finite = values[np.isfinite(values)]
+        return None if finite.size == 0 else float(np.max(finite))
 
     metadata = {
         "schema_version": SCHEMA_VERSION,
         "script": "qd_mnp_pulse_absorption_sweep.py",
         "created_at": datetime.now().isoformat(timespec="seconds"),
         "run_dir": str(run_dir),
-        "physical": params_to_physical_dict(params, orientation="long"),
+        "physical": params_to_physical_dict(
+            params,
+            orientation=args.orientation,
+        ),
         "fit": {
             "n_modes": int(args.n_modes),
             "fit_window_ev": [float(args.fit_min_ev), float(args.fit_max_ev)],
@@ -539,6 +782,32 @@ def save_artifact_run(
             "weight_sigma_ev": None if args.weight_sigma_ev is None else float(args.weight_sigma_ev),
             "alpha_objective_weight": 1.0,
             "inv_alpha_objective_weight": 1.2,
+            "nonnegative_imaginary_part_all_positive_frequencies": None
+            if not rows
+            else bool(
+                rows[0].get(
+                    "mnp_fit_nonnegative_imaginary_part_all_positive_frequencies",
+                    rows[0].get("mnp_fit_globally_passive", False),
+                )
+            ),
+            # Compatibility alias retained within schema 3.
+            "structurally_passive": None
+            if not rows or "mnp_fit_globally_passive" not in rows[0]
+            else bool(rows[0]["mnp_fit_globally_passive"]),
+            "normalized_rms_alpha": None
+            if not rows or "mnp_fit_normalized_rms_alpha" not in rows[0]
+            else float(rows[0]["mnp_fit_normalized_rms_alpha"]),
+            "normalized_rms_inv_alpha": None
+            if not rows or "mnp_fit_normalized_rms_inv_alpha" not in rows[0]
+            else float(rows[0]["mnp_fit_normalized_rms_inv_alpha"]),
+            "max_pointwise_relative_alpha_error": None
+            if not rows or "mnp_fit_max_relative_alpha_error" not in rows[0]
+            else float(rows[0]["mnp_fit_max_relative_alpha_error"]),
+            "production_quality_gates": {
+                "normalized_rms_max": 0.025,
+                "max_pointwise_relative_alpha_error": 0.05,
+            },
+            "modal_parameters": modal_parameters,
         },
         "sweep": {
             "tau_fs": [float(x) for x in tau_values],
@@ -546,6 +815,8 @@ def save_artifact_run(
             "omega_l_ev": float(args.omega_l_ev),
             "pre_sigma": None if args.pre_sigma is None else float(args.pre_sigma),
             "post_fs": None if args.post_fs is None else float(args.post_fs),
+            "spectral_window_policy": args.spectral_window_policy,
+            "max_spectral_leakage": float(args.max_spectral_leakage),
             "post_fs_policy": (
                 f"automatic 8-amplitude-decay tail with up to {MAX_AUTO_TAIL_EXTENSIONS} doublings"
                 if args.post_fs is None
@@ -558,8 +829,26 @@ def save_artifact_run(
             "method": args.method,
             "rtol": float(args.rtol),
             "atol": float(args.atol),
+            "maximum_integration_frequency_ceiling_au": (
+                maximum_finite_row_value("integration_frequency_ceiling_au")
+            ),
+            "maximum_observed_peak_rabi_frequency_au": (
+                maximum_finite_row_value("observed_peak_rabi_frequency_au")
+            ),
+            "maximum_rabi_step_refinement_count": (
+                None
+                if not rows
+                else int(
+                    max(
+                        row.get("rabi_step_refinement_count", 0)
+                        for row in rows
+                    )
+                )
+            ),
             "linearized_ground_state_stability": {
-                "stable": None if not rows else bool(rows[0].get("linearized_ground_state_stable", True)),
+                "stable": None
+                if not rows
+                else bool(rows[0]["linearized_ground_state_stable"]),
                 "spectral_abscissa_au": (
                     None
                     if not rows or "linearized_ground_state_spectral_abscissa_au" not in rows[0]
@@ -567,13 +856,87 @@ def save_artifact_run(
                 ),
             },
         },
+        "applicability": {
+            "diagnostic_energy_ev": first_row.get(
+                "applicability_diagnostic_energy_ev"
+            ),
+            "medium_size_parameter_kc": first_row.get(
+                "medium_size_parameter_kc"
+            ),
+            "medium_separation_parameter_kR": first_row.get(
+                "medium_separation_parameter_kR"
+            ),
+            "mnp_size_to_separation_ratio_c_over_R": first_row.get(
+                "mnp_size_to_separation_ratio_c_over_R"
+            ),
+            "qd_size_to_separation_ratio_rqd_over_R": first_row.get(
+                "qd_size_to_separation_ratio_rqd_over_R"
+            ),
+            "quasistatic_guide_satisfied": first_row.get(
+                "quasistatic_guide_satisfied"
+            ),
+            "point_dipole_guide_satisfied": first_row.get(
+                "point_dipole_guide_satisfied"
+            ),
+        },
+        "validation": {
+            "all_solver_success": bool(rows) and all(
+                bool(row.get("solver_success", False)) for row in rows
+            ),
+            "all_t_final_reached": bool(rows) and all(
+                bool(row.get("t_final_reached", False)) for row in rows
+            ),
+            "all_tail_below_tolerance": bool(rows) and all(
+                bool(row.get("tail_below_tolerance", False)) for row in rows
+            ),
+            "all_work_passivity_checked": bool(rows) and all(
+                bool(row.get("work_passivity_checked", False)) for row in rows
+            ),
+            "all_work_nonnegative_within_tolerance": bool(rows) and all(
+                bool(row.get("work_nonnegative_within_tolerance", False))
+                for row in rows
+            ),
+            "homogeneous_host_radiative_consistency": bool(
+                params.radiative_rate_diagnostics.homogeneous_host_consistent
+            ),
+            "gamma1_over_homogeneous_radiative_rate": float(
+                params.radiative_rate_diagnostics.gamma1_over_homogeneous_radiative_rate
+            ),
+            "maximum_incident_spectral_leakage": None
+            if not rows
+            else maximum_finite_row_value("pulse_spectral_leakage"),
+            "maximum_mnp_drive_spectral_leakage": maximum_finite_row_value(
+                "mnp_drive_spectral_leakage"
+            ),
+            "maximum_mnp_dipole_spectral_leakage": maximum_finite_row_value(
+                "mnp_dipole_spectral_leakage"
+            ),
+        },
         "observables": {
             "sigma_energy_transfer_cm2": "external-field work divided by incident fluence",
-            "sigma_spectral_ext_cm2": "effective pulsed dipole extinction at omega_l",
-            "sigma_spectral_sca_cm2": "effective pulsed dipole scattering at omega_l",
+            "sigma_spectral_qs_work_loss_cm2": (
+                "k Im(alpha_eff)/eps0 at omega_l for the native undressed "
+                "electrostatic response"
+            ),
+            "sigma_spectral_rayleigh_sca_estimate_cm2": (
+                "separate coherent Rayleigh-dipole estimate at omega_l; not "
+                "total nonlinear radiation over generated frequencies"
+            ),
+            "sigma_spectral_optical_theorem_residual_cm2": (
+                "formal difference of QS work loss and Rayleigh estimate; "
+                "diagnostic only, not material absorption"
+            ),
+            "sigma_spectral_ext_cm2": (
+                "legacy alias of sigma_spectral_qs_work_loss_cm2"
+            ),
+            "sigma_spectral_formal_k_im_alpha_cm2": (
+                "legacy descriptive alias of sigma_spectral_qs_work_loss_cm2"
+            ),
+            "sigma_spectral_sca_cm2": (
+                "legacy alias of sigma_spectral_rayleigh_sca_estimate_cm2"
+            ),
             "sigma_spectral_abs_cm2": (
-                "diagnostic sigma_spectral_ext_cm2 - sigma_spectral_sca_cm2; "
-                "negative values are not clipped and are not material absorption"
+                "legacy alias of sigma_spectral_optical_theorem_residual_cm2"
             ),
             "tail_ratio_tolerance": TAIL_RATIO_TOL,
             "tail_metric": (
@@ -582,9 +945,11 @@ def save_artifact_run(
             ),
             "legacy_aliases": {
                 "sigma_energy_cm2": "sigma_energy_transfer_cm2",
-                "sigma_spectral_cm2": "sigma_spectral_ext_cm2",
-                "sigma_bare_mnp_cm2": "sigma_bare_mnp_ext_cm2",
-                "sigma_spectral_minus_bare_cm2": "delta_sigma_spectral_ext_cm2",
+                "sigma_spectral_cm2": "sigma_spectral_qs_work_loss_cm2",
+                "sigma_bare_mnp_cm2": "sigma_bare_mnp_qs_work_loss_cm2",
+                "sigma_spectral_minus_bare_cm2": (
+                    "delta_sigma_spectral_qs_work_loss_cm2"
+                ),
                 "absorbed_energy_j": "work_from_incident_field_j",
             },
         },
@@ -596,17 +961,221 @@ def save_artifact_run(
         e0_v_m_grid=np.repeat(e0_values_v_m[None, :], n_tau, axis=0),
         peak_intensity_w_cm2=_summary_grid(rows, "peak_intensity_w_cm2", n_tau, n_e0),
         linearized_ground_state_stable=np.asarray(
-            [row.get("linearized_ground_state_stable", True) for row in rows], dtype=bool
+            [row["linearized_ground_state_stable"] for row in rows], dtype=bool
         ).reshape(n_tau, n_e0),
         linearized_ground_state_spectral_abscissa_au=np.asarray(
             [row.get("linearized_ground_state_spectral_abscissa_au", np.nan) for row in rows], dtype=float
         ).reshape(n_tau, n_e0),
         fluence_j_cm2=_summary_grid(rows, "fluence_j_cm2", n_tau, n_e0),
         pulse_area_isolated_qd=_summary_grid(rows, "pulse_area_isolated_qd", n_tau, n_e0),
+        mnp_fit_alpha_inf=np.asarray(
+            np.nan
+            if modal_parameters.get("alpha_inf") is None
+            else modal_parameters["alpha_inf"],
+            dtype=float,
+        ),
+        mnp_fit_n_modes=np.asarray(
+            first_row.get("mnp_fit_n_modes", args.n_modes),
+            dtype=np.int64,
+        ),
+        homogeneous_host_radiative_consistency=np.asarray(
+            params.radiative_rate_diagnostics.homogeneous_host_consistent,
+            dtype=bool,
+        ),
+        gamma1_over_homogeneous_radiative_rate=np.asarray(
+            params.radiative_rate_diagnostics.gamma1_over_homogeneous_radiative_rate,
+            dtype=float,
+        ),
+        mnp_fit_strengths_au2=np.asarray(
+            modal_parameters.get("strengths_au2", []),
+            dtype=float,
+        ),
+        mnp_fit_omega_modes_au=np.asarray(
+            modal_parameters.get("omega_modes_au", []),
+            dtype=float,
+        ),
+        mnp_fit_gamma_modes_au=np.asarray(
+            modal_parameters.get("gamma_modes_au", []),
+            dtype=float,
+        ),
+        pulse_spectral_fraction_in_fit_window=np.asarray(
+            [row.get("pulse_spectral_fraction_in_fit_window", np.nan) for row in rows],
+            dtype=float,
+        ).reshape(n_tau, n_e0),
+        pulse_spectral_leakage=np.asarray(
+            [row.get("pulse_spectral_leakage", np.nan) for row in rows],
+            dtype=float,
+        ).reshape(n_tau, n_e0),
+        mnp_drive_spectral_fraction_in_fit_window=np.asarray(
+            [row["mnp_drive_spectral_fraction_in_fit_window"] for row in rows],
+            dtype=float,
+        ).reshape(n_tau, n_e0),
+        mnp_drive_spectral_leakage=np.asarray(
+            [row["mnp_drive_spectral_leakage"] for row in rows],
+            dtype=float,
+        ).reshape(n_tau, n_e0),
+        mnp_dipole_spectral_fraction_in_fit_window=np.asarray(
+            [
+                row.get(
+                    "mnp_dipole_spectral_fraction_in_fit_window",
+                    np.nan,
+                )
+                for row in rows
+            ],
+            dtype=float,
+        ).reshape(n_tau, n_e0),
+        mnp_dipole_spectral_leakage=np.asarray(
+            [row.get("mnp_dipole_spectral_leakage", np.nan) for row in rows],
+            dtype=float,
+        ).reshape(n_tau, n_e0),
+        work_passivity_checked=np.asarray(
+            [row.get("work_passivity_checked", False) for row in rows],
+            dtype=bool,
+        ).reshape(n_tau, n_e0),
+        work_passivity_tolerance_au=np.asarray(
+            [row.get("work_passivity_tolerance_au", np.nan) for row in rows],
+            dtype=float,
+        ).reshape(n_tau, n_e0),
+        work_nonnegative_within_tolerance=np.asarray(
+            [
+                row.get("work_nonnegative_within_tolerance", False)
+                for row in rows
+            ],
+            dtype=bool,
+        ).reshape(n_tau, n_e0),
+        solver_max_step_limit_au=np.asarray(
+            [row.get("solver_max_step_limit_au", np.nan) for row in rows],
+            dtype=float,
+        ).reshape(n_tau, n_e0),
+        integration_frequency_ceiling_au=np.asarray(
+            [
+                row.get("integration_frequency_ceiling_au", np.nan)
+                for row in rows
+            ],
+            dtype=float,
+        ).reshape(n_tau, n_e0),
+        incident_peak_rabi_frequency_au=np.asarray(
+            [
+                row.get("incident_peak_rabi_frequency_au", np.nan)
+                for row in rows
+            ],
+            dtype=float,
+        ).reshape(n_tau, n_e0),
+        observed_peak_rabi_frequency_au=np.asarray(
+            [
+                row.get("observed_peak_rabi_frequency_au", np.nan)
+                for row in rows
+            ],
+            dtype=float,
+        ).reshape(n_tau, n_e0),
+        rabi_step_refinement_count=np.asarray(
+            [row.get("rabi_step_refinement_count", 0) for row in rows],
+            dtype=np.int64,
+        ).reshape(n_tau, n_e0),
         sigma_energy_transfer_cm2=_summary_grid(rows, "sigma_energy_transfer_cm2", n_tau, n_e0),
+        sigma_spectral_qs_work_loss_cm2=np.asarray(
+            [
+                row.get(
+                    "sigma_spectral_qs_work_loss_cm2",
+                    row["sigma_spectral_ext_cm2"],
+                )
+                for row in rows
+            ],
+            dtype=float,
+        ).reshape(n_tau, n_e0),
         sigma_spectral_ext_cm2=_summary_grid(rows, "sigma_spectral_ext_cm2", n_tau, n_e0),
         sigma_spectral_sca_cm2=_summary_grid(rows, "sigma_spectral_sca_cm2", n_tau, n_e0),
         sigma_spectral_abs_cm2=_summary_grid(rows, "sigma_spectral_abs_cm2", n_tau, n_e0),
+        sigma_spectral_formal_k_im_alpha_cm2=np.asarray(
+            [
+                row.get(
+                    "sigma_spectral_formal_k_im_alpha_cm2",
+                    row["sigma_spectral_ext_cm2"],
+                )
+                for row in rows
+            ],
+            dtype=float,
+        ).reshape(n_tau, n_e0),
+        sigma_spectral_rayleigh_sca_estimate_cm2=np.asarray(
+            [
+                row.get(
+                    "sigma_spectral_rayleigh_sca_estimate_cm2",
+                    row["sigma_spectral_sca_cm2"],
+                )
+                for row in rows
+            ],
+            dtype=float,
+        ).reshape(n_tau, n_e0),
+        sigma_spectral_optical_theorem_residual_cm2=np.asarray(
+            [
+                row.get(
+                    "sigma_spectral_optical_theorem_residual_cm2",
+                    row["sigma_spectral_abs_cm2"],
+                )
+                for row in rows
+            ],
+            dtype=float,
+        ).reshape(n_tau, n_e0),
+        sigma_bare_mnp_qs_work_loss_cm2=np.asarray(
+            [
+                row.get(
+                    "sigma_bare_mnp_qs_work_loss_cm2",
+                    row["sigma_bare_mnp_ext_cm2"],
+                )
+                for row in rows
+            ],
+            dtype=float,
+        ).reshape(n_tau, n_e0),
+        sigma_bare_mnp_rayleigh_sca_estimate_cm2=np.asarray(
+            [
+                row.get(
+                    "sigma_bare_mnp_rayleigh_sca_estimate_cm2",
+                    row["sigma_bare_mnp_sca_cm2"],
+                )
+                for row in rows
+            ],
+            dtype=float,
+        ).reshape(n_tau, n_e0),
+        sigma_bare_mnp_optical_theorem_residual_cm2=np.asarray(
+            [
+                row.get(
+                    "sigma_bare_mnp_optical_theorem_residual_cm2",
+                    row["sigma_bare_mnp_abs_cm2"],
+                )
+                for row in rows
+            ],
+            dtype=float,
+        ).reshape(n_tau, n_e0),
+        delta_sigma_spectral_qs_work_loss_cm2=np.asarray(
+            [
+                row.get(
+                    "delta_sigma_spectral_qs_work_loss_cm2",
+                    row["delta_sigma_spectral_ext_cm2"],
+                )
+                for row in rows
+            ],
+            dtype=float,
+        ).reshape(n_tau, n_e0),
+        delta_sigma_spectral_rayleigh_sca_estimate_cm2=np.asarray(
+            [
+                row.get(
+                    "delta_sigma_spectral_rayleigh_sca_estimate_cm2",
+                    row["delta_sigma_spectral_sca_cm2"],
+                )
+                for row in rows
+            ],
+            dtype=float,
+        ).reshape(n_tau, n_e0),
+        delta_sigma_spectral_optical_theorem_residual_cm2=np.asarray(
+            [
+                row.get(
+                    "delta_sigma_spectral_optical_theorem_residual_cm2",
+                    row["delta_sigma_spectral_abs_cm2"],
+                )
+                for row in rows
+            ],
+            dtype=float,
+        ).reshape(n_tau, n_e0),
         sigma_bare_mnp_ext_cm2=_summary_grid(rows, "sigma_bare_mnp_ext_cm2", n_tau, n_e0),
         sigma_bare_mnp_sca_cm2=_summary_grid(rows, "sigma_bare_mnp_sca_cm2", n_tau, n_e0),
         sigma_bare_mnp_abs_cm2=_summary_grid(rows, "sigma_bare_mnp_abs_cm2", n_tau, n_e0),
@@ -662,17 +1231,25 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--e0-max", type=float, default=1e9, help="Maximum field amplitude, V/m.")
     parser.add_argument("--points", type=int, default=18)
     parser.add_argument("--omega-l-ev", type=float, default=2.042)
-    parser.add_argument("--n-modes", type=int, default=4)
+    parser.add_argument("--n-modes", type=int, default=9)
     parser.add_argument("--fit-min-ev", type=float, default=0.8)
     parser.add_argument("--fit-max-ev", type=float, default=3.0)
-    parser.add_argument("--weight-center-ev", type=float, default=2.35)
-    parser.add_argument("--weight-sigma-ev", type=float, default=0.30)
+    parser.add_argument("--weight-center-ev", type=float, default=None)
+    parser.add_argument("--weight-sigma-ev", type=float, default=None)
     parser.add_argument("--c-nm", type=float, default=None)
     parser.add_argument("--a-nm", type=float, default=None)
     parser.add_argument("--r-nm", type=float, default=None)
     parser.add_argument("--qd-radius-nm", type=float, default=None)
     parser.add_argument("--G", dest="g_factor", type=float, default=None)
     parser.add_argument("--eps-m", type=float, default=None)
+    parser.add_argument("--eps-qd", type=float, default=None)
+    parser.add_argument("--orientation", choices=["long", "trans"], default="long")
+    parser.add_argument(
+        "--qd-dipole-convention",
+        choices=["bare_internal", "effective_external"],
+        default="effective_external",
+        help="Whether d is a bare internal or already screened external dipole.",
+    )
     parser.add_argument("--d-debye", type=float, default=None)
     parser.add_argument("--omega0-ev", type=float, default=None)
     parser.add_argument("--gamma-population-mev", type=float, default=None)
@@ -708,9 +1285,21 @@ def parse_args() -> argparse.Namespace:
         help="Absolute final time after the pulse center in fs. By default an initial "
         "8-e-fold estimate is doubled until the component-wise dipole tail converges.",
     )
+    parser.add_argument(
+        "--spectral-window-policy",
+        choices=["raise", "warn", "ignore"],
+        default="raise",
+        help="Action when the pulse spectrum is not covered by the material-fit window.",
+    )
+    parser.add_argument(
+        "--max-spectral-leakage",
+        type=float,
+        default=1.0e-3,
+        help="Maximum allowed positive-frequency pulse energy outside the fit window.",
+    )
     parser.add_argument("--x-axis", choices=["fluence", "intensity", "pulse_area"], default="fluence")
-    parser.add_argument("--csv", type=Path, default=Path("results/absorption_sections_sweep.csv"))
-    parser.add_argument("--figure", type=Path, default=Path("results/absorption_sections_sweep.png"))
+    parser.add_argument("--csv", type=Path, default=Path("results/pulse_response_sweep.csv"))
+    parser.add_argument("--figure", type=Path, default=Path("results/pulse_response_sweep.png"))
     parser.add_argument("--run-dir", type=Path, default=None)
     parser.add_argument("--no-save-figure", action="store_true")
     parser.add_argument("--no-show", action="store_true")
@@ -757,6 +1346,11 @@ def main() -> None:
         qd_radius_nm=args.qd_radius_nm,
         g_factor=args.g_factor,
         eps_m=args.eps_m,
+        eps_qd=args.eps_qd,
+        orientation=args.orientation,
+        qd_dipole_convention=args.qd_dipole_convention,
+        spectral_window_policy=args.spectral_window_policy,
+        max_spectral_leakage=args.max_spectral_leakage,
         d_debye=args.d_debye,
         omega0_ev=args.omega0_ev,
         gamma_population_mev=args.gamma_population_mev,
@@ -766,10 +1360,10 @@ def main() -> None:
     write_csv(rows, args.csv)
     print(f"Wrote {len(rows)} rows to {args.csv}")
 
-    run_dir = args.run_dir if args.run_dir is not None else timestamped_run_dir("results/pulse_absorption_sweeps")
+    run_dir = args.run_dir if args.run_dir is not None else timestamped_run_dir("results/pulse_response_sweeps")
     run_dir = Path(run_dir)
     save_artifact_run(rows=rows, traces=traces, params=params, args=args, e0_values_v_m=e0_values, run_dir=run_dir)
-    plot_sweeps(rows, args.x_axis, run_dir / "absorption_sweep.png", show=False)
+    plot_sweeps(rows, args.x_axis, run_dir / "pulse_response_sweep.png", show=False)
     print(f"Wrote pulse-sweep artifact run to {run_dir}")
 
     figure_path = None if args.no_save_figure else args.figure

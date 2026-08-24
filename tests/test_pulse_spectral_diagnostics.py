@@ -1,4 +1,4 @@
-"""Fast tests for pulse-tail selection and spectral cross-section semantics."""
+"""Fast tests for pulse-tail selection and strict-QS spectral semantics."""
 
 from types import SimpleNamespace
 import unittest
@@ -39,7 +39,7 @@ class PulseSpectralDiagnosticsTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "undamped|finite"):
             model.recommended_post_pulse_time_au()
 
-    def test_spectral_sections_obey_energy_partition_identity(self) -> None:
+    def test_spectral_sections_expose_work_scattering_and_optical_residual(self) -> None:
         pulse = make_test_pulse()
         t = np.linspace(-8.0 * pulse.sigma_t_au, 8.0 * pulse.sigma_t_au, 4001)
         # A quadrature response gives a non-zero imaginary effective alpha.
@@ -48,14 +48,31 @@ class PulseSpectralDiagnosticsTests(unittest.TestCase):
 
         sections = spectral_cross_sections_cm2(result, pulse, eps_m=2.25)
         self.assertAlmostEqual(
-            float(sections.extinction_cm2),
-            float(sections.absorption_cm2 + sections.scattering_cm2),
+            float(sections.quasistatic_work_loss_cm2),
+            float(
+                sections.optical_theorem_residual_cm2
+                + sections.rayleigh_scattering_estimate_cm2
+            ),
             places=24,
         )
+        # Historical dataclass fields and this badly named function remain
+        # only to read/write schema-1 data.  In particular ``absorption`` is
+        # the optical-theorem residual, while the deprecated function actually
+        # returned the formal k Im(alpha) work-loss estimate.
+        self.assertEqual(sections.extinction_cm2, sections.quasistatic_work_loss_cm2)
         self.assertEqual(
-            spectral_absorption_cross_section_cm2(result, pulse, 2.25),
-            float(sections.extinction_cm2),
+            sections.scattering_cm2,
+            sections.rayleigh_scattering_estimate_cm2,
         )
+        self.assertEqual(
+            sections.absorption_cm2,
+            sections.optical_theorem_residual_cm2,
+        )
+        with self.assertWarns(DeprecationWarning):
+            legacy_value = spectral_absorption_cross_section_cm2(
+                result, pulse, 2.25
+            )
+        self.assertEqual(legacy_value, float(sections.quasistatic_work_loss_cm2))
 
     def test_response_tail_ratio_detects_an_undecayed_tail(self) -> None:
         decayed = np.concatenate([np.ones(100), np.zeros(100)])

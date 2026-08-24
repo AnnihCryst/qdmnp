@@ -42,6 +42,22 @@ class MaterialDispersionStorageTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             material.n[0] = 2.0
 
+    def test_linear_interpolation_is_explicit_and_does_not_extrapolate(self) -> None:
+        material = MaterialDispersion(
+            energy_eV=[1.0, 2.0, 4.0],
+            n=[1.0, 2.0, 4.0],
+            k=[0.2, 0.4, 0.8],
+        )
+        n_mid, k_mid = material.optical_constants_at(np.asarray([1.5, 3.0]))
+        np.testing.assert_allclose(n_mid, [1.5, 3.0])
+        np.testing.assert_allclose(k_mid, [0.3, 0.6])
+        np.testing.assert_allclose(
+            material.epsilon_at(material.energy_eV),
+            material.epsilon,
+        )
+        with self.assertRaisesRegex(ValueError, "outside the tabulated"):
+            material.epsilon_at(np.asarray([0.99, 2.0]))
+
 
 class Gamma2OverrideApiTests(unittest.TestCase):
     @staticmethod

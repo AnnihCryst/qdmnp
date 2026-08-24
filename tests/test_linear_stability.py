@@ -26,8 +26,8 @@ class LinearStabilityTests(unittest.TestCase):
         model.n_modes = 1
         model.params = replace(
             model.params,
-            G=1000.0,
-            d_au=float(dipole_si_to_au(7.5e-29)),
+            G=2.0,
+            d_au=float(dipole_si_to_au(10000.0 * 3.33564e-30)),
         )
         model.C = model.params.eps_m * model.params.a_au**2 * model.params.c_au / 3.0
         model.fit = SimpleNamespace(

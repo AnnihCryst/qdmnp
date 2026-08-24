@@ -10,6 +10,7 @@ from qd_mnp_rational_fit import (
     HybridSystemParams,
     RationalLorentzFit,
     au_to_nm,
+    homogeneous_radiative_decay_rate_au,
     make_default_params,
     nm_to_au,
 )
@@ -32,7 +33,12 @@ def _dummy_fit() -> RationalLorentzFit:
 
 def _construct_model_without_fitting(params: HybridSystemParams) -> HybridQDPlasmonModel:
     with patch.object(HybridQDPlasmonModel, "_fit_rational_alpha", return_value=_dummy_fit()):
-        return HybridQDPlasmonModel(params, n_modes=1, verbose=False)
+        return HybridQDPlasmonModel(
+            params,
+            n_modes=1,
+            radiative_consistency_policy="ignore",
+            verbose=False,
+        )
 
 
 class ParameterValidationTests(unittest.TestCase):
@@ -47,6 +53,49 @@ class ParameterValidationTests(unittest.TestCase):
         self.assertAlmostEqual(float(au_to_nm(params.R_au)), 18.0, places=12)
         self.assertAlmostEqual(float(au_to_nm(qd_radius_au)), 2.0, places=12)
         self.assertAlmostEqual(gap_nm, 1.0, places=12)
+
+    def test_default_records_legacy_radiative_rate_inconsistency(self) -> None:
+        params = make_default_params()
+        expected = homogeneous_radiative_decay_rate_au(
+            params.qd_external_dipole_au,
+            params.omega0_au,
+            params.eps_m,
+        )
+        self.assertEqual(params.homogeneous_radiative_decay_au, expected)
+        self.assertLess(params.gamma_au, expected)
+        self.assertFalse(
+            params.radiative_rate_diagnostics.homogeneous_host_consistent
+        )
+
+    def test_strict_policy_rejects_gamma1_below_homogeneous_reference_rate(self) -> None:
+        base = make_default_params()
+        invalid = HybridSystemParams(
+            c_au=base.c_au,
+            a_au=base.a_au,
+            R_au=base.R_au,
+            G=base.G,
+            eps_m=base.eps_m,
+            d_au=base.d_au,
+            omega0_au=base.omega0_au,
+            gamma_au=0.5 * base.homogeneous_radiative_decay_au,
+            Gamma_au=base.Gamma_au,
+            material=base.material,
+            qd_radius_au=base.qd_radius_au,
+            eps_qd=base.eps_qd,
+            qd_dipole_convention=base.qd_dipole_convention,
+        )
+        with patch.object(
+            HybridQDPlasmonModel,
+            "_fit_rational_alpha",
+            return_value=_dummy_fit(),
+        ):
+            with self.assertRaisesRegex(ValueError, "gamma1/gamma_rad"):
+                HybridQDPlasmonModel(
+                    invalid,
+                    n_modes=1,
+                    radiative_consistency_policy="raise",
+                    verbose=False,
+                )
 
     def test_legacy_parameter_construction_defaults_to_point_qd(self) -> None:
         """Adding qd_radius_au must not break callers using the old signature."""

@@ -24,16 +24,18 @@ def make_zero_mode_model(*, eps_m: float = 1.0) -> HybridQDPlasmonModel:
         c_au=float(nm_to_au(15.0)),
         a_au=float(nm_to_au(7.0)),
         R_au=float(nm_to_au(20.0)),
-        G=0.0,
+        G=2.0,
         eps_m=eps_m,
         d_au=1.0,
         omega0_au=float(eV_to_au(2.0)),
         gamma_au=1.0e-4,
         Gamma_au=1.0e-4,
+        eps_qd=eps_m,
     )
 
     model = object.__new__(HybridQDPlasmonModel)
     model.params = params
+    model.orientation = "long"
     model.n_modes = 0
     model.C = 0.0
     model.J = 0.0

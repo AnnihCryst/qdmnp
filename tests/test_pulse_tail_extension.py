@@ -8,6 +8,7 @@ import numpy as np
 
 import qd_mnp_pulse_absorption_sweep as sweep
 from qd_mnp_rational_fit import DipoleCrossSections, fs_to_au
+from tests._fixtures import make_zero_mode_model
 
 
 class ResponseTailRatioTests(unittest.TestCase):
@@ -53,13 +54,21 @@ class ComputeSweepTailExtensionTests(unittest.TestCase):
     @staticmethod
     def _sections() -> DipoleCrossSections:
         return DipoleCrossSections(
-            extinction_cm2=np.asarray(2.0),
-            scattering_cm2=np.asarray(0.5),
-            absorption_cm2=np.asarray(1.5),
+            quasistatic_work_loss_cm2=np.asarray(2.0),
+            rayleigh_scattering_estimate_cm2=np.asarray(0.5),
+            optical_theorem_residual_cm2=np.asarray(1.5),
         )
 
     @staticmethod
-    def _result(t_span_au: tuple[float, float], *, lingering_tail: bool):
+    def _result(
+        t_span_au: tuple[float, float],
+        *,
+        lingering_tail: bool,
+        drive_leakage: float = 0.0,
+        mnp_dipole_leakage: float | None = None,
+    ):
+        if mnp_dipole_leakage is None:
+            mnp_dipole_leakage = drive_leakage
         t_au = np.linspace(t_span_au[0], t_span_au[1], 101)
         if lingering_tail:
             mu_p = np.ones_like(t_au)
@@ -73,6 +82,15 @@ class ComputeSweepTailExtensionTests(unittest.TestCase):
             nfev=10,
             solver_success=True,
             t_final_reached=True,
+            pulse_spectral_fraction_in_fit_window=1.0,
+            pulse_spectral_leakage=0.0,
+            mnp_drive_spectral_fraction_in_fit_window=1.0 - drive_leakage,
+            mnp_drive_spectral_leakage=drive_leakage,
+            mnp_dipole_spectral_fraction_in_fit_window=1.0 - mnp_dipole_leakage,
+            mnp_dipole_spectral_leakage=mnp_dipole_leakage,
+            work_passivity_checked=True,
+            work_passivity_tolerance_au=1.0e-12,
+            work_nonnegative_within_tolerance=True,
         )
         return SimpleNamespace(
             t_au=t_au,
@@ -90,10 +108,42 @@ class ComputeSweepTailExtensionTests(unittest.TestCase):
             diagnostics=diagnostics,
         )
 
-    def _compute(self, model, *, post_fs: float | None):
-        params = SimpleNamespace(eps_m=1.0, d_au=1.0)
+    def _compute(
+        self,
+        model,
+        *,
+        post_fs: float | None,
+        spectral_window_policy: str = "ignore",
+    ):
+        params = make_zero_mode_model().params
         if not hasattr(model, "linear_stability"):
             model.linear_stability = SimpleNamespace(stable=True, spectral_abscissa_au=-1.0e-4)
+        if not hasattr(model, "fit"):
+            model.fit = SimpleNamespace(
+                alpha_inf=0.0,
+                strengths_au2=np.asarray([], dtype=float),
+                omega_modes_au=np.asarray([], dtype=float),
+                gamma_modes_au=np.asarray([], dtype=float),
+                normalized_rms_alpha=0.0,
+                normalized_rms_inv_alpha=0.0,
+                max_normalized_alpha_error=0.0,
+                passive_for_all_positive_frequencies=True,
+                nonnegative_imaginary_part_all_positive_frequencies=True,
+            )
+        model.n_modes = 0
+        if not hasattr(model, "dipole_applicability_diagnostics"):
+            model.dipole_applicability_diagnostics = lambda **kwargs: SimpleNamespace(
+                medium_size_parameter_kc=0.1,
+                medium_separation_parameter_kR=0.15,
+                mnp_size_to_separation_ratio=0.2,
+                qd_size_to_separation_ratio=0.05,
+                particle_quasistatic_guide_satisfied=True,
+                near_field_coupling_guide_satisfied=True,
+                quasistatic_guide_satisfied=True,
+                mnp_point_dipole_guide_satisfied=True,
+                qd_point_dipole_guide_satisfied=True,
+                point_dipole_guide_satisfied=True,
+            )
         with (
             patch.object(sweep, "make_params_with_overrides", return_value=params) as make_params,
             patch.object(sweep, "HybridQDPlasmonModel", return_value=model),
@@ -101,7 +151,7 @@ class ComputeSweepTailExtensionTests(unittest.TestCase):
             patch.object(sweep, "spectral_cross_sections_cm2", return_value=self._sections()),
         ):
             rows, traces, returned_params = sweep.compute_sweep(
-                tau_values_fs=[1.0],
+                tau_values_fs=[5.0],
                 e0_values_v_m=np.asarray([1.0e5]),
                 omega_l_ev=2.0,
                 n_modes=0,
@@ -122,6 +172,7 @@ class ComputeSweepTailExtensionTests(unittest.TestCase):
                 omega0_ev=None,
                 gamma_population_mev=None,
                 gamma2_coherence_mev=2.0,
+                spectral_window_policy=spectral_window_policy,
             )
         self.assertIs(returned_params, params)
         self.assertEqual(make_params.call_args.kwargs["qd_radius_nm"], None)
@@ -169,6 +220,66 @@ class ComputeSweepTailExtensionTests(unittest.TestCase):
         self.assertEqual(len(solve_spans), 1)
         self.assertEqual(rows[0]["tail_extension_count"], 0)
         self.assertFalse(rows[0]["tail_below_tolerance"])
+
+    def test_unconverged_automatic_tail_is_not_returned_as_production_data(self) -> None:
+        def solve(_pulse, **kwargs):
+            return self._result(kwargs["t_span_au"], lingering_tail=True)
+
+        model = SimpleNamespace(
+            recommended_post_pulse_time_au=lambda decay_times: float(fs_to_au(10.0)),
+            solve=solve,
+        )
+        with self.assertRaisesRegex(RuntimeError, "observables are not converged"):
+            self._compute(model, post_fs=None)
+
+    def test_drive_spectrum_verdict_waits_for_automatic_tail_convergence(self) -> None:
+        solve_policies: list[str] = []
+
+        def solve(_pulse, **kwargs):
+            solve_policies.append(kwargs["spectral_window_policy"])
+            return self._result(
+                kwargs["t_span_au"],
+                lingering_tail=len(solve_policies) == 1,
+                drive_leakage=0.5,
+            )
+
+        model = SimpleNamespace(
+            recommended_post_pulse_time_au=lambda decay_times: float(fs_to_au(10.0)),
+            solve=solve,
+        )
+        with self.assertRaisesRegex(
+            ValueError,
+            "converged self-consistent field",
+        ):
+            self._compute(
+                model,
+                post_fs=None,
+                spectral_window_policy="raise",
+            )
+
+        # The first truncated FFT is diagnostic only; the tail gets one chance
+        # to converge before the final spectrum can invalidate production data.
+        self.assertEqual(solve_policies, ["ignore", "ignore"])
+
+    def test_mnp_output_spectrum_is_enforced_even_when_drive_is_covered(self) -> None:
+        def solve(_pulse, **kwargs):
+            return self._result(
+                kwargs["t_span_au"],
+                lingering_tail=False,
+                drive_leakage=0.0,
+                mnp_dipole_leakage=0.5,
+            )
+
+        model = SimpleNamespace(
+            recommended_post_pulse_time_au=lambda decay_times: float(fs_to_au(10.0)),
+            solve=solve,
+        )
+        with self.assertRaisesRegex(ValueError, "MNP dipole response"):
+            self._compute(
+                model,
+                post_fs=None,
+                spectral_window_policy="raise",
+            )
 
 
 if __name__ == "__main__":

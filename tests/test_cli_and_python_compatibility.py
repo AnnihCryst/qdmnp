@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import inspect
 from pathlib import Path
+import tempfile
 from unittest.mock import patch
 import unittest
 
@@ -15,6 +16,32 @@ import qd_mnp_rational_fit as core
 
 
 class CliAndPythonCompatibilityTests(unittest.TestCase):
+    def test_all_production_entrypoints_share_the_nine_mode_default(self) -> None:
+        self.assertEqual(
+            inspect.signature(core.HybridQDPlasmonModel).parameters[
+                "n_modes"
+            ].default,
+            9,
+        )
+        with patch("sys.argv", [core.__name__]):
+            core_args = core.parse_args()
+        self.assertEqual(core_args.modes, [9])
+        self.assertEqual(core_args.dynamics_n_modes, 9)
+
+        for module in (linear, fano, pulse):
+            with self.subTest(module=module.__name__), patch(
+                "sys.argv",
+                [module.__name__],
+            ):
+                self.assertEqual(module.parse_args().n_modes, 9)
+
+        with patch("sys.argv", [linear.__name__]):
+            linear_args = linear.parse_args()
+        self.assertEqual(
+            (linear_args.energy_min_ev, linear_args.energy_max_ev, linear_args.points),
+            (2.0, 2.08, 201),
+        )
+
     def test_scalar_gamma2_cli_aliases_share_the_canonical_destination(self) -> None:
         for module in (core, linear, pulse):
             with self.subTest(module=module.__name__, option="canonical"):
@@ -42,6 +69,26 @@ class CliAndPythonCompatibilityTests(unittest.TestCase):
                 with patch("sys.argv", [module.__name__, *argv_tail]), patch("sys.stderr"):
                     with self.assertRaises(SystemExit):
                         module.parse_args()
+
+    def test_rational_fit_artifact_forwards_transverse_orientation_to_parameters(self) -> None:
+        """The CLI path must keep ``orientation='trans'`` and therefore ``G=-1``."""
+
+        with tempfile.TemporaryDirectory() as run_dir:
+            with patch(
+                "sys.argv",
+                [core.__name__, "--orientation", "trans", "--run-dir", run_dir],
+            ):
+                args = core.parse_args()
+
+            with patch.object(
+                core,
+                "make_params_with_overrides",
+                side_effect=RuntimeError("stop after argument forwarding"),
+            ) as factory:
+                with self.assertRaisesRegex(RuntimeError, "argument forwarding"):
+                    core.build_rational_fit_artifact(args)
+
+        self.assertEqual(factory.call_args.kwargs["orientation"], "trans")
 
     def test_historical_plot_helper_warns_and_delegates(self) -> None:
         output = Path("unused.png")

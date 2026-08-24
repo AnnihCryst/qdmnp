@@ -66,7 +66,7 @@ class PulseMediumNormalizationTests(unittest.TestCase):
         pulse = make_test_pulse(e0_au=1.0e-5)
         vacuum_model = make_zero_mode_model(eps_m=1.0)
         medium_model = make_zero_mode_model(eps_m=2.25)
-        t_span = (-2.0 * pulse.sigma_t_au, 2.0 * pulse.sigma_t_au)
+        t_span = (-8.0 * pulse.sigma_t_au, 8.0 * pulse.sigma_t_au)
 
         vacuum = vacuum_model.solve(
             pulse,
