@@ -1,0 +1,1495 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root { color-scheme: light dark; }
+  body { margin: 0; }
+  img { max-width: 100%; }
+  [hidden] { display: none !important; }
+</style>
+<title>Сфероидальное ядро КТ–МНЧ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Spectral:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap">
+
+<style>
+:root {
+  --paper:  #F6F7F9;
+  --panel:  #FFFFFF;
+  --ink:    #12161C;
+  --muted:  #58616F;
+  --rule:   #DCE1E7;
+  --rule-soft: #EAEEF2;
+  --field:  #0E7C86;
+  --field-soft: #E2F1F2;
+  --metal:  #A96C12;
+  --metal-soft: #F6EDDE;
+  --shadow: 0 1px 2px rgba(18, 22, 28, .05), 0 8px 24px rgba(18, 22, 28, .05);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper:  #0E1217;
+    --panel:  #161B22;
+    --ink:    #E7EBF1;
+    --muted:  #939EAE;
+    --rule:   #232B35;
+    --rule-soft: #1C232C;
+    --field:  #45B9C3;
+    --field-soft: #10262A;
+    --metal:  #DEA352;
+    --metal-soft: #241C10;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .3);
+  }
+}
+:root[data-theme="dark"] {
+  --paper:  #0E1217;
+  --panel:  #161B22;
+  --ink:    #E7EBF1;
+  --muted:  #939EAE;
+  --rule:   #232B35;
+  --rule-soft: #1C232C;
+  --field:  #45B9C3;
+  --field-soft: #10262A;
+  --metal:  #DEA352;
+  --metal-soft: #241C10;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .3);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: Spectral, Georgia, "Times New Roman", serif;
+  font-size: 17px;
+  line-height: 1.66;
+  -webkit-font-smoothing: antialiased;
+}
+
+.shell {
+  display: grid;
+  grid-template-columns: 1fr;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px 120px;
+}
+@media (min-width: 1080px) {
+  .shell {
+    grid-template-columns: 232px minmax(0, 1fr);
+    gap: 56px;
+    padding: 0 32px 140px;
+  }
+}
+
+/* ---------------------------------------------------------------- masthead */
+.masthead {
+  grid-column: 1 / -1;
+  padding: 72px 0 44px;
+  border-bottom: 1px solid var(--rule);
+  margin-bottom: 48px;
+}
+.eyebrow {
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+  color: var(--field);
+  margin: 0 0 18px;
+}
+.masthead h1 {
+  font-size: clamp(34px, 5.4vw, 56px);
+  line-height: 1.08;
+  font-weight: 700;
+  letter-spacing: -.015em;
+  margin: 0 0 20px;
+  text-wrap: balance;
+  max-width: 17ch;
+}
+.standfirst {
+  font-size: clamp(18px, 2.2vw, 21px);
+  line-height: 1.55;
+  color: var(--muted);
+  max-width: 62ch;
+  margin: 0 0 28px;
+}
+.standfirst em { color: var(--ink); font-style: italic; }
+.masthead-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 28px;
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  font-size: 13px;
+  color: var(--muted);
+}
+.masthead-meta b {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* -------------------------------------------------------------------- toc */
+.toc { display: none; }
+@media (min-width: 1080px) {
+  .toc {
+    display: block;
+    position: sticky;
+    top: 32px;
+    align-self: start;
+    max-height: calc(100vh - 64px);
+    overflow-y: auto;
+    font-family: "IBM Plex Sans", system-ui, sans-serif;
+    font-size: 13px;
+    line-height: 1.45;
+    padding-bottom: 24px;
+  }
+}
+.toc h2 {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 0 14px;
+}
+.toc ol { list-style: none; margin: 0; padding: 0; }
+.toc > ol > li { margin-bottom: 18px; }
+.toc .part {
+  display: block;
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 6px;
+  font-size: 12px;
+  letter-spacing: .02em;
+}
+.toc ol ol li { margin-bottom: 3px; }
+.toc a {
+  color: var(--muted);
+  text-decoration: none;
+  display: block;
+  padding: 2px 0 2px 12px;
+  border-left: 2px solid transparent;
+}
+.toc a:hover, .toc a:focus-visible { color: var(--field); border-left-color: var(--field); }
+
+/* ------------------------------------------------------------------- body */
+.doc { min-width: 0; max-width: 74ch; }
+.doc > p, .doc > ul, .doc > ol { max-width: 68ch; }
+
+.part-head {
+  margin: 76px 0 8px;
+  padding-top: 26px;
+  border-top: 2px solid var(--ink);
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+.part-head:first-child { margin-top: 0; }
+.part-head .num { color: var(--field); margin-right: 10px; }
+
+h2.stage {
+  font-size: clamp(23px, 3vw, 28px);
+  line-height: 1.22;
+  font-weight: 600;
+  letter-spacing: -.01em;
+  margin: 44px 0 4px;
+  text-wrap: balance;
+  scroll-margin-top: 24px;
+}
+h2.stage .idx {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: .62em;
+  font-weight: 500;
+  color: var(--field);
+  margin-right: .6em;
+  vertical-align: .12em;
+}
+.stage-lede {
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--muted);
+  margin: 0 0 22px;
+  max-width: 62ch;
+}
+h3 {
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: .01em;
+  margin: 32px 0 10px;
+  color: var(--ink);
+}
+p { margin: 0 0 18px; }
+.doc ul, .doc ol { margin: 0 0 18px; padding-left: 22px; }
+.doc li { margin-bottom: 8px; }
+strong { font-weight: 600; }
+a { color: var(--field); }
+
+code, .m {
+  font-family: "IBM Plex Mono", ui-monospace, "SFMono-Regular", monospace;
+  font-size: .87em;
+  background: var(--rule-soft);
+  padding: .1em .34em;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+.m.f { color: var(--field); background: var(--field-soft); }
+.m.g { color: var(--metal); background: var(--metal-soft); }
+
+/* --------------------------------------------------------------- equation */
+.eq {
+  position: relative;
+  margin: 24px 0;
+  padding: 16px 64px 16px 20px;
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--field);
+  border-radius: 4px;
+  box-shadow: var(--shadow);
+}
+.eq pre {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 14px;
+  line-height: 1.75;
+  margin: 0;
+  white-space: pre;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+.eq .tag {
+  position: absolute;
+  top: 16px;
+  right: 18px;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 12px;
+  color: var(--muted);
+}
+.eq.metal { border-left-color: var(--metal); }
+
+/* ------------------------------------------------------------------ notes */
+.note {
+  margin: 22px 0;
+  padding: 16px 18px;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--panel);
+  font-size: 15.5px;
+  line-height: 1.6;
+}
+.note p:last-child { margin-bottom: 0; }
+.note .label {
+  display: block;
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .11em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+.note.why { border-left: 3px solid var(--field); }
+.note.why .label { color: var(--field); }
+.note.limit { border-left: 3px solid var(--metal); }
+.note.limit .label { color: var(--metal); }
+
+/* ----------------------------------------------------------------- ledger */
+.ledger {
+  margin: 28px 0 8px;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--panel);
+}
+.ledger .head {
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .11em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--rule);
+  background: var(--rule-soft);
+}
+.ledger .cols { display: grid; grid-template-columns: 1fr; }
+@media (min-width: 620px) {
+  .ledger .cols { grid-template-columns: 1fr 1fr; }
+  .ledger .cols > div + div { border-left: 1px solid var(--rule); }
+}
+.ledger .cols > div { padding: 14px 16px; }
+.ledger .cols > div + div { border-top: 1px solid var(--rule); }
+@media (min-width: 620px) {
+  .ledger .cols > div + div { border-top: none; }
+}
+.ledger h4 {
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  margin: 0 0 10px;
+}
+.ledger .in h4 { color: var(--metal); }
+.ledger .out h4 { color: var(--field); }
+.ledger ul { margin: 0; padding-left: 18px; font-size: 14.5px; line-height: 1.52; }
+.ledger li { margin-bottom: 6px; }
+.ledger li:last-child { margin-bottom: 0; }
+
+/* ------------------------------------------------------------------ table */
+.tablewrap { overflow-x: auto; margin: 26px 0; border: 1px solid var(--rule); border-radius: 4px; background: var(--panel); }
+table { border-collapse: collapse; width: 100%; font-size: 14.5px; font-family: "IBM Plex Sans", system-ui, sans-serif; }
+th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--rule-soft); vertical-align: top; }
+thead th {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border-bottom: 1px solid var(--rule);
+  white-space: nowrap;
+}
+tbody tr:last-child td { border-bottom: none; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; font-family: "IBM Plex Mono", ui-monospace, monospace; }
+td code, th code { background: none; padding: 0; font-size: 13px; }
+.pill {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .04em;
+  padding: 2px 7px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+.pill.in { background: var(--metal-soft); color: var(--metal); }
+.pill.out { background: var(--field-soft); color: var(--field); }
+
+/* ----------------------------------------------------------------- figure */
+figure { margin: 34px 0; }
+figure svg { display: block; width: 100%; height: auto; color: var(--ink); }
+.figframe {
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--panel);
+  padding: 18px;
+  overflow-x: auto;
+  box-shadow: var(--shadow);
+}
+figcaption {
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--muted);
+  margin-top: 12px;
+  max-width: 66ch;
+}
+figcaption b { color: var(--ink); font-weight: 600; }
+
+svg .stroke  { fill: none; stroke: currentColor; stroke-width: 1.4; }
+svg .thin    { fill: none; stroke: currentColor; stroke-width: .9; opacity: .35; }
+svg .dash    { fill: none; stroke: currentColor; stroke-width: .9; stroke-dasharray: 4 4; opacity: .45; }
+svg .metal-s { fill: none; stroke: var(--metal); stroke-width: 1.8; }
+svg .metal-f { fill: var(--metal); opacity: .13; }
+svg .field-s { stroke: var(--field); stroke-width: 1.6; fill: none; }
+svg .field-f { fill: var(--field); }
+svg text {
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  font-size: 12px;
+  fill: currentColor;
+}
+svg text.mono { font-family: "IBM Plex Mono", ui-monospace, monospace; }
+svg text.small { font-size: 10.5px; opacity: .72; }
+svg text.lab { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; opacity: .62; }
+svg text.gval { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 13px; font-weight: 500; }
+svg .dot { stroke: none; }
+svg .dot.even { fill: var(--field); }
+svg .dot.odd  { fill: var(--metal); }
+svg .box { fill: var(--panel); stroke: currentColor; stroke-width: 1.2; }
+
+/* ------------------------------------------------------------------ close */
+.closing {
+  margin-top: 72px;
+  padding-top: 26px;
+  border-top: 2px solid var(--ink);
+}
+</style>
+</head>
+<body>
+
+<div class="shell">
+
+  <header class="masthead">
+    <p class="eyebrow">Квазистатическая модель гибридной системы</p>
+    <h1>Как собрано сфероидальное ядро КТ–МНЧ</h1>
+    <p class="standfirst">Пошаговый вывод: от табличной <span class="m">ε<sub>Au</sub>(ω)</span> и деполяризационных факторов эллипсоида — до полного <span class="m">(n,&nbsp;m)</span>-ряда, в котором металлическая наночастица действует на квантовую точку <em>всеми</em> мультиполями, а КТ отвечает на них обратно. Четыре геометрии: КТ на торце или на экваторе, поле вдоль или поперёк большой оси.</p>
+    <div class="masthead-meta">
+      <span><b>Приближение</b> квазистатика, локальный отклик</span>
+      <span><b>МНЧ</b> полный мультипольный ряд</span>
+      <span><b>КТ</b> точечный диполь, двухуровневая</span>
+    </div>
+  </header>
+
+  <nav class="toc" aria-label="Содержание">
+    <h2>Содержание</h2>
+    <ol>
+      <li>
+        <span class="part">I · Постановка</span>
+        <ol>
+          <li><a href="#s1">1 · Что и в каком приближении</a></li>
+          <li><a href="#s2">2 · Исходные данные</a></li>
+        </ol>
+      </li>
+      <li>
+        <span class="part">II · Наночастица</span>
+        <ol>
+          <li><a href="#s3">3 · Материал: ε(ω)</a></li>
+          <li><a href="#s4">4 · Форма: факторы L</a></li>
+          <li><a href="#s5">5 · Поляризуемость и резонанс</a></li>
+        </ol>
+      </li>
+      <li>
+        <span class="part">III · Квантовая точка</span>
+        <ol>
+          <li><a href="#s6">6 · Уравнения Блоха</a></li>
+          <li><a href="#s7">7 · Локальное поле</a></li>
+        </ol>
+      </li>
+      <li>
+        <span class="part">IV · Геометрия связи</span>
+        <ol>
+          <li><a href="#s8">8 · Два независимых выбора</a></li>
+          <li><a href="#s9">9 · Дипольный тензор и G</a></li>
+          <li><a href="#s10">10 · Замкнутая точечная модель</a></li>
+          <li><a href="#s11">11 · Почему её мало</a></li>
+        </ol>
+      </li>
+      <li>
+        <span class="part">V · Полное ядро</span>
+        <ol>
+          <li><a href="#s12">12 · Абстракция A / B / K</a></li>
+          <li><a href="#s13">13 · Сфероидальные координаты</a></li>
+          <li><a href="#s14">14 · Граничная задача: L и g</a></li>
+          <li><a href="#s15">15 · Разложение 1/|r−r′|</a></li>
+          <li><a href="#s16">16 · Производная в точке КТ</a></li>
+          <li><a href="#s17">17 · Яркий канал и взаимность</a></li>
+          <li><a href="#s18">18 · Что даёт обобщение</a></li>
+        </ol>
+      </li>
+      <li>
+        <span class="part">VI · Время</span>
+        <ol>
+          <li><a href="#s19">19 · Пассивная реализация χ₁</a></li>
+          <li><a href="#s20">20 · Перенос на все моды</a></li>
+          <li><a href="#s21">21 · Полная система ОДУ</a></li>
+        </ol>
+      </li>
+      <li>
+        <span class="part">VII · Реализация</span>
+        <ol>
+          <li><a href="#s22">22 · Логарифмические рекурренты</a></li>
+          <li><a href="#s23">23 · Лестница проверок</a></li>
+          <li><a href="#s24">24 · Вход и выход целиком</a></li>
+          <li><a href="#s25">25 · Границы применимости</a></li>
+        </ol>
+      </li>
+    </ol>
+  </nav>
+
+  <main class="doc">
+
+  <!-- ================================================== PART I -->
+  <p class="part-head"><span class="num">I</span> Постановка</p>
+
+  <h2 class="stage" id="s1"><span class="idx">01</span>Что моделируется и в каком приближении</h2>
+  <p class="stage-lede">Прежде чем писать хоть одно уравнение, нужно решить, какие члены уравнений Максвелла мы вправе выбросить. От этого зависит вся дальнейшая математика.</p>
+
+  <p>Система — одна двухуровневая квантовая точка (КТ) в ближнем поле одной металлической наночастицы (МНЧ) в форме вытянутого сфероида. На систему падает лазерный импульс. Нас интересует, как присутствие металла меняет отклик КТ: населённость возбуждённого состояния, спектр поглощения, скорость раскачки.</p>
+
+  <h3>Почему квазистатика</h3>
+  <p>Характерные размеры здесь — единицы и десятки нанометров, а длина волны на плазмонном резонансе золота ≈&nbsp;600&nbsp;нм. Отношение размера к длине волны мало, поэтому в объёме частицы и в зазоре между частицей и КТ поле не успевает заметно измениться за время пробега света. Формально это означает, что в уравнениях Максвелла можно отбросить производную <span class="m">∂B/∂t</span>, после чего <span class="m">∇×E = 0</span> и поле становится потенциальным:</p>
+
+  <div class="eq">
+    <pre>E = −∇Φ,     ∇·(ε ∇Φ) = 0</pre>
+    <span class="tag">(1.1)</span>
+  </div>
+
+  <p>Вместо полной электродинамики мы решаем <strong>уравнение Лапласа с кусочно-постоянной ε</strong>. Частота при этом не исчезает — она сидит внутри <span class="m">ε(ω)</span> как параметр. Это принципиально удешевляет задачу: уравнение Лапласа разделяется в подходящих координатах, и вместо численного решения уравнений Максвелла мы получаем аналитический ряд.</p>
+
+  <div class="note why">
+    <span class="label">Мотивация</span>
+    <p>Квазистатика — не упрощение «для скорости». Она даёт <em>точное</em> решение внутренней задачи, что позволяет строго отделить эффекты геометрии (которые нас интересуют) от эффектов запаздывания (которые здесь малы). Цена: нет радиационного затухания, нет тензора Грина с запаздыванием, нет автоматического расчёта скорости спонтанного распада.</p>
+  </div>
+
+  <p>Модель контролирует своё приближение количественно и сохраняет четыре безразмерных числа в каждом результате: <span class="m">k<sub>m</sub>c</span> (частица мала по сравнению с длиной волны), <span class="m">k<sub>m</sub>R</span> (связь остаётся ближнеполевой), <span class="m">c/R</span> и <span class="m">r<sub>QD</sub>/R</span> (точечность источников). Значение <span class="m">0.3</span> — порог предупреждения, а не отказа.</p>
+
+  <h2 class="stage" id="s2"><span class="idx">02</span>Что задаётся, а что вычисляется</h2>
+  <p class="stage-lede">Разделительная линия проходит здесь: всё ниже слева — физический ввод, который модель не выводит; всё справа появляется только в результате расчёта.</p>
+
+  <p>Ни один из входных параметров не подгоняется под ответ. Это важная методологическая позиция проекта: единственная подгонка во всей модели — представление табличной <span class="m">ε<sub>Au</sub>(ω)</span> суммой лоренцевых полюсов (§19), и её качество проверяется отдельными воротами. Сила связи КТ–МНЧ <strong>не является свободным параметром</strong> — она вычисляется из геометрии.</p>
+
+  <div class="tablewrap">
+    <table>
+      <thead>
+        <tr><th>Параметр</th><th>Смысл</th><th>Зачем нужен в модели</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>a</code>, <code>c</code></td><td>малая и большая полуоси сфероида, нм</td><td>задают <em>форму</em> → деполяризационные факторы → положение плазмонного резонанса</td></tr>
+        <tr><td><code>R</code></td><td>расстояние между центрами вдоль направления на КТ</td><td>единственный масштаб, управляющий силой связи</td></tr>
+        <tr><td><code>r_QD</code></td><td>радиус КТ</td><td>только для контроля зазора и диагностики точечности; во взаимодействие не входит</td></tr>
+        <tr><td><code>qd_position</code></td><td><code>tip</code> | <code>equatorial</code></td><td>задаёт вектор <span class="m">r<sub>D</sub></span> — где именно стоит КТ</td></tr>
+        <tr><td><code>field_polarization</code></td><td><code>longitudinal</code> | <code>transverse</code></td><td>задаёт вектор <span class="m">e<sub>L</sub></span> — вдоль какой оси качается поле</td></tr>
+        <tr><td><code>ε_m</code></td><td>проницаемость среды, вещественная &gt; 0</td><td>экранирует все электростатические взаимодействия</td></tr>
+        <tr><td><code>ε_qd</code></td><td>фоновая проницаемость материала КТ</td><td>даёт множитель локального поля внутри КТ</td></tr>
+        <tr><td><code>n(ω), k(ω)</code></td><td>табличная оптика золота (Johnson&nbsp;&amp;&nbsp;Christy)</td><td>единственный источник частотной дисперсии металла</td></tr>
+        <tr><td><code>d</code></td><td>дипольный момент перехода КТ, Дебай</td><td>сила связи КТ с полем; входит в квадрате в обратную реакцию</td></tr>
+        <tr><td><code>ω₀</code></td><td>энергия перехода КТ, эВ</td><td>определяет расстройку относительно плазмона</td></tr>
+        <tr><td><code>γ₁</code>, <code>Γ₂</code></td><td>скорости релаксации населённости и когерентности</td><td>феноменологические; требуется <span class="m">Γ₂ ≥ γ₁/2</span></td></tr>
+        <tr><td><code>E₀, ω_L, τ</code></td><td>амплитуда, несущая и длительность импульса</td><td>внешний драйв</td></tr>
+        <tr><td><code>n_modes</code>, <code>n_max</code></td><td>число лоренцевых полюсов и максимальный порядок <span class="m">n</span></td><td>численные параметры сходимости, не физика</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>Вычисляются: фокусное расстояние и сфероидальные координаты, все деполяризационные факторы, фактор <span class="m">G</span>, поляризуемость МНЧ, лоренцевы полюса, весь набор модальных весов, каналы <span class="m">A</span>, <span class="m">B</span>, <span class="m">K</span>, поляризуемость КТ, эффективная поляризуемость системы, сечения и вся временная динамика. Полная сводка — в §24.</p>
+
+  <!-- ================================================== PART II -->
+  <p class="part-head"><span class="num">II</span> Металлическая наночастица</p>
+
+  <h2 class="stage" id="s3"><span class="idx">03</span>Материал: откуда берётся ε(ω)</h2>
+  <p class="stage-lede">Металл входит в модель ровно одним объектом — комплексной функцией частоты. Всё остальное про металл выводится.</p>
+
+  <p>Золото описывается измеренными оптическими постоянными <span class="m">n(ω)</span> и <span class="m">k(ω)</span>, из которых собирается диэлектрическая проницаемость:</p>
+
+  <div class="eq metal">
+    <pre>ε_Au(ω) = ( n(ω) + i·k(ω) )²</pre>
+    <span class="tag">(3.1)</span>
+  </div>
+
+  <p>Между табличными узлами <span class="m">n</span> и <span class="m">k</span> интерполируются <strong>кусочно-линейно и без экстраполяции</strong>. Выбор не косметический: сплайн по <span class="m">ε</span> может дать выброс и локально сделать <span class="m">Im ε &lt; 0</span>, то есть усиливающую среду там, где её нет. Линейная интерполяция по <span class="m">n, k ≥ 0</span> структурно сохраняет пассивность.</p>
+
+  <div class="note why">
+    <span class="label">Соглашение</span>
+    <p>Всюду принят множитель <span class="m">exp(−iωt)</span>. При нём пассивная среда имеет <span class="m">Im ε ≥ 0</span>, а поглощение пропорционально <span class="m">Im</span> от отклика. Это соглашение фиксирует знаки во всех последующих формулах и в проверках пассивности.</p>
+  </div>
+
+  <div class="ledger">
+    <div class="head">Этап 3</div>
+    <div class="cols">
+      <div class="in"><h4>Вход</h4><ul><li>таблица <span class="m">n(ω), k(ω)</span></li><li>окно частот расчёта</li></ul></div>
+      <div class="out"><h4>Выход</h4><ul><li><span class="m">ε<sub>Au</sub>(ω)</span> на произвольной сетке</li></ul></div>
+    </div>
+  </div>
+
+  <h2 class="stage" id="s4"><span class="idx">04</span>Форма частицы: деполяризационные факторы</h2>
+  <p class="stage-lede">Здесь геометрия впервые превращается в число. Форма частицы сжимается ровно в один параметр на каждую ось.</p>
+
+  <p>Поместим однородный эллипсоид с проницаемостью <span class="m">ε<sub>p</sub></span> в однородное внешнее поле <span class="m">E₀</span> в среде <span class="m">ε<sub>m</sub></span>. Замечательное свойство эллипсоида: если внешнее поле однородно и направлено вдоль главной оси, то <strong>поле внутри тоже однородно</strong>. Это следствие того, что потенциал однородного поля <span class="m">Φ ∝ z</span> — сам по себе гармоника первого порядка, а граница эллипсоида является координатной поверхностью в эллипсоидальных координатах, поэтому граничные условия не смешивают порядки.</p>
+
+  <p>Из решения этой задачи внутреннее поле оказывается ослабленным:</p>
+
+  <div class="eq metal">
+    <pre>E_in = E₀ · ε_m / [ ε_m + L (ε_p − ε_m) ]</pre>
+    <span class="tag">(4.1)</span>
+  </div>
+
+  <p><span class="m">L</span> — <strong>деполяризационный фактор</strong> выбранной оси, чисто геометрическое число из интервала <span class="m">(0, 1)</span>, зависящее только от отношения полуосей. Для трёх осей <span class="m">L<sub>x</sub> + L<sub>y</sub> + L<sub>z</sub> = 1</span>; для сферы все три равны <span class="m">1/3</span>. Для вытянутого сфероида с <span class="m">c &gt; a</span>:</p>
+
+  <div class="eq metal">
+    <pre>e² = 1 − a²/c²                          (эксцентриситет)
+
+L_z = (1 − e²)/e³ · ( artanh e − e )     (вдоль длинной оси)
+
+L_x = L_y = (1 − L_z) / 2                (поперёк)</pre>
+    <span class="tag">(4.2)</span>
+  </div>
+
+  <p>Для вытянутой частицы <span class="m">L<sub>z</sub> &lt; 1/3 &lt; L<sub>x</sub></span>: вдоль длинной оси заряды разведены дальше, деполяризующее поле слабее. При <span class="m">c/a = 15/7</span> получается <span class="m">L<sub>z</sub> = 0.1610</span> и <span class="m">L<sub>x</sub> = 0.4195</span> — именно эти числа появятся дальше как <span class="m">L</span> яркой моды.</p>
+
+  <div class="note limit">
+    <span class="label">Численная деталь</span>
+    <p>При <span class="m">a → c</span> формула (4.2) страдает катастрофическим сокращением: <span class="m">artanh e − e</span> — разность двух почти равных величин, делённая на <span class="m">e³</span>. Реализация переключается на разложение по <span class="m">e²</span> при <span class="m">e² &lt; 10⁻³</span>. Это типичный случай, когда «правильная формула» и «правильная программа» — разные вещи.</p>
+  </div>
+
+  <div class="ledger">
+    <div class="head">Этап 4</div>
+    <div class="cols">
+      <div class="in"><h4>Вход</h4><ul><li>полуоси <span class="m">a</span>, <span class="m">c</span></li></ul></div>
+      <div class="out"><h4>Выход</h4><ul><li><span class="m">L<sub>z</sub></span> — продольный фактор</li><li><span class="m">L<sub>x</sub> = L<sub>y</sub></span> — поперечный</li></ul></div>
+    </div>
+  </div>
+
+  <h2 class="stage" id="s5"><span class="idx">05</span>Поляризуемость и условие плазмонного резонанса</h2>
+  <p class="stage-lede">Соединяем материал и форму. Здесь становится видно, почему одна и та же частица имеет два разных резонанса.</p>
+
+  <p>Индуцированный дипольный момент частицы пропорционален внешнему полю. Удобно отделить безразмерную «восприимчивость» от объёмного множителя:</p>
+
+  <div class="eq metal">
+    <pre>χ(ω) = ( ε_p(ω) − ε_m ) / [ ε_m + L (ε_p(ω) − ε_m) ]
+
+p_M = α(ω) · E₀ ,     α = C · χ ,     C = ε_m · a²c / 3</pre>
+    <span class="tag">(5.1)</span>
+  </div>
+
+  <p>Множитель <span class="m">C</span> — это <span class="m">ε<sub>m</sub>V/(4π)</span> с точностью до принятой в проекте системы единиц; он несёт объём, <span class="m">χ</span> несёт всю физику отклика.</p>
+
+  <h3>Резонанс</h3>
+  <p>Знаменатель (5.1) обращается в нуль при</p>
+
+  <div class="eq metal">
+    <pre>ε_m + L ( ε_p − ε_m ) = 0    ⟺    Re ε_p(ω) = ε_m ( 1 − 1/L )</pre>
+    <span class="tag">(5.2)</span>
+  </div>
+
+  <p>Это <strong>условие локализованного плазмонного резонанса</strong>. Для металла <span class="m">Re ε<sub>p</sub> &lt; 0</span>, и уравнение имеет решение. Малое <span class="m">L</span> требует сильно отрицательного <span class="m">Re ε<sub>p</sub></span>, что для золота происходит на низких частотах — поэтому <strong>продольный резонанс всегда краснее поперечного</strong>. Одна и та же частица оказывается двумя разными осцилляторами в зависимости от того, вдоль какой оси её раскачивают. Это первая точка, где выбор поляризации внешнего поля становится физически значимым.</p>
+
+  <div class="ledger">
+    <div class="head">Этап 5</div>
+    <div class="cols">
+      <div class="in"><h4>Вход</h4><ul><li><span class="m">ε<sub>Au</sub>(ω)</span>, <span class="m">ε<sub>m</sub></span></li><li><span class="m">L</span> выбранной оси, <span class="m">a</span>, <span class="m">c</span></li></ul></div>
+      <div class="out"><h4>Выход</h4><ul><li><span class="m">χ(ω)</span> — безразмерный отклик</li><li><span class="m">α(ω)</span> — поляризуемость</li><li>частота и ширина плазмона</li></ul></div>
+    </div>
+  </div>
+
+  <!-- ================================================== PART III -->
+  <p class="part-head"><span class="num">III</span> Квантовая точка</p>
+
+  <h2 class="stage" id="s6"><span class="idx">06</span>Двухуровневая система: уравнения Блоха</h2>
+  <p class="stage-lede">КТ — единственный нелинейный элемент модели. Всё остальное линейно по полю; насыщение приходит отсюда.</p>
+
+  <p>КТ описывается как двухуровневая система с гамильтонианом (в атомных единицах, <span class="m">ħ = 1</span>)</p>
+
+  <div class="eq">
+    <pre>H = (ω₀/2)·σ_z  −  d·E_QD(t)·σ_x</pre>
+    <span class="tag">(6.1)</span>
+  </div>
+
+  <p>Здесь <span class="m">σ</span> — матрицы Паули, <span class="m">d</span> — дипольный момент перехода, <span class="m">E<sub>QD</sub></span> — <em>полное</em> поле в точке КТ, включая отклик металла. Вводя вещественные компоненты вектора Блоха <span class="m">P = ⟨σ<sub>x</sub>⟩</span>, <span class="m">Q = −⟨σ<sub>y</sub>⟩</span>, <span class="m">W = ⟨σ<sub>z</sub>⟩</span> и добавляя феноменологическую релаксацию, получаем систему</p>
+
+  <div class="eq">
+    <pre>dP/dt =  ω₀ Q            − Γ₂ P
+dQ/dt = −ω₀ P  − Ω(t) W  − Γ₂ Q
+dW/dt =          Ω(t) Q  − γ₁ (W + 1)
+
+Ω(t) = 2 d E_QD(t)          (частота Раби)
+ρ₂₂  = (1 + W)/2            (населённость верхнего уровня)</pre>
+    <span class="tag">(6.2)</span>
+  </div>
+
+  <p>Смысл переменных: <span class="m">P</span> — та квадратура когерентности, которая даёт наблюдаемый дипольный момент <span class="m">μ<sub>QD</sub> = d·P</span>; <span class="m">Q</span> — сопряжённая квадратура, через которую поле перекачивает населённость; <span class="m">W</span> — инверсия, равная <span class="m">−1</span> в основном состоянии.</p>
+
+  <div class="note why">
+    <span class="label">Почему не RWA</span>
+    <p>Система (6.2) записана без приближения вращающейся волны. Это сознательно: при сильной связи с плазмоном эффективное поле в точке КТ содержит спектральные компоненты далеко от несущей, и RWA перестаёт быть контролируемым. Цена — нужно интегрировать на масштабе оптического периода, а не огибающей.</p>
+  </div>
+
+  <p>Нелинейность сидит в произведениях <span class="m">Ω·W</span> и <span class="m">Ω·Q</span>: при слабом поле <span class="m">W ≈ −1</span> и система линейна, при сильном — насыщается. Именно это делает возможной нелинейную динамику (осцилляции Раби, зависимость от площади импульса).</p>
+
+  <div class="ledger">
+    <div class="head">Этап 6</div>
+    <div class="cols">
+      <div class="in"><h4>Вход</h4><ul><li><span class="m">d</span>, <span class="m">ω₀</span>, <span class="m">γ₁</span>, <span class="m">Γ₂</span></li></ul></div>
+      <div class="out"><h4>Выход</h4><ul><li><span class="m">P(t), Q(t), W(t)</span></li><li><span class="m">μ<sub>QD</sub>(t)</span> — источник для МНЧ</li><li><span class="m">ρ₂₂(t)</span> — наблюдаемая</li></ul></div>
+    </div>
+  </div>
+
+  <h2 class="stage" id="s7"><span class="idx">07</span>Локальное поле внутри КТ</h2>
+  <p class="stage-lede">Небольшой, но принципиальный множитель: макроскопическое поле в среде и микроскопическое поле внутри КТ — не одно и то же.</p>
+
+  <p>КТ — не точка вакуума, а шарик диэлектрика с проницаемостью <span class="m">ε<sub>qd</sub></span> в среде <span class="m">ε<sub>m</sub></span>. Электростатика шара в однородном поле даёт стандартный множитель</p>
+
+  <div class="eq">
+    <pre>ℓ = 3 ε_m / ( ε_qd + 2 ε_m )</pre>
+    <span class="tag">(7.1)</span>
+  </div>
+
+  <p>Он входит <em>дважды</em>, и это важно не перепутать:</p>
+  <ul>
+    <li><strong>наружу:</strong> внешне видимый диполь КТ равен <span class="m">μ<sub>QD</sub> = ℓ·d·P</span>;</li>
+    <li><strong>внутрь:</strong> микроскопическое поле, раскачивающее переход, равно <span class="m">ℓ</span> от макроскопического.</li>
+  </ul>
+
+  <p>Поэтому петля обратной связи КТ→МНЧ→КТ несёт <span class="m">ℓ²</span>. Проект поддерживает два соглашения: <code>bare_internal</code> (<span class="m">d</span> — «голый» матричный элемент, множитель работает) и <code>effective_external</code> (<span class="m">d</span> уже содержит экранировку, множитель равен 1). Соглашение задаётся явно, чтобы экранировка не учлась дважды.</p>
+
+  <!-- ================================================== PART IV -->
+  <p class="part-head"><span class="num">IV</span> Геометрия связи</p>
+
+  <h2 class="stage" id="s8"><span class="idx">08</span>Два независимых геометрических выбора</h2>
+  <p class="stage-lede">Это центральный узел всей модели: положение КТ и поляризация поля — разные вещи, и их нельзя связывать одним параметром.</p>
+
+  <p>Частица задаётся уравнением</p>
+
+  <div class="eq metal">
+    <pre>(x² + y²)/a²  +  z²/c²  =  1 ,      c &gt; a</pre>
+    <span class="tag">(8.1)</span>
+  </div>
+
+  <p>Первый выбор — <strong>где стоит КТ</strong>. Вектор <span class="m">r<sub>D</sub></span> от центра МНЧ к центру КТ, где <span class="m">h</span> — поверхностный зазор:</p>
+
+  <div class="eq">
+    <pre>tip         r_D = (0, 0, c + h)      КТ на продолжении большой полуоси
+equatorial  r_D = (a + h, 0, 0)      КТ у середины боковой поверхности</pre>
+    <span class="tag">(8.2)</span>
+  </div>
+
+  <p>Экваториальная точка выбрана со стороны положительной оси <span class="m">x</span> без потери общности — частица осесимметрична, любое другое азимутальное положение получается поворотом.</p>
+
+  <p>Второй выбор — <strong>куда качается поле</strong>. Дипольный момент перехода КТ берётся вдоль той же оси:</p>
+
+  <div class="eq">
+    <pre>longitudinal  E_L(t) = E_L(t)·e_z ,   e_L = (0, 0, 1)
+transverse    E_L(t) = E_L(t)·e_x ,   e_L = (1, 0, 0)</pre>
+    <span class="tag">(8.3)</span>
+  </div>
+
+  <p>Эти два выбора управляют <em>разными</em> частями задачи, поэтому не заменяют друг друга:</p>
+  <ul>
+    <li><span class="m">e<sub>L</sub></span> выбирает главную ось МНЧ, а с ней — деполяризационный фактор и весь плазмонный спектр (§5);</li>
+    <li>взаимная ориентация <span class="m">e<sub>L</sub></span> и <span class="m">r<sub>D</sub></span> задаёт геометрию связи.</li>
+  </ul>
+
+  <figure>
+    <div class="figframe">
+      <svg viewBox="0 0 760 470" role="img" aria-label="Четыре комбинации: КТ на торце или на экваторе, поле вдоль z или вдоль x; фактор G равен +2 когда поле параллельно направлению на КТ, и −1 когда перпендикулярно">
+        <!-- column headers -->
+        <text class="lab" x="270" y="24" text-anchor="middle">поле ∥ z · longitudinal</text>
+        <text class="lab" x="590" y="24" text-anchor="middle">поле ∥ x · transverse</text>
+        <line class="thin" x1="110" y1="34" x2="750" y2="34" />
+        <line class="thin" x1="430" y1="34" x2="430" y2="460" />
+        <line class="thin" x1="110" y1="250" x2="750" y2="250" />
+
+        <!-- row labels -->
+        <text class="lab" x="16" y="140">КТ на торце</text>
+        <text class="small" x="16" y="156">r_D = (0,0,c+h)</text>
+        <text class="lab" x="16" y="352">КТ на экваторе</text>
+        <text class="small" x="16" y="368">r_D = (a+h,0,0)</text>
+
+        <!-- ============ cell 1: tip + longitudinal -->
+        <line class="dash" x1="270" y1="52" x2="270" y2="238" />
+        <ellipse class="metal-f" cx="270" cy="150" rx="24" ry="56" />
+        <ellipse class="metal-s" cx="270" cy="150" rx="24" ry="56" />
+        <line class="stroke" x1="270" y1="150" x2="270" y2="78" marker-end="url(#ar)" />
+        <text class="mono small" x="300" y="120">r_D</text>
+        <line class="field-s" x1="252" y1="48" x2="252" y2="96" marker-end="url(#arf)" marker-start="url(#arfs)" />
+        <text class="mono small" x="212" y="76" fill="var(--field)">e_L</text>
+        <circle class="field-f" cx="270" cy="72" r="7" />
+        <text class="gval" x="270" y="228" text-anchor="middle">e_L ∥ r_D  →  G = +2</text>
+
+        <!-- ============ cell 2: tip + transverse -->
+        <line class="dash" x1="590" y1="52" x2="590" y2="238" />
+        <ellipse class="metal-f" cx="590" cy="150" rx="24" ry="56" />
+        <ellipse class="metal-s" cx="590" cy="150" rx="24" ry="56" />
+        <line class="stroke" x1="590" y1="150" x2="590" y2="78" marker-end="url(#ar)" />
+        <text class="mono small" x="620" y="120">r_D</text>
+        <line class="field-s" x1="558" y1="72" x2="622" y2="72" marker-end="url(#arf)" marker-start="url(#arfs)" />
+        <text class="mono small" x="626" y="66" fill="var(--field)">e_L</text>
+        <circle class="field-f" cx="590" cy="72" r="7" />
+        <text class="gval" x="590" y="228" text-anchor="middle">e_L ⊥ r_D  →  G = −1</text>
+
+        <!-- ============ cell 3: equatorial + longitudinal -->
+        <line class="dash" x1="270" y1="262" x2="270" y2="448" />
+        <ellipse class="metal-f" cx="270" cy="355" rx="24" ry="56" />
+        <ellipse class="metal-s" cx="270" cy="355" rx="24" ry="56" />
+        <line class="stroke" x1="270" y1="355" x2="336" y2="355" marker-end="url(#ar)" />
+        <text class="mono small" x="298" y="347">r_D</text>
+        <line class="field-s" x1="344" y1="322" x2="344" y2="388" marker-end="url(#arf)" marker-start="url(#arfs)" />
+        <text class="mono small" x="354" y="330" fill="var(--field)">e_L</text>
+        <circle class="field-f" cx="344" cy="355" r="7" />
+        <text class="gval" x="270" y="438" text-anchor="middle">e_L ⊥ r_D  →  G = −1</text>
+
+        <!-- ============ cell 4: equatorial + transverse -->
+        <line class="dash" x1="590" y1="262" x2="590" y2="448" />
+        <ellipse class="metal-f" cx="590" cy="355" rx="24" ry="56" />
+        <ellipse class="metal-s" cx="590" cy="355" rx="24" ry="56" />
+        <line class="stroke" x1="590" y1="355" x2="656" y2="355" marker-end="url(#ar)" />
+        <text class="mono small" x="616" y="375">r_D</text>
+        <line class="field-s" x1="634" y1="322" x2="696" y2="322" marker-end="url(#arf)" marker-start="url(#arfs)" />
+        <text class="mono small" x="700" y="317" fill="var(--field)">e_L</text>
+        <circle class="field-f" cx="664" cy="355" r="7" />
+        <text class="gval" x="590" y="438" text-anchor="middle">e_L ∥ r_D  →  G = +2</text>
+
+        <defs>
+          <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor" />
+          </marker>
+          <marker id="arf" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--field)" />
+          </marker>
+          <marker id="arfs" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--field)" />
+          </marker>
+        </defs>
+      </svg>
+    </div>
+    <figcaption><b>Четыре комбинации.</b> Положение КТ (строка) и поляризация поля (столбец) выбираются независимо. Знак и величина связи определяются только тем, параллельны <span class="m">e<sub>L</sub></span> и <span class="m">r<sub>D</sub></span> или перпендикулярны, — а плазмонная ветвь определяется только столбцом. Поэтому диагональные ячейки имеют одинаковый <span class="m">G</span>, но разные резонансы.</figcaption>
+  </figure>
+
+  <h2 class="stage" id="s9"><span class="idx">09</span>Дипольный тензор и фактор G</h2>
+  <p class="stage-lede">Здесь геометрия превращается во второе число — и видно, почему допустимы ровно два значения.</p>
+
+  <p>Поле точечного диполя <span class="m">p</span> на расстоянии <span class="m">r</span> в среде <span class="m">ε<sub>m</sub></span>:</p>
+
+  <div class="eq">
+    <pre>E_dip(r) = [ 3 (p·r̂) r̂  −  p ] / ( ε_m r³ )</pre>
+    <span class="tag">(9.1)</span>
+  </div>
+
+  <p>Нас интересует проекция этого поля на направление второго диполя. Поскольку в нашей задаче диполь КТ и наведённый диполь МНЧ оба направлены вдоль <span class="m">e<sub>L</sub></span>, проекция даёт скаляр:</p>
+
+  <div class="eq">
+    <pre>G = 3 ( e_L · r̂_D )²  −  1</pre>
+    <span class="tag">(9.2)</span>
+  </div>
+
+  <p>Разберём, почему множитель именно такой. Если <span class="m">p ∥ r̂</span>, то <span class="m">3(p·r̂)r̂ − p = 2p</span> — поле «вперёд по оси» усилено вдвое и совпадает по знаку с диполем. Если <span class="m">p ⊥ r̂</span>, первый член исчезает и остаётся <span class="m">−p</span> — поле «сбоку» вдвое слабее и <em>противоположно</em> диполю. Отсюда:</p>
+
+  <div class="eq">
+    <pre>e_L ∥ r̂_D  →  G = +2      (связь усилена, знак положительный)
+e_L ⊥ r̂_D  →  G = −1      (связь ослаблена, знак отрицательный)</pre>
+    <span class="tag">(9.3)</span>
+  </div>
+
+  <div class="note why">
+    <span class="label">Почему промежуточных значений не бывает</span>
+    <p>В каждой из четырёх комбинаций и <span class="m">e<sub>L</sub></span>, и <span class="m">r<sub>D</sub></span> лежат вдоль <em>главных осей</em> сфероида. Поэтому: (а) внешнее поле возбуждает МНЧ строго вдоль <span class="m">e<sub>L</sub></span>, без поперечной компоненты; (б) скалярное произведение <span class="m">e<sub>L</sub>·r̂<sub>D</sub></span> равно 0 или 1. Векторная задача честно схлопывается в скалярную — это не приближение, а следствие симметрии. При произвольном угле пришлось бы решать тензорную задачу с двумя компонентами диполя.</p>
+  </div>
+
+  <p>Ключевое следствие: <strong><span class="m">G</span> — не подгоночная «сила связи»</strong>. Он вычисляется из <span class="m">r<sub>D</sub></span> и <span class="m">e<sub>L</sub></span>, и значения вне <span class="m">{+2, −1}</span> модель отвергает как выходящие за рамки выбранной геометрии.</p>
+
+  <h3>Направленный зазор</h3>
+  <p>Одновременно меняется и то, какая полуось «смотрит» на КТ:</p>
+
+  <div class="eq">
+    <pre>tip         h = R − c − r_QD
+equatorial  h = R − a − r_QD</pre>
+    <span class="tag">(9.4)</span>
+  </div>
+
+  <p>Одно и то же <span class="m">R</span> может быть запрещённым на торце и допустимым сбоку. При <span class="m">c = 15</span>, <span class="m">a = 7</span>, <span class="m">r<sub>QD</sub> = 2</span> нм расстояние <span class="m">R = 10</span> нм даёт зазор 1 нм в экваториальной геометрии и перекрытие частиц в торцевой.</p>
+
+  <div class="ledger">
+    <div class="head">Этапы 8–9</div>
+    <div class="cols">
+      <div class="in"><h4>Вход</h4><ul><li><code>qd_position</code>, <code>field_polarization</code></li><li><span class="m">R</span>, <span class="m">a</span>, <span class="m">c</span>, <span class="m">r<sub>QD</sub></span></li></ul></div>
+      <div class="out"><h4>Выход</h4><ul><li>векторы <span class="m">r<sub>D</sub></span> и <span class="m">e<sub>L</sub></span></li><li><span class="m">G ∈ {+2, −1}</span></li><li>зазор <span class="m">h</span> и выбор ветви <span class="m">L</span></li></ul></div>
+    </div>
+  </div>
+
+  <h2 class="stage" id="s10"><span class="idx">10</span>Замкнутая точечно-дипольная система</h2>
+  <p class="stage-lede">Собираем первую работающую модель целиком. Она станет опорной точкой и предметом критики.</p>
+
+  <p>Определим скалярную константу связи</p>
+
+  <div class="eq">
+    <pre>J = G / ( ε_m R³ )</pre>
+    <span class="tag">(10.1)</span>
+  </div>
+
+  <p>и замкнём систему. Логика замыкания — самосогласованность: каждый объект видит внешнее поле <em>плюс</em> поле партнёра.</p>
+
+  <div class="eq">
+    <pre>F      = E_L(t)  +  J·μ_QD            поле, действующее на МНЧ
+μ_MNP  = C ( χ_∞ F + Σ_k q_k )        отклик МНЧ на это поле
+E_QD   = ℓ ( E_L(t) + J·μ_MNP )       поле, действующее на КТ
+Ω      = 2 d E_QD                     подставляется в (6.2)</pre>
+    <span class="tag">(10.2)</span>
+  </div>
+
+  <p>Вместе с уравнениями Блоха (6.2) и осцилляторами <span class="m">q<sub>k</sub></span> (см. §19) это замкнутая нелинейная система ОДУ. В слабополевом пределе её можно решить аналитически и получить эффективную поляризуемость всей гибридной системы.</p>
+
+  <div class="note why">
+    <span class="label">Что здесь спрятано</span>
+    <p>Формулы (10.2) содержат сильное предположение: поле КТ в области металла заменено его значением <em>в центре</em> частицы, а поле металла в области КТ — полем точечного диполя, сидящего в центре. Для зазора порядка размера частицы это неверно. Именно эту замену снимает полное ядро.</p>
+  </div>
+
+  <h2 class="stage" id="s11"><span class="idx">11</span>Почему точечного диполя недостаточно</h2>
+  <p class="stage-lede">Количественная оценка ошибки — и мотив всей второй половины работы.</p>
+
+  <p>Диполь КТ создаёт в области металла сильно неоднородное поле: на масштабе частицы оно меняется в разы. Такое поле возбуждает не только дипольную моду металла, но и квадрупольную, октупольную и далее — весь мультипольный ряд. Каждая из этих мод, в свою очередь, создаёт поле обратно в точке КТ. Точечно-дипольная модель отбрасывает всё, кроме первого члена.</p>
+
+  <p>Насколько это существенно, видно из расчёта: доля реакционного поля <span class="m">K</span>, которую несут порядки выше <span class="m">n = 1</span>, и во сколько раз полное ядро отличается от точечного:</p>
+
+  <div class="tablewrap">
+    <table>
+      <thead>
+        <tr><th>геометрия</th><th>поляризация</th><th class="num">зазор, нм</th><th class="num">доля K вне n=1</th><th class="num">K_full / K_legacy</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>торец</td><td>longitudinal</td><td class="num">1.0</td><td class="num">75.0 %</td><td class="num">25.1</td></tr>
+        <tr><td>торец</td><td>transverse</td><td class="num">1.0</td><td class="num">93.6 %</td><td class="num">98.2</td></tr>
+        <tr><td>экватор</td><td>longitudinal</td><td class="num">2.0</td><td class="num">82.2 %</td><td class="num">1.02</td></tr>
+        <tr><td>экватор</td><td>transverse</td><td class="num">2.0</td><td class="num">85.7 %</td><td class="num">2.40</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>Высшие порядки — не поправка, а <strong>основной вклад</strong>. При этом обратите внимание на последний столбец: сама по себе «ошибка точечной модели» сильно зависит от геометрии, потому что в ней сокращаются две разные погрешности — недооценка высших мод и неверная оценка ближнего поля дипольной моды.</p>
+
+  <!-- ================================================== PART V -->
+  <p class="part-head"><span class="num">V</span> Полное квазистатическое ядро</p>
+
+  <h2 class="stage" id="s12"><span class="idx">12</span>Абстракция трёх каналов A / B / K</h2>
+  <p class="stage-lede">Прежде чем считать ряды, полезно понять, сколько независимых чисел вообще описывает взаимодействие. Их ровно три.</p>
+
+  <p>Взаимодействие КТ и МНЧ полностью описывается линейным откликом «двухпортовой» системы: два источника (внешнее поле <span class="m">E</span> и диполь КТ <span class="m">p<sub>D</sub></span>) и две наблюдаемые (диполь МНЧ <span class="m">p<sub>M</sub></span> и поле МНЧ в точке КТ):</p>
+
+  <div class="eq">
+    <pre>p_M        = A·E  +  B·p_D
+E_MNP@QD   = B·E  +  K·p_D</pre>
+    <span class="tag">(12.1)</span>
+  </div>
+
+  <p>Недиагональные коэффициенты совпадают — это <strong>электростатическая взаимность</strong> (теорема Грина): работа, которую источник 1 совершает над источником 2, равна обратной. Взаимность не постулируется, а проверяется в коде как тождество.</p>
+
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>канал</th><th>физический смысл</th><th>размерность</th></tr></thead>
+      <tbody>
+        <tr><td><code>A</code></td><td>диполь МНЧ, наведённый однородным внешним полем</td><td><span class="m">a₀³</span></td></tr>
+        <tr><td><code>B</code></td><td>перекрёстный канал: рассеянное поле в точке КТ на единицу внешнего поля</td><td>безразмерный</td></tr>
+        <tr><td><code>K</code></td><td>реакционное поле: отклик металла на собственный диполь КТ</td><td><span class="m">a₀⁻³</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>Точечная модель — частный случай, где эти три числа связаны жёстко: <span class="m">B = A·J</span> и <span class="m">K = A·J²</span>. Полное ядро вычисляет их независимо. Ценность абстракции в том, что <em>вся остальная модель — уравнения Блоха, временной решатель, слабополевой предел — работает с любым набором</em> <span class="m">A, B, K</span> и не знает, откуда он взялся. Обобщение геометрии становится заменой одного блока, а не переписыванием модели.</p>
+
+  <p>Слабополевое решение системы (12.1) вместе с поляризуемостью КТ <span class="m">β</span>:</p>
+
+  <div class="eq">
+    <pre>p_D    = β (1 + B) / (1 − β K)
+p_M    = A + B·p_D
+α_eff  = ( p_M + p_D ) / ε_m
+
+β(ω)   = ℓ² · 2 d² ω₀ / [ ω₀² + (Γ₂ − iω)² ]</pre>
+    <span class="tag">(12.2)</span>
+  </div>
+
+  <p>Знаменатель <span class="m">1 − βK</span> — это и есть петля обратной связи КТ→металл→КТ. Он же порождает Фано-подобные особенности спектра и, при слишком сильной связи, неустойчивость основного состояния (которую модель проверяет отдельно).</p>
+
+  <h2 class="stage" id="s13"><span class="idx">13</span>Вытянутые сфероидальные координаты</h2>
+  <p class="stage-lede">Выбор системы координат здесь — не удобство записи, а то, что делает задачу решаемой аналитически.</p>
+
+  <p>Введём координаты <span class="m">(ξ, η, φ)</span> с фокусным полурасстоянием <span class="m">f</span>:</p>
+
+  <div class="eq metal">
+    <pre>x = f √((ξ²−1)(1−η²)) cos φ
+y = f √((ξ²−1)(1−η²)) sin φ
+z = f ξ η
+
+f = √(c² − a²) ,   ξ ≥ 1 ,   −1 ≤ η ≤ 1</pre>
+    <span class="tag">(13.1)</span>
+  </div>
+
+  <p>Поверхности <span class="m">ξ = const</span> — это софокусные вытянутые сфероиды; <span class="m">η = const</span> — гиперболоиды. Решающее обстоятельство: при <span class="m">ξ₀ = c/f</span> получается ровно наша частица, поскольку тогда <span class="m">f√(ξ₀²−1) = a</span>.</p>
+
+  <div class="note why">
+    <span class="label">Зачем это нужно</span>
+    <p>Уравнение Лапласа разделяется в этих координатах, а <strong>граница частицы является координатной поверхностью</strong>. Отсюда следует главное: граничные условия на <span class="m">ξ = ξ₀</span> связывают гармонику <span class="m">(n, m)</span> <em>только сама с собой</em>. Задача о рассеянии распадается на независимые одномерные задачи — по одной на каждую пару <span class="m">(n, m)</span>. В любой другой системе координат граница «размазалась» бы по многим гармоникам, и решение перестало бы быть аналитическим.</p>
+  </div>
+
+  <p>Теперь переведём обе позиции КТ в эти координаты — это чисто геометрический шаг, но именно он определит, какие моды вообще появятся:</p>
+
+  <div class="eq">
+    <pre>tip         η_D = 1 ,   ξ_D = R / f              (КТ на оси, в полюсе)
+equatorial  η_D = 0 ,   ξ_D = √(1 + (R/f)²)      (КТ в плоскости z = 0)</pre>
+    <span class="tag">(13.2)</span>
+  </div>
+
+  <figure>
+    <div class="figframe">
+      <svg viewBox="0 0 620 400" role="img" aria-label="Софокусные сфероиды: поверхность частицы — одна из координатных поверхностей семейства; торцевая КТ сидит в полюсе внешней оболочки, экваториальная — на экваторе другой оболочки">
+        <g transform="translate(310,200)">
+          <!-- outer confocal shells -->
+          <ellipse class="thin" cx="0" cy="0" rx="129" ry="147" />
+          <ellipse class="thin" cx="0" cy="0" rx="96"  ry="119" />
+          <ellipse class="thin" cx="0" cy="0" rx="63"  ry="94" />
+          <!-- particle surface -->
+          <ellipse class="metal-f" cx="0" cy="0" rx="40" ry="80" />
+          <ellipse class="metal-s" cx="0" cy="0" rx="40" ry="80" />
+          <!-- axes -->
+          <line class="dash" x1="0" y1="-172" x2="0" y2="172" />
+          <line class="dash" x1="-150" y1="0" x2="150" y2="0" />
+          <!-- foci -->
+          <circle cx="0" cy="-70" r="3" fill="currentColor" />
+          <circle cx="0" cy="70"  r="3" fill="currentColor" />
+          <text class="mono small" x="8" y="-70">+f</text>
+          <text class="mono small" x="8" y="80">−f</text>
+          <!-- eta hyperbola branches (eta = 0.5) -->
+          <polyline class="dash" points="45,-43.8 68,-52.5 91,-63 112,-73.5 132,-84" />
+          <polyline class="dash" points="-45,-43.8 -68,-52.5 -91,-63 -112,-73.5 -132,-84" />
+          <text class="mono small" x="120" y="-92">η = 0.5</text>
+          <!-- QD markers -->
+          <circle class="field-f" cx="0" cy="-119" r="7" />
+          <text class="mono small" x="10" y="-124" fill="var(--field)">КТ на торце: η=1</text>
+          <circle class="field-f" cx="63" cy="0" r="7" />
+          <text class="mono small" x="72" y="18" fill="var(--field)">КТ на экваторе: η=0</text>
+          <!-- labels -->
+          <text class="mono small" x="-58" y="-84" text-anchor="end" fill="var(--metal)">ξ = ξ₀</text>
+          <line class="thin" x1="-55" y1="-88" x2="-22" y2="-68" />
+          <text class="mono small" x="-138" y="-100" text-anchor="middle">ξ = const</text>
+          <text class="mono small" x="14" y="-186">z</text>
+          <text class="mono small" x="152" y="-6">x</text>
+        </g>
+      </svg>
+    </div>
+    <figcaption><b>Почему именно эти координаты.</b> Поверхность частицы (золотая) — просто один член семейства софокусных сфероидов <span class="m">ξ = const</span>. Поэтому граничное условие не смешивает гармоники. Координата <span class="m">η</span> говорит, <em>где</em> на оболочке находится точка: <span class="m">η = 1</span> — полюс (торцевая КТ), <span class="m">η = 0</span> — экватор.</figcaption>
+  </figure>
+
+  <h2 class="stage" id="s14"><span class="idx">14</span>Граничная задача для одной гармоники</h2>
+  <p class="stage-lede">Решаем задачу рассеяния для отдельной пары (n, m) и получаем два числа, которые несут в себе всю физику этой моды.</p>
+
+  <p>В области вне частицы общее решение уравнения Лапласа — линейная комбинация функций Лежандра первого и второго рода:</p>
+
+  <div class="eq">
+    <pre>Φ ~ [ P_n^m(ξ)  или  Q_n^m(ξ) ] · P_n^m(η) · cos(m φ)</pre>
+    <span class="tag">(14.1)</span>
+  </div>
+
+  <p><span class="m">P<sub>n</sub><sup>m</sup>(ξ)</span> растёт с <span class="m">ξ</span> и описывает <em>приходящее</em> поле (регулярное внутри); <span class="m">Q<sub>n</sub><sup>m</sup>(ξ)</span> убывает и описывает <em>рассеянное</em> поле (регулярное на бесконечности). Это прямой аналог пары <span class="m">r<sup>n</sup></span> и <span class="m">r<sup>−n−1</sup></span> в сферическом случае.</p>
+
+  <p>Пусть падающая часть потенциала для данной моды равна <span class="m">c·P<sub>n</sub><sup>m</sup>(ξ)·S(η,φ)</span>. Тогда снаружи добавляется <span class="m">c·r<sub>nm</sub>·Q<sub>n</sub><sup>m</sup>(ξ)·S</span>, внутри — <span class="m">c·t<sub>nm</sub>·P<sub>n</sub><sup>m</sup>(ξ)·S</span>. Два граничных условия на <span class="m">ξ = ξ₀</span> — непрерывность потенциала и непрерывность нормальной компоненты <span class="m">D</span>:</p>
+
+  <div class="eq">
+    <pre>P + r Q = t P                       (непрерывность Φ)
+ε_m (P′ + r Q′) = ε_p · t P′        (непрерывность ε ∂Φ/∂ξ)</pre>
+    <span class="tag">(14.2)</span>
+  </div>
+
+  <p>Исключая <span class="m">t</span>, получаем коэффициент отражения моды:</p>
+
+  <div class="eq">
+    <pre>r_nm = (ε_p − ε_m) P P′ / ( ε_m P Q′ − ε_p Q P′ )</pre>
+    <span class="tag">(14.3)</span>
+  </div>
+
+  <p>Формула верна, но непрозрачна. Приведём её к виду, где физика отделена от геометрии. Положим <span class="m">Δ = ε<sub>p</sub> − ε<sub>m</sub></span> и <span class="m">W = P Q′ − Q P′</span>:</p>
+
+  <div class="eq">
+    <pre>r_nm = χ_nm · g_nm
+
+χ_nm = Δ / ( ε_m + L_nm · Δ )          материальный множитель
+L_nm = Q P′ / ( Q P′ − P Q′ )          обобщённый деполяризационный фактор
+g_nm = − L_nm · P_n^m(ξ₀) / Q_n^m(ξ₀)  чисто геометрический вес</pre>
+    <span class="tag">(14.4)</span>
+  </div>
+
+  <div class="note why">
+    <span class="label">Что мы этим выиграли</span>
+    <p>Разделение (14.4) — ключ ко всей конструкции. <span class="m">χ<sub>nm</sub></span> имеет ровно ту же форму, что и дипольная восприимчивость (5.1), только с другим <span class="m">L</span>. Значит, <em>каждая мода — это тот же самый материал с другим деполяризационным фактором</em>. Проверьте: при <span class="m">n = 1, m = 0</span> получается в точности <span class="m">L<sub>z</sub></span>, при <span class="m">n = 1, m = 1</span> — <span class="m">L<sub>x</sub></span>. Классические факторы оказались первыми членами общего семейства. Именно это позже позволит перенести одну причинную модель материала на все моды сразу (§20).</p>
+  </div>
+
+  <p>Каждая мода имеет свой резонанс при <span class="m">ε<sub>m</sub> + L<sub>nm</sub>Δ = 0</span>. С ростом <span class="m">n</span> значения <span class="m">L<sub>nm</sub></span> монотонно стремятся к <span class="m">1/2</span> — пределу плоской границы металл–диэлектрик. Физически это осмысленно: высокие мультиполи «не видят» кривизны частицы.</p>
+
+  <h2 class="stage" id="s15"><span class="idx">15</span>Разложение источника и реакционное поле</h2>
+  <p class="stage-lede">Теперь нужно узнать, с какой силой диполь КТ возбуждает каждую моду. Для этого разложим кулоновский потенциал по тем же гармоникам.</p>
+
+  <p>Классическое разложение обратного расстояния в вытянутых сфероидальных гармониках:</p>
+
+  <div class="eq">
+    <pre>1/|r − r′| = (1/f) Σ_n Σ_m A_nm · P_n^m(ξ_&lt;) Q_n^m(ξ_&gt;) · P_n^m(η) P_n^m(η′) · cos m(φ−φ′)
+
+A_nm = (−1)^m (2 − δ_m0) (2n+1) [ (n−m)! / (n+m)! ]²</pre>
+    <span class="tag">(15.1)</span>
+  </div>
+
+  <p>Коэффициент <span class="m">A<sub>nm</sub></span> — нормировка, которую нельзя угадать: она проверяется прямым численным сравнением ряда с <span class="m">1/|r−r′|</span> в случайных точках. Множитель <span class="m">(−1)<sup>m</sup></span> нужен потому, что <span class="m">Q<sub>n</sub><sup>m</sup>(x)</span> при <span class="m">x &gt; 1</span> сама имеет знак <span class="m">(−1)<sup>m</sup></span>; в конечных формулах эти знаки сокращаются, оставляя положительные веса.</p>
+
+  <p>Потенциал точечного диполя <span class="m">p</span> получается дифференцированием по положению источника: <span class="m">Φ<sub>inc</sub> = (p·∇<sub>D</sub>)[1/(ε<sub>m</sub>|r−r<sub>D</sub>|)]</span>. Подставляя разложение и применяя коэффициент отражения (14.4) к каждой моде, получаем рассеянный потенциал в факторизованном виде:</p>
+
+  <div class="eq">
+    <pre>Φ_sc(r; r_D) = Σ_nm c_nm · u_nm(r) · u_nm(r_D)
+
+u_nm  = Q_n^m(ξ) P_n^m(η) cos mφ
+c_nm  = A_nm χ_nm g_nm / (ε_m f)</pre>
+    <span class="tag">(15.2)</span>
+  </div>
+
+  <p>Симметрия по <span class="m">r ↔ r<sub>D</sub></span> здесь видна явно — это и есть взаимность из §12, полученная не постулатом, а структурой решения.</p>
+
+  <p>Реакционное поле в точке КТ, спроецированное на её диполь, — это вторая производная ядра, взятая в одной и той же точке:</p>
+
+  <div class="eq">
+    <pre>K = − Σ_nm c_nm · ( e_d · ∇ u_nm(r_D) )²
+
+  = Σ_nm w_nm · χ_nm ,     w_nm = |A_nm| |g_nm| (e_d·∇u_nm(r_D))² / (ε_m f)</pre>
+    <span class="tag">(15.3)</span>
+  </div>
+
+  <p>Веса <span class="m">w<sub>nm</sub></span> <strong>чисто геометрические</strong> — они не зависят от частоты. Вся дисперсия сидит в <span class="m">χ<sub>nm</sub>(ω)</span>. Это разделение позже позволит считать веса один раз, а частотную зависимость — сколько угодно.</p>
+
+  <h2 class="stage" id="s16"><span class="idx">16</span>Производная в точке КТ: где геометрия выбирает моды</h2>
+  <p class="stage-lede">Самое интересное место всей конструкции. Положение КТ определяет не только величину весов, но и то, какие моды вообще существуют.</p>
+
+  <p>Осталось вычислить <span class="m">e<sub>d</sub>·∇u<sub>nm</sub></span> в точке КТ. Здесь геометрия входит в математику максимально прямо.</p>
+
+  <h3>КТ на торце: работает один азимутальный порядок</h3>
+  <p>На оси симметрии <span class="m">(η = 1)</span> угловая функция ведёт себя как <span class="m">P<sub>n</sub><sup>m</sup>(η) ~ (1−η²)<sup>m/2</sup> → ρ<sup>m</sup></span>, то есть исчезает как <span class="m">m</span>-я степень расстояния от оси. Поэтому производная в осевой точке отлична от нуля только для <span class="m">m = 0</span> (для осевого диполя) и <span class="m">m = 1</span> (для поперечного). Все <span class="m">m ≥ 2</span> зануляются тождественно:</p>
+
+  <div class="eq">
+    <pre>e_d = e_z   (продольная поляризация):   ∂u_n0 = Q_n′(ξ_D) / f          — только m = 0
+e_d = e_x   (поперечная поляризация):   ∂u_n1 = n(n+1) Q_n′(ξ_D) / 2f  — только m = 1</pre>
+    <span class="tag">(16.1)</span>
+  </div>
+
+  <h3>КТ на экваторе: работают все порядки</h3>
+  <p>В точке <span class="m">(ξ<sub>D</sub>, η = 0, φ = 0)</span> локальный базис координат совпадает с декартовым: <span class="m">e<sub>x</sub> = e<sub>ξ</sub></span>, <span class="m">e<sub>z</sub> = e<sub>η</sub></span>. Это очень удобное совпадение — оно позволяет взять производную прямо по координатам:</p>
+
+  <div class="eq">
+    <pre>e_d = e_x  (радиальный диполь):
+    ∂u_nm = √(ξ_D²−1)/(f ξ_D) · Q_n^m′(ξ_D) · P_n^m(0)
+
+e_d = e_z  (касательный диполь):
+    ∂u_nm = 1/(f ξ_D) · Q_n^m(ξ_D) · dP_n^m/dη |₀</pre>
+    <span class="tag">(16.2)</span>
+  </div>
+
+  <p>И вот решающее обстоятельство. Угловая функция <span class="m">P<sub>n</sub><sup>m</sup>(η)</span> имеет чётность <span class="m">(−1)<sup>n−m</sup></span>. Значит, в точке <span class="m">η = 0</span>:</p>
+
+  <ul>
+    <li><span class="m">P<sub>n</sub><sup>m</sup>(0) = 0</span> при нечётном <span class="m">n−m</span> — <strong>радиальный</strong> диполь удерживает моды с <em>чётным</em> <span class="m">n−m</span>;</li>
+    <li><span class="m">dP<sub>n</sub><sup>m</sup>/dη|₀ = 0</span> при чётном <span class="m">n−m</span> — <strong>касательный</strong> диполь удерживает моды с <em>нечётным</em> <span class="m">n−m</span>.</li>
+  </ul>
+
+  <p>Чётность — это следствие зеркальной симметрии относительно плоскости <span class="m">z = 0</span>: радиальный диполь симметричен относительно неё, касательный антисимметричен, и каждый возбуждает только «свой» класс мод.</p>
+
+  <figure>
+    <div class="figframe">
+      <svg viewBox="0 0 480 300" role="img" aria-label="Решётка мод: осевая КТ удерживает один столбец, экваториальная — всю треугольную решётку, разделённую по чётности n минус m">
+        <!-- axis labels -->
+        <text class="lab" x="78" y="24" text-anchor="middle">m →</text>
+        <text class="lab" x="30" y="150">n ↓</text>
+        <!-- column highlight m=0 and m=1 -->
+        <rect x="66" y="38" width="24" height="212" fill="none" stroke="currentColor" stroke-width="1.2" stroke-dasharray="3 3" opacity=".55" rx="3" />
+        <rect x="96" y="38" width="24" height="212" fill="none" stroke="currentColor" stroke-width="1.2" stroke-dasharray="3 3" opacity=".55" rx="3" />
+        <text class="small" x="78" y="268" text-anchor="middle">m=0</text>
+        <text class="small" x="108" y="284" text-anchor="middle">m=1</text>
+        <line class="thin" x1="78" y1="256" x2="78" y2="262" />
+        <line class="thin" x1="108" y1="256" x2="108" y2="278" />
+        <!-- lattice -->
+      <circle cx="78" cy="52" r="6" class="dot odd" />
+      <circle cx="108" cy="52" r="6" class="dot even" />
+      <circle cx="78" cy="78" r="6" class="dot even" />
+      <circle cx="108" cy="78" r="6" class="dot odd" />
+      <circle cx="138" cy="78" r="6" class="dot even" />
+      <circle cx="78" cy="104" r="6" class="dot odd" />
+      <circle cx="108" cy="104" r="6" class="dot even" />
+      <circle cx="138" cy="104" r="6" class="dot odd" />
+      <circle cx="168" cy="104" r="6" class="dot even" />
+      <circle cx="78" cy="130" r="6" class="dot even" />
+      <circle cx="108" cy="130" r="6" class="dot odd" />
+      <circle cx="138" cy="130" r="6" class="dot even" />
+      <circle cx="168" cy="130" r="6" class="dot odd" />
+      <circle cx="198" cy="130" r="6" class="dot even" />
+      <circle cx="78" cy="156" r="6" class="dot odd" />
+      <circle cx="108" cy="156" r="6" class="dot even" />
+      <circle cx="138" cy="156" r="6" class="dot odd" />
+      <circle cx="168" cy="156" r="6" class="dot even" />
+      <circle cx="198" cy="156" r="6" class="dot odd" />
+      <circle cx="228" cy="156" r="6" class="dot even" />
+      <circle cx="78" cy="182" r="6" class="dot even" />
+      <circle cx="108" cy="182" r="6" class="dot odd" />
+      <circle cx="138" cy="182" r="6" class="dot even" />
+      <circle cx="168" cy="182" r="6" class="dot odd" />
+      <circle cx="198" cy="182" r="6" class="dot even" />
+      <circle cx="228" cy="182" r="6" class="dot odd" />
+      <circle cx="258" cy="182" r="6" class="dot even" />
+      <circle cx="78" cy="208" r="6" class="dot odd" />
+      <circle cx="108" cy="208" r="6" class="dot even" />
+      <circle cx="138" cy="208" r="6" class="dot odd" />
+      <circle cx="168" cy="208" r="6" class="dot even" />
+      <circle cx="198" cy="208" r="6" class="dot odd" />
+      <circle cx="228" cy="208" r="6" class="dot even" />
+      <circle cx="258" cy="208" r="6" class="dot odd" />
+      <circle cx="288" cy="208" r="6" class="dot even" />
+      <circle cx="78" cy="234" r="6" class="dot even" />
+      <circle cx="108" cy="234" r="6" class="dot odd" />
+      <circle cx="138" cy="234" r="6" class="dot even" />
+      <circle cx="168" cy="234" r="6" class="dot odd" />
+      <circle cx="198" cy="234" r="6" class="dot even" />
+      <circle cx="228" cy="234" r="6" class="dot odd" />
+      <circle cx="258" cy="234" r="6" class="dot even" />
+      <circle cx="288" cy="234" r="6" class="dot odd" />
+      <circle cx="318" cy="234" r="6" class="dot even" />
+        <!-- legend -->
+        <circle cx="342" cy="60" r="6" class="dot even" />
+        <text class="small" x="354" y="64">n−m чётно</text>
+        <circle cx="342" cy="84" r="6" class="dot odd" />
+        <text class="small" x="354" y="88">n−m нечётно</text>
+        <text class="small" x="336" y="120">экватор,</text>
+        <text class="small" x="336" y="134">поперечное поле</text>
+        <text class="small" x="336" y="156">экватор,</text>
+        <text class="small" x="336" y="170">продольное поле</text>
+        <line class="thin" x1="330" y1="112" x2="396" y2="112" />
+        <line class="thin" x1="330" y1="148" x2="396" y2="148" />
+      </svg>
+    </div>
+    <figcaption><b>Какие моды удерживает каждая геометрия.</b> Осевая КТ живёт в одном столбце решётки: <span class="m">m = 0</span> для продольного поля, <span class="m">m = 1</span> для поперечного. Экваториальная КТ занимает <em>всю</em> треугольную решётку, разделённую по чётности <span class="m">n−m</span>: бирюзовые точки — поперечное поле, золотые — продольное. Поэтому число мод растёт как <span class="m">n<sub>max</sub>²/4</span>, а не как <span class="m">n<sub>max</sub></span>.</figcaption>
+  </figure>
+
+  <div class="note why">
+    <span class="label">Почему это не «уточнение», а необходимость</span>
+    <p>Без суммы по <span class="m">m</span> экваториальный случай был бы не «менее сходящимся», а просто <em>неверным</em>: отброшены были бы моды, несущие основной вклад. Прямое обобщение «увеличим <span class="m">n<sub>max</sub></span>» здесь не работает — нужна вторая размерность суммирования. Это и составило основную часть работы по обобщению.</p>
+  </div>
+
+  <h2 class="stage" id="s17"><span class="idx">17</span>Яркий канал и проверка взаимностью</h2>
+  <p class="stage-lede">Каналы A и B устроены проще, чем K, и на них есть точное тождество, которое ловит любую ошибку в знаках и нормировках.</p>
+
+  <p>Однородное внешнее поле в квазистатике возбуждает у сфероида <em>ровно одну</em> гармонику: <span class="m">Φ ∝ z</span> — это в точности <span class="m">(n,m) = (1,0)</span>, а <span class="m">Φ ∝ x</span> — в точности <span class="m">(1,1)</span>. Это не приближение, а точное утверждение. Поэтому <span class="m">A</span> и <span class="m">B</span> живут только на «яркой» моде.</p>
+
+  <p>Определим <span class="m">λ</span> — поле в точке КТ на единицу дипольного момента МНЧ, спроецированное на диполь КТ. Это прямое обобщение <span class="m">J</span> из (10.1):</p>
+
+  <div class="eq">
+    <pre>λ = −3 · ∂_d u_10(r_D) / (ε_m f²)        яркая мода m = 0
+λ = +3 · ∂_d u_11(r_D) / (2 ε_m f²)      яркая мода m = 1
+
+B = A · λ ,        w_1 = C · λ²</pre>
+    <span class="tag">(17.1)</span>
+  </div>
+
+  <p>Второе равенство — <strong>тождество взаимности</strong>: вес самой яркой моды в реакционном ряду обязан выражаться через тот же <span class="m">λ</span>, что и перекрёстный канал. Оно проверяется на каждом запуске с точностью <span class="m">5·10⁻¹³</span> и служит очень чувствительным детектором ошибок: любая опечатка в <span class="m">A<sub>nm</sub></span>, в знаке <span class="m">g<sub>nm</sub></span> или в производной ломает его немедленно.</p>
+
+  <p>Насколько <span class="m">λ</span> отличается от точечного <span class="m">J</span>, зависит от геометрии — и это уже физический результат, а не поправка:</p>
+
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>геометрия</th><th class="num">λ / J</th><th>интерпретация</th></tr></thead>
+      <tbody>
+        <tr><td>торец, обе поляризации</td><td class="num">2.51</td><td>точечная модель <em>недооценивает</em> связь: реальный заряд собран у острия, ближе к КТ</td></tr>
+        <tr><td>экватор, продольное</td><td class="num">0.43</td><td>точечная модель <em>переоценивает</em>: заряд разнесён вдоль оси, дальше от КТ</td></tr>
+        <tr><td>экватор, поперечное</td><td class="num">0.59</td><td>то же, слабее</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>Обратите внимание: даже «дипольный» канал <span class="m">B</span> в полном ядре не точечно-дипольный. Он использует <em>точный ближний потенциал</em> гармоники <span class="m">n = 1</span> в фактической точке <span class="m">r<sub>D</sub></span>, а не асимптотику <span class="m">1/R³</span>.</p>
+
+  <h2 class="stage" id="s18"><span class="idx">18</span>Что именно даёт обобщение</h2>
+  <p class="stage-lede">Сводка: где в получившейся модели недипольность, а где она сознательно отсутствует.</p>
+
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>канал</th><th>что учтено</th><th>статус</th></tr></thead>
+      <tbody>
+        <tr><td><code>K</code></td><td>полный ряд по <span class="m">(n,m)</span>; 75–94 % несут порядки выше <span class="m">n=1</span></td><td><span class="pill out">полностью недипольно</span></td></tr>
+        <tr><td><code>B</code>, <code>λ</code></td><td>точный ближний потенциал моды <span class="m">n=1</span> в точке <span class="m">r<sub>D</sub></span></td><td><span class="pill out">не точечный диполь</span></td></tr>
+        <tr><td><code>A</code></td><td>только <span class="m">n=1</span> — но это <em>точно</em>: однородное поле других мод не возбуждает</td><td><span class="pill out">точно</span></td></tr>
+        <tr><td>КТ</td><td>остаётся точечным диполем; мультиполей и конечного размера нет</td><td><span class="pill in">дипольное приближение</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>Корректная формулировка результата: <strong>полный недипольный отклик МНЧ при точечно-дипольной КТ</strong>, работающий для всех четырёх комбинаций положения и поляризации. Обратная реакция КТ на МНЧ при этом тоже полная — диполь КТ возбуждает весь мультипольный ряд металла, а не только дипольную моду.</p>
+
+  <!-- ================================================== PART VI -->
+  <p class="part-head"><span class="num">VI</span> Переход во временную область</p>
+
+  <h2 class="stage" id="s19"><span class="idx">19</span>Причинная реализация отклика материала</h2>
+  <p class="stage-lede">Табличная ε(ω) не годится для интегрирования по времени. Нужна её причинная модель — и это единственная подгонка во всём проекте.</p>
+
+  <p>Во временной задаче нельзя просто «подставить <span class="m">ε(ω)</span>»: нужен оператор, действующий на историю поля. Стандартный приём — представить восприимчивость суммой затухающих осцилляторов:</p>
+
+  <div class="eq metal">
+    <pre>χ_fit(ω) = χ_∞ + Σ_k  f_k / ( ω_k² − ω² − i γ_k ω )
+
+при ограничениях   f_k ≥ 0 ,  ω_k &gt; 0 ,  γ_k &gt; 0</pre>
+    <span class="tag">(19.1)</span>
+  </div>
+
+  <p>Ограничения на знаки — не косметика: при них каждый член имеет <span class="m">Im χ ≥ 0</span> для <span class="m">ω &gt; 0</span>, то есть <strong>пассивность гарантирована структурно</strong>, а не проверкой в нескольких точках после свободной подгонки.</p>
+
+  <p>Мгновенный член <span class="m">χ<sub>∞</sub></span> не является свободным: он фиксируется высокочастотным пределом модели материала <span class="m">ε<sub>Au</sub>(ω→∞) = 1</span>, откуда <span class="m">χ<sub>∞</sub> = (1−ε<sub>m</sub>)/[ε<sub>m</sub> + L(1−ε<sub>m</sub>)]</span> (при <span class="m">ε<sub>m</sub>=1</span> строго нуль).</p>
+
+  <p>Во временной области каждому члену соответствует обычный осциллятор:</p>
+
+  <div class="eq metal">
+    <pre>q̈_k + γ_k q̇_k + ω_k² q_k = f_k · F(t)</pre>
+    <span class="tag">(19.2)</span>
+  </div>
+
+  <div class="note limit">
+    <span class="label">Ограничение идентифицируемости</span>
+    <p>Число полюсов ограничено не желанием, а количеством независимых табличных точек в окне подгонки: <span class="m">N</span> полюсов дают <span class="m">3N+1</span> вещественную координату, каждая комплексная точка <span class="m">n,k</span> — две связи. Для стандартного окна 0.8–3.0 эВ это девять полюсов. Уплотнение интерполяционной сетки не создаёт новой экспериментальной информации.</p>
+  </div>
+
+  <h2 class="stage" id="s20"><span class="idx">20</span>Перенос одной реализации на все моды</h2>
+  <p class="stage-lede">Наивно каждой моде нужна своя подгонка. Точное соотношение позволяет обойтись одной.</p>
+
+  <p>Вспомним (14.4): все моды — это один и тот же материал с разными <span class="m">L<sub>nm</sub></span>. Значит, между ними есть точная алгебраическая связь. Исключая <span class="m">Δ</span> из двух выражений вида <span class="m">χ = Δ/(ε<sub>m</sub>+LΔ)</span>, получаем:</p>
+
+  <div class="eq">
+    <pre>χ_n = χ_1 / [ 1 + (L_n − L_1) · χ_1 ]</pre>
+    <span class="tag">(20.1)</span>
+  </div>
+
+  <p>Это дробно-линейное преобразование одной функции в другую. Подгоняется <strong>только яркая мода</strong> <span class="m">χ₁</span>; все остальные получаются точно. Во временной области (20.1) реализуется как <em>отрицательная обратная связь</em> вокруг того же банка осцилляторов — с коэффициентом <span class="m">ΔL<sub>n</sub> = L<sub>n</sub> − L₁</span>. Никаких дополнительных подгоночных параметров не появляется.</p>
+
+  <figure>
+    <div class="figframe">
+      <svg viewBox="0 0 720 320" role="img" aria-label="Схема связей: импульс возбуждает только яркую моду, диполь КТ возбуждает все моды, все моды возвращают поле в точку КТ">
+        <!-- incident -->
+        <rect class="box" x="16" y="126" width="104" height="46" rx="4" />
+        <text x="68" y="147" text-anchor="middle">импульс</text>
+        <text class="mono small" x="68" y="163" text-anchor="middle">E_L(t)</text>
+
+        <!-- bright mode -->
+        <rect class="box" x="196" y="52" width="176" height="66" rx="4" stroke="var(--metal)" />
+        <text x="284" y="76" text-anchor="middle">яркая мода (1, m)</text>
+        <text class="mono small" x="284" y="94" text-anchor="middle">χ₁ = fit(ε_Au, L₁)</text>
+        <text class="mono small" x="284" y="108" text-anchor="middle">даёт μ_MNP</text>
+
+        <!-- higher modes -->
+        <rect class="box" x="196" y="196" width="176" height="66" rx="4" stroke="var(--metal)" />
+        <text x="284" y="220" text-anchor="middle">высшие (n, m)</text>
+        <text class="mono small" x="284" y="238" text-anchor="middle">χ_n = χ₁/(1+ΔL_n χ₁)</text>
+        <text class="mono small" x="284" y="252" text-anchor="middle">без новой подгонки</text>
+
+        <!-- QD -->
+        <rect class="box" x="470" y="126" width="150" height="66" rx="4" stroke="var(--field)" />
+        <text x="545" y="150" text-anchor="middle">КТ · Блох</text>
+        <text class="mono small" x="545" y="168" text-anchor="middle">P, Q, W</text>
+        <text class="mono small" x="545" y="182" text-anchor="middle">μ_QD = ℓ d P</text>
+
+        <!-- arrows -->
+        <line class="stroke" x1="120" y1="140" x2="192" y2="94" marker-end="url(#a2)" />
+        <text class="mono small" x="130" y="106">A</text>
+
+        <line class="stroke" x1="372" y1="85" x2="466" y2="145" marker-end="url(#a2)" />
+        <text class="mono small" x="404" y="106">B</text>
+
+        <line class="stroke" x1="372" y1="229" x2="466" y2="178" marker-end="url(#a2)" />
+        <text class="mono small" x="398" y="222">w_nm</text>
+
+        <path class="stroke" d="M 545 192 L 545 288 L 284 288 L 284 266" fill="none" marker-end="url(#a2)" />
+        <text class="mono small" x="416" y="303" text-anchor="middle">μ_QD возбуждает все моды</text>
+
+        <path class="stroke" d="M 470 132 L 430 118 L 430 30 L 284 30 L 284 48" fill="none" marker-end="url(#a2)" />
+        <text class="mono small" x="330" y="24" text-anchor="middle">λ · μ_QD</text>
+
+        <defs>
+          <marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor" />
+          </marker>
+        </defs>
+      </svg>
+    </div>
+    <figcaption><b>Кто кого возбуждает.</b> Внешний импульс входит только в яркую моду — однородное поле других не возбуждает. Диполь КТ входит во <em>все</em> моды. Обратно в точку КТ приходит сумма: <span class="m">B·E</span> от яркой моды плюс <span class="m">Σ w<sub>nm</sub>χ<sub>nm</sub>·μ<sub>QD</sub></span> от всех. Подгоняется только блок <span class="m">χ₁</span>; блок высших мод получается из него точным преобразованием.</figcaption>
+  </figure>
+
+  <h2 class="stage" id="s21"><span class="idx">21</span>Полная система уравнений</h2>
+  <p class="stage-lede">Финальная сборка: что именно интегрируется по времени.</p>
+
+  <p>Состояние системы — это <span class="m">2 · N<sub>мод</sub> · N<sub>полюсов</sub> + 4</span> вещественных чисел: по паре <span class="m">(q, q̇)</span> на каждую пару «пространственная мода × материальный полюс», плюс <span class="m">W, Q, P</span> и накопитель работы поля.</p>
+
+  <div class="eq">
+    <pre>для каждой моды (n,m):
+    drive_nm  = μ_QD                       (для яркой: E_L + λ·μ_QD)
+    внутренний драйв с обратной связью ΔL_n
+    q̈_k + γ_k q̇_k + ω_k² q_k = f_k · drive
+
+поле в точке КТ:
+    E_QD = ℓ [ E_L + C λ · out_bright + Σ_(n,m)≠bright w_nm · out_nm ]
+
+КТ:
+    уравнения Блоха (6.2) с Ω = 2 d E_QD</pre>
+    <span class="tag">(21.1)</span>
+  </div>
+
+  <p>Перед интегрированием система проходит проверки: устойчивость линеаризованного основного состояния (спектральная абсцисса якобиана), причинность полюсов преобразованных мод, пассивность модального представления, сходимость пространственного ряда, покрытие спектра импульса окном подгонки. Несошедшийся или неустойчивый расчёт по умолчанию останавливается, а не выдаёт числа.</p>
+
+  <!-- ================================================== PART VII -->
+  <p class="part-head"><span class="num">VII</span> Численная реализация и проверки</p>
+
+  <h2 class="stage" id="s22"><span class="idx">22</span>Почему всё считается в логарифмах</h2>
+  <p class="stage-lede">Правильная формула и правильная программа — разные вещи. Здесь это особенно наглядно.</p>
+
+  <p>Формулы §14–16 содержат величины, которые по отдельности не представимы в двойной точности. При <span class="m">n = 80</span> функция <span class="m">P<sub>n</sub><sup>m</sup>(ξ₀)</span> может быть порядка <span class="m">10<sup>60</sup></span>, <span class="m">Q<sub>n</sub><sup>m</sup>(ξ<sub>D</sub>)</span> — порядка <span class="m">10<sup>−60</sup></span>, а множитель <span class="m">[(n−m)!/(n+m)!]²</span> — порядка <span class="m">10<sup>−200</sup></span>. Их <em>произведение</em> — обычное число.</p>
+
+  <p>Поэтому реализация ведёт весь расчёт в логарифмах модулей, а знаки восстанавливает аналитически. Ключевое требование к рекуррентным соотношениям — <strong>отсутствие вычитаний</strong>, иначе теряется точность. Использованы:</p>
+
+  <ul>
+    <li>для <span class="m">P<sub>n</sub><sup>m</sup></span> — замкнутая форма на диагонали <span class="m">P<sub>m</sub><sup>m</sup> = (2m−1)!!(x²−1)<sup>m/2</sup></span> плюс рекурсия по <span class="m">n</span> для <em>отношения</em> соседних значений;</li>
+    <li>для <span class="m">Q<sub>n</sub><sup>m</sup></span> — рекурсия по <span class="m">m</span> для положительных величин <span class="m">q<sub>n</sub><sup>m</sup> = (−1)<sup>m</sup>Q<sub>n</sub><sup>m</sup></span>, у которой <em>все</em> члены положительны;</li>
+    <li>для производных — соотношение <span class="m">(x²−1)F′ = m x F + √(x²−1) F<sup>m+1</sup></span>, которое для <span class="m">Q</span> сводится к выражению, аналитически доказуемо положительному.</li>
+  </ul>
+
+  <p>Результат: при <span class="m">n<sub>max</sub> = 200</span> экваториальное ядро (10 200 мод) считается за 0.2 с и не переполняется. Значения <span class="m">P<sub>n</sub><sup>m</sup></span>, <span class="m">Q<sub>n</sub><sup>m</sup></span> и производных совпадают с прямыми значениями SciPy до <span class="m">6·10⁻¹⁵</span> там, где те ещё представимы.</p>
+
+  <h2 class="stage" id="s23"><span class="idx">23</span>Лестница проверок</h2>
+  <p class="stage-lede">Аналитический вывод легко ошибиться в знаке или множителе. Проверок должно быть несколько, и они должны быть независимыми.</p>
+
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>проверка</th><th>что ловит</th><th class="num">точность</th></tr></thead>
+      <tbody>
+        <tr><td>ряд (15.1) против прямого <span class="m">1/|r−r′|</span></td><td>нормировку <span class="m">A<sub>nm</sub></span> и знак <span class="m">(−1)<sup>m</sup></span></td><td class="num">10⁻⁷</td></tr>
+        <tr><td>общая формула при <span class="m">η<sub>D</sub>=1</span> против прежней осевой реализации</td><td>вырождение общего случая в проверенный частный</td><td class="num">3·10⁻¹⁴</td></tr>
+        <tr><td>независимое прямое вычисление через SciPy</td><td>ошибки логарифмических рекуррент</td><td class="num">6·10⁻¹⁴</td></tr>
+        <tr><td>взаимность <span class="m">w₁ = Cλ²</span></td><td>знаки и нормировки яркого канала</td><td class="num">3·10⁻¹⁴</td></tr>
+        <tr><td>сферический предел: экватор ≡ торец при равном <span class="m">G</span></td><td>согласованность двух геометрий</td><td class="num">точно</td></tr>
+        <tr><td>слабо вытянутый сфероид → сфера</td><td>предельный переход <span class="m">f → 0</span></td><td class="num">O(c/a−1)</td></tr>
+        <tr><td>дальний предел <span class="m">K → A·J²</span></td><td>согласие с точечной моделью там, где она верна</td><td class="num">O((c/R)²)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note why">
+    <span class="label">Про сферический предел</span>
+    <p>Самая сильная из этих проверок — предпоследняя. У сферы нет выделенной оси, поэтому экваториальное и торцевое положения физически <em>тождественны</em> при одинаковом угле между диполем и радиус-вектором. Требование, чтобы две совершенно разные ветви кода (сумма по <span class="m">m</span> и одномодовая) дали побитово одинаковый ответ, не оставляет места для компенсирующих ошибок.</p>
+  </div>
+
+  <h2 class="stage" id="s24"><span class="idx">24</span>Вход и выход целиком</h2>
+  <p class="stage-lede">Сводная граница между тем, что задаёт пользователь, и тем, что производит модель.</p>
+
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>величина</th><th>статус</th><th>роль</th></tr></thead>
+      <tbody>
+        <tr><td><code>a, c, R, r_QD</code></td><td><span class="pill in">вход</span></td><td>геометрия; всё остальное геометрическое выводится отсюда</td></tr>
+        <tr><td><code>qd_position, field_polarization</code></td><td><span class="pill in">вход</span></td><td>два независимых выбора конфигурации</td></tr>
+        <tr><td><code>ε_m, ε_qd</code>, соглашение о дипольном моменте</td><td><span class="pill in">вход</span></td><td>среда и экранировка</td></tr>
+        <tr><td>таблица <code>n(ω), k(ω)</code></td><td><span class="pill in">вход</span></td><td>единственный источник дисперсии металла</td></tr>
+        <tr><td><code>d, ω₀, γ₁, Γ₂</code></td><td><span class="pill in">вход</span></td><td>феноменологическая КТ</td></tr>
+        <tr><td><code>E₀, ω_L, τ</code></td><td><span class="pill in">вход</span></td><td>внешний драйв</td></tr>
+        <tr><td><code>n_modes, n_max</code>, допуски</td><td><span class="pill in">вход</span></td><td>численные, не физические; влияют только на точность</td></tr>
+        <tr><td><span class="m">f, ξ₀, ξ_D, η_D</span></td><td><span class="pill out">выход</span></td><td>сфероидальные координаты задачи</td></tr>
+        <tr><td><span class="m">L_z, L_x</span>, все <span class="m">L<sub>nm</sub></span></td><td><span class="pill out">выход</span></td><td>резонансы дипольной и всех высших мод</td></tr>
+        <tr><td><span class="m">G</span>, <span class="m">J</span>, зазор <span class="m">h</span></td><td><span class="pill out">выход</span></td><td>геометрическая сила связи — <b>не</b> подгоняется</td></tr>
+        <tr><td><span class="m">g<sub>nm</sub>, w<sub>nm</sub>, λ</span></td><td><span class="pill out">выход</span></td><td>частотно-независимые модальные веса</td></tr>
+        <tr><td><span class="m">χ<sub>∞</sub>, f_k, ω_k, γ_k</span></td><td><span class="pill out">выход</span></td><td>причинная реализация материала (единственная подгонка)</td></tr>
+        <tr><td><span class="m">A(ω), B(ω), K(ω)</span> и все <span class="m">K<sub>nm</sub></span></td><td><span class="pill out">выход</span></td><td>полное описание взаимодействия</td></tr>
+        <tr><td><span class="m">α<sub>eff</sub>(ω)</span>, сечения</td><td><span class="pill out">выход</span></td><td>слабополевой спектр гибридной системы</td></tr>
+        <tr><td><span class="m">ρ₂₂(t), μ<sub>QD</sub>(t), μ<sub>MNP</sub>(t)</span></td><td><span class="pill out">выход</span></td><td>нелинейная динамика под импульсом</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 class="stage" id="s25"><span class="idx">25</span>Границы применимости</h2>
+  <p class="stage-lede">Что модель сознательно не описывает — и что это значит для интерпретации результатов.</p>
+
+  <ul>
+    <li><strong>КТ остаётся точечным диполем.</strong> Её конечный размер входит только в проверку зазора. При зазоре порядка радиуса КТ это станет главным источником ошибки.</li>
+    <li><strong>Нет запаздывания и радиационного затухания.</strong> Скорости <span class="m">γ₁</span> и <span class="m">Γ₂</span> задаются извне; модель не вычисляет ни фактор Парселла, ни безызлучательный перенос в металл из геометрии.</li>
+    <li><strong>Локальный отклик металла.</strong> Нет пространственной дисперсии, туннелирования и переноса заряда — а при зазорах менее ≈1 нм они существенны.</li>
+    <li><strong>Полуклассика.</strong> Поле классическое; корреляционные эффекты, статистика фотонов, <span class="m">g<sup>(2)</sup></span> недоступны в принципе.</li>
+    <li><strong>Численный предел при сильном вытяжении.</strong> При большом <span class="m">c/a</span> поверхность <span class="m">ξ₀ = c/f</span> подходит вплотную к единице, и оценка <span class="m">Q<sub>n</sub>(ξ)</span> перестаёт быть представимой при высоких <span class="m">n</span>. Расчёт в этом случае останавливается с явной ошибкой, а не выдаёт испорченные числа.</li>
+  </ul>
+
+  <div class="note limit">
+    <span class="label">Цена обобщения</span>
+    <p>Экваториальная геометрия суммирует <span class="m">~n<sub>max</sub>²/4</span> мод вместо <span class="m">n<sub>max</sub></span>, и во временной задаче каждая мода несёт собственную материальную реализацию. Кроме того, разброс <span class="m">L<sub>nm</sub></span> здесь шире (<span class="m">[−0.15, +0.08]</span> против <span class="m">[−0.02, +0.06]</span> на торце), поэтому одна и та же девятиполюсная подгонка переносится преобразованием (20.1) на более широкий интервал и может не уложиться в штатный порог точности. Это диагностируется явно и не обходится ослаблением лимита.</p>
+  </div>
+
+  <div class="closing">
+    <p>Итог одной фразой: <strong>геометрия входит в модель тремя независимыми каналами</strong> — форма частицы даёт деполяризационные факторы и, значит, положение резонансов; поляризация поля выбирает, какой из них работает; взаимное расположение <span class="m">e<sub>L</sub></span> и <span class="m">r<sub>D</sub></span> задаёт силу и знак связи, а положение КТ в сфероидальных координатах определяет, какие моды вообще участвуют. Обобщение на экваториальную геометрию потребовало не «увеличить порядок», а добавить вторую размерность суммирования — и именно это сделало все четыре комбинации доступными на равных.</p>
+  </div>
+
+  </main>
+</div>
+
+</body>
+</html>
