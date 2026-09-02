@@ -7,7 +7,10 @@ from unittest.mock import patch
 import numpy as np
 from scipy.sparse.linalg import ArpackNoConvergence
 
-from qd_mnp_full_qs_model import FullQSSpheroidPulseModel
+from qd_mnp_full_qs_model import (
+    FullQSSpheroidPulseModel,
+    build_positive_dark_reduction,
+)
 from qd_mnp_pulse_absorption_sweep import spectral_effective_alpha_au
 from qd_mnp_rational_fit import (
     AU_ENERGY_J,
@@ -22,6 +25,7 @@ from qd_mnp_spheroid_green import (
     qd_linear_polarizability_from_params,
     solve_linear_hybrid_response,
 )
+from qd_mnp_spheroid_equatorial import EquatorialSpheroidGreenInteraction
 
 
 def _one_material_pole_model(*, spatial_orders: int = 2) -> FullQSSpheroidPulseModel:
@@ -55,7 +59,265 @@ def _one_material_pole_model(*, spatial_orders: int = 2) -> FullQSSpheroidPulseM
     )
 
 
+def _one_material_pole_side_model(
+    orientation: str,
+    alignment: str | None,
+    *,
+    spatial_orders: int = 3,
+) -> FullQSSpheroidPulseModel:
+    params = replace(
+        make_default_params(
+            orientation,
+            qd_placement="side",
+            side_transverse_alignment=alignment,
+        ),
+        gamma_au=float(eV_to_au(0.020)),
+        Gamma_au=float(eV_to_au(0.020)),
+    )
+    bright = HybridQDPlasmonModel(
+        params,
+        orientation=orientation,
+        n_modes=1,
+        max_fit_normalized_rms=None,
+        max_fit_pointwise_relative_error=None,
+        radiative_consistency_policy="ignore",
+        verbose=False,
+    )
+    kernel = EquatorialSpheroidGreenInteraction.from_params(
+        params,
+        orientation=orientation,
+        n_max=spatial_orders,
+    )
+    return FullQSSpheroidPulseModel(
+        bright,
+        kernel,
+        fit_quality_policy="ignore",
+        spatial_convergence_policy="ignore",
+        modal_audit_points=201,
+    )
+
+
 class FullQSTransferRealizationTests(unittest.TestCase):
+    def test_positive_dark_reduction_preserves_frequency_response(self) -> None:
+        params = replace(
+            make_default_params("long"),
+            gamma_au=float(eV_to_au(0.020)),
+            Gamma_au=float(eV_to_au(0.020)),
+        )
+        bright = HybridQDPlasmonModel(
+            params,
+            orientation="long",
+            n_modes=1,
+            max_fit_normalized_rms=None,
+            max_fit_pointwise_relative_error=None,
+            radiative_consistency_policy="ignore",
+            verbose=False,
+        )
+        kernel = SpheroidGreenInteraction.from_params(
+            params,
+            orientation="long",
+            n_max=8,
+        )
+        reduction = build_positive_dark_reduction(
+            bright,
+            kernel,
+            fit_grid_points=201,
+            audit_grid_points=307,
+            rms_tolerance=1.0e-7,
+            max_tolerance=1.0e-6,
+        )
+        direct = FullQSSpheroidPulseModel(
+            bright,
+            kernel,
+            fit_quality_policy="ignore",
+            spatial_convergence_policy="ignore",
+            modal_audit_points=201,
+        )
+        reduced = FullQSSpheroidPulseModel(
+            bright,
+            kernel,
+            dark_reduction=reduction,
+            fit_quality_policy="ignore",
+            spatial_convergence_policy="ignore",
+            modal_audit_points=201,
+        )
+        reaudit = reduced.dark_reduction_reaudit_diagnostics
+        self.assertIsNotNone(reaudit)
+        self.assertTrue(reaudit.accepted)
+        self.assertTrue(reaudit.passive_on_audit_grid)
+        self.assertEqual(reaudit.audit_grid_points, 1709)
+        self.assertLessEqual(reaudit.normalized_rms, reaudit.rms_tolerance)
+        self.assertLessEqual(
+            reaudit.max_normalized_error,
+            reaudit.max_tolerance,
+        )
+        energies = np.linspace(1.81, 2.29, 173)
+        exact_response = direct.frequency_response_from_fit(energies)
+        reduced_response = reduced.frequency_response_from_fit(energies)
+        relative = np.max(
+            np.abs(reduced_response.K_au_minus3 - exact_response.K_au_minus3)
+        ) / np.max(np.abs(exact_response.K_au_minus3))
+        self.assertLess(relative, 1.0e-6)
+        np.testing.assert_allclose(
+            reduced_response.A_au3,
+            exact_response.A_au3,
+            rtol=0.0,
+            atol=0.0,
+        )
+        np.testing.assert_allclose(
+            reduced_response.B,
+            exact_response.B,
+            rtol=0.0,
+            atol=0.0,
+        )
+        self.assertEqual(reduced.exact_spatial_mode_count, 8)
+        self.assertEqual(reduced.n_spatial_modes, 1 + reduction.node_count)
+        self.assertLessEqual(reduced.state_size, direct.state_size)
+
+        audit_energies = np.linspace(
+            reduced.fit_window_eV[0],
+            reduced.fit_window_eV[1],
+            201,
+        )
+        audit_fit = reduced.frequency_response_from_fit(audit_energies)
+        audit_exact = kernel.response_from_material(
+            params.material,
+            audit_energies,
+        )
+        audit_error = audit_fit.K_au_minus3 - audit_exact.K_au_minus3
+        expected_nrms = float(
+            np.sqrt(np.mean(np.abs(audit_error) ** 2))
+            / np.sqrt(np.mean(np.abs(audit_exact.K_au_minus3) ** 2))
+        )
+        expected_max = float(
+            np.max(
+                np.abs(audit_error)
+                / np.maximum(
+                    np.abs(audit_exact.K_au_minus3),
+                    1.0e-15 * np.max(np.abs(audit_exact.K_au_minus3)),
+                )
+            )
+        )
+        self.assertAlmostEqual(
+            reduced.modal_fit_diagnostics.K_normalized_rms,
+            expected_nrms,
+            places=15,
+        )
+        self.assertAlmostEqual(
+            reduced.modal_fit_diagnostics.K_max_relative_error,
+            expected_max,
+            places=15,
+        )
+
+    def test_reduction_certificate_cannot_be_reused_for_another_kernel(self) -> None:
+        target_params = replace(
+            make_default_params("long"),
+            gamma_au=float(eV_to_au(0.020)),
+            Gamma_au=float(eV_to_au(0.020)),
+        )
+        source_params = replace(
+            target_params,
+            R_au=1.5 * target_params.R_au,
+        )
+        source_bright = HybridQDPlasmonModel(
+            source_params,
+            orientation="long",
+            n_modes=1,
+            max_fit_normalized_rms=None,
+            max_fit_pointwise_relative_error=None,
+            radiative_consistency_policy="ignore",
+            verbose=False,
+        )
+        source_kernel = SpheroidGreenInteraction.from_params(
+            source_params,
+            orientation="long",
+            n_max=6,
+        )
+        foreign_reduction = build_positive_dark_reduction(
+            source_bright,
+            source_kernel,
+            fit_grid_points=201,
+            audit_grid_points=307,
+        )
+        target_bright = HybridQDPlasmonModel(
+            target_params,
+            orientation="long",
+            n_modes=1,
+            max_fit_normalized_rms=None,
+            max_fit_pointwise_relative_error=None,
+            radiative_consistency_policy="ignore",
+            verbose=False,
+        )
+        target_kernel = SpheroidGreenInteraction.from_params(
+            target_params,
+            orientation="long",
+            n_max=6,
+        )
+        self.assertEqual(source_kernel.n_max, target_kernel.n_max)
+        np.testing.assert_array_equal(
+            source_kernel.depolarization_by_degree,
+            target_kernel.depolarization_by_degree,
+        )
+        with self.assertRaisesRegex(ValueError, "different full modal measure"):
+            FullQSSpheroidPulseModel(
+                target_bright,
+                target_kernel,
+                dark_reduction=foreign_reduction,
+                fit_quality_policy="ignore",
+                spatial_convergence_policy="ignore",
+                modal_audit_points=201,
+            )
+
+    def test_reduction_is_reaudited_with_the_current_bright_transfer(self) -> None:
+        params = replace(
+            make_default_params("long"),
+            gamma_au=float(eV_to_au(0.020)),
+            Gamma_au=float(eV_to_au(0.020)),
+        )
+        bright = HybridQDPlasmonModel(
+            params,
+            orientation="long",
+            n_modes=1,
+            max_fit_normalized_rms=None,
+            max_fit_pointwise_relative_error=None,
+            radiative_consistency_policy="ignore",
+            verbose=False,
+        )
+        kernel = SpheroidGreenInteraction.from_params(
+            params,
+            orientation="long",
+            n_max=9,
+        )
+
+        class ArtificialCertificateTransfer:
+            fit_window_eV = bright.fit_window_eV
+
+            @staticmethod
+            def alpha_from_fit(energies_eV):
+                energies = np.asarray(energies_eV, dtype=float)
+                return np.full(energies.shape, 1.0e-9 + 1.0e-12j)
+
+        misleading_reduction = build_positive_dark_reduction(
+            ArtificialCertificateTransfer(),
+            kernel,
+            fit_grid_points=201,
+            audit_grid_points=307,
+        )
+        self.assertTrue(misleading_reduction.diagnostics.accepted)
+        self.assertEqual(misleading_reduction.node_count, 1)
+        with self.assertRaisesRegex(
+            ValueError,
+            "not accurate/passive for the current bright material transfer",
+        ):
+            FullQSSpheroidPulseModel(
+                bright,
+                kernel,
+                dark_reduction=misleading_reduction,
+                fit_quality_policy="ignore",
+                spatial_convergence_policy="ignore",
+                modal_audit_points=201,
+            )
+
     def test_transformed_susceptibilities_obey_the_common_material_identity(self) -> None:
         model = _one_material_pole_model(spatial_orders=4)
         energies = np.asarray([1.9, 2.042, 2.2])
@@ -227,6 +489,147 @@ class FullQSTransferRealizationTests(unittest.TestCase):
                     ),
                     spatial_convergence_policy="ignore",
                     modal_audit_points=201,
+                )
+
+
+class EquatorialFullQSTimeDomainTests(unittest.TestCase):
+    channels = (
+        ("long", None),
+        ("trans", "radial"),
+        ("trans", "tangential"),
+    )
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.pulse = GaussianPulse(
+            E0_au=1.0e-8,
+            omegaL_au=float(eV_to_au(2.042)),
+            tau_au=float(fs_to_au(5.0)),
+            tau_kind="fwhm_intensity",
+        )
+        cls.models_and_results = []
+        for orientation, alignment in cls.channels:
+            model = _one_material_pole_side_model(orientation, alignment)
+            result = model.solve(
+                cls.pulse,
+                method="DOP853",
+                rtol=3.0e-9,
+                atol=1.0e-11,
+            )
+            cls.models_and_results.append((model, result))
+
+    def test_all_three_side_channels_match_their_frequency_response(self) -> None:
+        for (orientation, alignment), (model, result) in zip(
+            self.channels,
+            self.models_and_results,
+        ):
+            with self.subTest(orientation=orientation, alignment=alignment):
+                alpha_time = spectral_effective_alpha_au(
+                    result,
+                    self.pulse,
+                    model.params.eps_m,
+                )
+                response = model.frequency_response_from_fit(np.asarray([2.042]))
+                beta = qd_linear_polarizability_from_params(
+                    model.params,
+                    np.asarray([2.042]),
+                )
+                alpha_frequency = solve_linear_hybrid_response(
+                    response,
+                    beta,
+                    eps_m=model.params.eps_m,
+                ).alpha_effective_au3[0]
+                self.assertLess(
+                    abs(alpha_time - alpha_frequency) / abs(alpha_frequency),
+                    5.0e-6,
+                )
+                self.assertLess(result.diagnostics.excited_population_max, 1.0e-7)
+
+    def test_side_trajectories_remain_physical_and_report_mode_counts(self) -> None:
+        for (orientation, alignment), (model, result) in zip(
+            self.channels,
+            self.models_and_results,
+        ):
+            with self.subTest(orientation=orientation, alignment=alignment):
+                diagnostics = result.diagnostics
+                self.assertTrue(diagnostics.work_nonnegative_within_tolerance)
+                self.assertGreaterEqual(diagnostics.min_density_eigenvalue, -1.0e-12)
+                self.assertLessEqual(diagnostics.max_bloch_radius, 1.0 + 1.0e-10)
+                self.assertEqual(diagnostics.spatial_order_max, 3)
+                self.assertEqual(
+                    diagnostics.exact_spatial_mode_count,
+                    model.kernel.mode_count,
+                )
+                self.assertEqual(
+                    diagnostics.dynamic_spatial_mode_count,
+                    model.kernel.mode_count,
+                )
+                self.assertEqual(diagnostics.reduced_dark_node_count, 0)
+
+    def test_n80_positive_reduction_covers_every_dark_mode(self) -> None:
+        for orientation, alignment in self.channels:
+            with self.subTest(orientation=orientation, alignment=alignment):
+                params = make_default_params(
+                    orientation,
+                    qd_placement="side",
+                    side_transverse_alignment=alignment,
+                )
+                bright = HybridQDPlasmonModel(
+                    params,
+                    orientation=orientation,
+                    n_modes=9,
+                    radiative_consistency_policy="ignore",
+                    verbose=False,
+                )
+                kernel = EquatorialSpheroidGreenInteraction.from_params(
+                    params,
+                    orientation=orientation,
+                    n_max=80,
+                )
+                reduction = build_positive_dark_reduction(
+                    bright,
+                    kernel,
+                    fit_grid_points=201,
+                    audit_grid_points=307,
+                )
+                max_modal_relative_error = (
+                    0.075 if alignment == "radial" else 0.06
+                )
+                reduced_model = FullQSSpheroidPulseModel(
+                    bright,
+                    kernel,
+                    dark_reduction=reduction,
+                    max_modal_relative_error=max_modal_relative_error,
+                    modal_audit_points=201,
+                )
+
+                energies = np.linspace(0.8, 3.0, 257)
+                bright_susceptibility = bright.alpha_from_fit(energies)
+                exact_modal = bright_susceptibility[None, :] / (
+                    1.0
+                    + (
+                        kernel.depolarization_by_mode
+                        - kernel.depolarization_by_mode[kernel.bright_mode_index]
+                    )[:, None]
+                    * bright_susceptibility[None, :]
+                )
+                exact = kernel.response_from_modal_susceptibility(exact_modal)
+                reduced = reduced_model.frequency_response_from_fit(energies)
+                relative_K_error = float(
+                    np.max(np.abs(reduced.K_au_minus3 - exact.K_au_minus3))
+                    / np.max(np.abs(exact.K_au_minus3))
+                )
+
+                self.assertTrue(reduction.diagnostics.accepted)
+                self.assertEqual(
+                    reduction.diagnostics.positive_dark_mode_count,
+                    kernel.mode_count - 1,
+                )
+                self.assertLess(relative_K_error, 1.0e-4)
+                self.assertLess(reduction.node_count, kernel.mode_count // 20)
+                self.assertTrue(reduced_model.modal_fit_diagnostics.accepted)
+                self.assertTrue(
+                    reduced_model.modal_fit_diagnostics.passive_on_audit_grid
                 )
 
 

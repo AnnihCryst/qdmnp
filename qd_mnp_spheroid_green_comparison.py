@@ -12,7 +12,9 @@ The runner deliberately exports three branches:
 The legacy-to-n1 difference measures the central-field/projection error even
 within the bright mode.  The n1-to-full difference isolates higher spatial
 plasmon modes.  All branches use the same material data, QD polarizability and
-weak-field Bloch linearization.
+weak-field Bloch linearization.  The historical axial placement remains the
+default; ``qd_placement="side"`` selects the equatorial ``(n,m,sector)``
+kernel.
 """
 
 from __future__ import annotations
@@ -42,12 +44,14 @@ from qd_mnp_rational_fit import (
 )
 from qd_mnp_spheroid_green import (
     LegacyDipoleInteraction,
-    ProlateSpheroidGeometry,
+    QuasistaticInteractionResponse,
     SpheroidGreenInteraction,
     legacy_dipole_response_from_A,
+    point_dipole_response_from_A,
     qd_linear_polarizability_from_params,
     solve_linear_hybrid_response,
 )
+from qd_mnp_spheroid_equatorial import EquatorialSpheroidGreenInteraction
 
 
 COMPARISON_SCHEMA_VERSION = 2
@@ -149,10 +153,136 @@ def _apply_convergence_policy(policy: str, message: str) -> None:
         warnings.warn(message, RuntimeWarning, stacklevel=3)
 
 
+def _orientation_alignment(
+    orientation: str,
+    *,
+    qd_placement: str,
+    side_transverse_alignment: str | None,
+) -> str | None:
+    """Return the alignment stored on one orientation-specific parameter set."""
+
+    if qd_placement == "side" and orientation == "trans":
+        return side_transverse_alignment
+    return None
+
+
+def _validate_placement_selection(
+    orientations: tuple[str, ...],
+    *,
+    qd_placement: str,
+    side_transverse_alignment: str | None,
+) -> None:
+    if qd_placement not in {"axis", "side"}:
+        raise ValueError("qd_placement must be either 'axis' or 'side'.")
+    if side_transverse_alignment not in {None, "radial", "tangential"}:
+        raise ValueError(
+            "side_transverse_alignment must be None, 'radial' or 'tangential'."
+        )
+    if qd_placement == "axis" and side_transverse_alignment is not None:
+        raise ValueError(
+            "side_transverse_alignment must be None when qd_placement='axis'."
+        )
+    has_transverse = "trans" in orientations
+    if qd_placement == "side" and has_transverse:
+        if side_transverse_alignment is None:
+            raise ValueError(
+                "qd_placement='side' with orientation='trans' requires "
+                "side_transverse_alignment='radial' or 'tangential'."
+            )
+    elif qd_placement == "side" and side_transverse_alignment is not None:
+        raise ValueError(
+            "side_transverse_alignment is only used when the selected side "
+            "run contains orientation='trans'."
+        )
+
+
+def _build_kernel(params, *, orientation: str, n_max: int):
+    if params.qd_placement == "axis":
+        return SpheroidGreenInteraction.from_params(
+            params,
+            orientation=orientation,
+            n_max=n_max,
+        )
+    return EquatorialSpheroidGreenInteraction.from_params(
+        params,
+        orientation=orientation,
+        n_max=n_max,
+    )
+
+
+def _exact_mode_count(kernel, *, spatial_order_max: int | None = None) -> int:
+    if hasattr(kernel, "mode_degrees"):
+        degrees = np.asarray(kernel.mode_degrees, dtype=int)
+        if spatial_order_max is not None:
+            degrees = degrees[degrees <= spatial_order_max]
+        return int(degrees.size)
+    maximum = kernel.n_max if spatial_order_max is None else spatial_order_max
+    return int(maximum)
+
+
+def _bright_depolarization(kernel) -> float:
+    if hasattr(kernel, "depolarization_by_mode"):
+        return float(
+            kernel.depolarization_by_mode[int(kernel.bright_mode_index)]
+        )
+    return float(kernel.depolarization_by_degree[0])
+
+
+def _mode_metadata(kernel) -> dict[str, object]:
+    if hasattr(kernel, "mode_degrees"):
+        modes = [
+            {
+                "index": index,
+                "n": int(degree),
+                "m": int(order),
+                "sector": str(sector),
+            }
+            for index, (degree, order, sector) in enumerate(
+                zip(
+                    kernel.mode_degrees,
+                    kernel.mode_orders,
+                    kernel.mode_sectors,
+                )
+            )
+        ]
+        return {
+            "mode_identity_semantics": "(n,m,real_sector)",
+            "bright_mode": modes[int(kernel.bright_mode_index)],
+            "retained_modes": modes,
+        }
+    return {
+        "mode_identity_semantics": "one symmetry-selected mode per degree n",
+        "bright_mode": {"index": 0, "n": 1},
+    }
+
+
+def _legacy_side_response_from_A(
+    A_au3: complex | np.ndarray,
+    *,
+    params,
+    orientation: str,
+    bright_depolarization: float,
+) -> QuasistaticInteractionResponse:
+    """Build the shared point-dipole baseline with the side geometry factor."""
+
+    C = params.eps_m * params.a_au**2 * params.c_au / 3.0
+    J = params.G / (params.eps_m * params.R_au**3)
+    return point_dipole_response_from_A(
+        A_au3,
+        orientation=orientation,
+        eps_m=params.eps_m,
+        C_au3=C,
+        J_au_minus3=J,
+        bright_depolarization=bright_depolarization,
+    )
+
+
 def run_comparison(
     *,
     output_dir: str | Path = "results/spheroid_green_comparison",
     orientations: tuple[str, ...] = ("long", "trans"),
+    qd_placement: str = "axis",
+    side_transverse_alignment: str | None = None,
     energy_window_eV: tuple[float, float] = (1.8, 2.3),
     energy_points: int = 1001,
     target_energy_eV: float = 2.042,
@@ -190,6 +320,11 @@ def run_comparison(
         raise ValueError("target_energy_eV must lie inside energy_window_eV.")
     if not orientations or any(value not in {"long", "trans"} for value in orientations):
         raise ValueError("orientations must contain only 'long' and/or 'trans'.")
+    _validate_placement_selection(
+        orientations,
+        qd_placement=qd_placement,
+        side_transverse_alignment=side_transverse_alignment,
+    )
     if not np.isfinite(convergence_rtol) or convergence_rtol <= 0.0:
         raise ValueError("convergence_rtol must be finite and positive.")
     if convergence_policy not in POLICIES:
@@ -211,6 +346,11 @@ def run_comparison(
     plot_data: dict[str, dict[str, object]] = {}
 
     for orientation in orientations:
+        orientation_alignment = _orientation_alignment(
+            orientation,
+            qd_placement=qd_placement,
+            side_transverse_alignment=side_transverse_alignment,
+        )
         params = make_params_with_overrides(
             c_nm=c_nm,
             a_nm=a_nm,
@@ -224,6 +364,8 @@ def run_comparison(
             gamma2_coherence_mev=gamma2_coherence_meV,
             qd_dipole_convention=qd_dipole_convention,
             orientation=orientation,
+            qd_placement=qd_placement,
+            side_transverse_alignment=orientation_alignment,
         )
         legacy_model = HybridQDPlasmonModel(
             params,
@@ -232,16 +374,20 @@ def run_comparison(
             radiative_consistency_policy="ignore",
             verbose=False,
         )
-        legacy = LegacyDipoleInteraction(legacy_model).frequency_response(
-            energies,
-            mnp_response="material",
-        )
-        kernel = SpheroidGreenInteraction.from_params(
-            params,
-            orientation=orientation,
-            n_max=n_max,
-        )
+        kernel = _build_kernel(params, orientation=orientation, n_max=n_max)
         full = kernel.response_from_material(params.material, energies)
+        if qd_placement == "axis":
+            legacy = LegacyDipoleInteraction(legacy_model).frequency_response(
+                energies,
+                mnp_response="material",
+            )
+        else:
+            legacy = _legacy_side_response_from_A(
+                legacy_model.C * legacy_model.alpha_from_material(energies),
+                params=params,
+                orientation=orientation,
+                bright_depolarization=_bright_depolarization(kernel),
+            )
         bright = full.truncate(1)
         beta = qd_linear_polarizability_from_params(params, energies)
         branches = {
@@ -295,6 +441,8 @@ def run_comparison(
                 values = linear[name]
                 row: dict[str, object] = {
                     "orientation": orientation,
+                    "qd_placement": qd_placement,
+                    "side_transverse_alignment": orientation_alignment,
                     "model": name,
                     "energy_eV": float(energy),
                     "quasistatic_work_loss_cm2": float(work_loss[name][index]),
@@ -310,8 +458,11 @@ def run_comparison(
             ratio_K = full.K_au_minus3[index] / legacy.K_au_minus3[index]
             coefficient_row: dict[str, object] = {
                 "orientation": orientation,
+                "qd_placement": qd_placement,
+                "side_transverse_alignment": orientation_alignment,
                 "energy_eV": float(energy),
                 "n_max": n_max,
+                "exact_mode_count": _exact_mode_count(kernel),
                 "higher_mode_fraction_abs": float(
                     abs(full.K_higher_au_minus3[index])
                     / max(abs(full.K_au_minus3[index]), np.finfo(float).tiny)
@@ -342,10 +493,18 @@ def run_comparison(
         )
         target_full = kernel.response_from_epsilon(target_epsilon)
         target_bright = target_full.truncate(1)
-        target_legacy = legacy_dipole_response_from_A(
-            target_full.A_au3,
-            kernel.geometry,
-        )
+        if qd_placement == "axis":
+            target_legacy = legacy_dipole_response_from_A(
+                target_full.A_au3,
+                kernel.geometry,
+            )
+        else:
+            target_legacy = _legacy_side_response_from_A(
+                target_full.A_au3,
+                params=params,
+                orientation=orientation,
+                bright_depolarization=_bright_depolarization(kernel),
+            )
         target_linear_full = solve_linear_hybrid_response(
             target_full,
             target_beta,
@@ -360,8 +519,14 @@ def run_comparison(
             )
             row = {
                 "orientation": orientation,
+                "qd_placement": qd_placement,
+                "side_transverse_alignment": orientation_alignment,
                 "energy_eV": float(target_energy_eV),
                 "spatial_order_max": order,
+                "exact_mode_count": _exact_mode_count(
+                    kernel,
+                    spatial_order_max=order,
+                ),
                 "K_relative_error_vs_n_max": float(
                     abs(truncated.K_au_minus3 - target_full.K_au_minus3)
                     / max(abs(complex(target_full.K_au_minus3)), np.finfo(float).tiny)
@@ -400,16 +565,28 @@ def run_comparison(
 
         target_A = target_full.A_au3
         for gap_nm in gaps_nm:
-            separation_nm = c_nm + qd_radius_nm + gap_nm
+            directional_radius_nm = c_nm if qd_placement == "axis" else a_nm
+            separation_nm = directional_radius_nm + qd_radius_nm + gap_nm
             gap_params = replace(params, R_au=float(nm_to_au(separation_nm)))
-            gap_geometry = ProlateSpheroidGeometry.from_params(
+            gap_kernel = _build_kernel(
                 gap_params,
                 orientation=orientation,
+                n_max=n_max,
             )
-            gap_kernel = SpheroidGreenInteraction(gap_geometry, n_max=n_max)
             gap_full = gap_kernel.response_from_epsilon(target_epsilon)
             gap_bright = gap_full.truncate(1)
-            gap_legacy = legacy_dipole_response_from_A(target_A, gap_geometry)
+            if qd_placement == "axis":
+                gap_legacy = legacy_dipole_response_from_A(
+                    target_A,
+                    gap_kernel.geometry,
+                )
+            else:
+                gap_legacy = _legacy_side_response_from_A(
+                    target_A,
+                    params=gap_params,
+                    orientation=orientation,
+                    bright_depolarization=_bright_depolarization(gap_kernel),
+                )
             gap_half_order_change = float(
                 gap_full.relative_half_order_change()
             )
@@ -449,10 +626,17 @@ def run_comparison(
                 )
                 row = {
                     "orientation": orientation,
+                    "qd_placement": qd_placement,
+                    "side_transverse_alignment": orientation_alignment,
                     "model": name,
                     "energy_eV": float(target_energy_eV),
                     "surface_gap_nm": float(gap_nm),
                     "center_distance_nm": float(separation_nm),
+                    "exact_mode_count": (
+                        _exact_mode_count(gap_kernel)
+                        if name == "spheroid_full"
+                        else 1
+                    ),
                     "quasistatic_work_loss_cm2": float(work),
                     "asymptotic_order_ratio": float(gap_kernel.asymptotic_order_ratio),
                     "full_half_order_relative_change": float(
@@ -475,7 +659,38 @@ def run_comparison(
 
         common_physical_parameters = params_to_physical_dict(params, orientation)
         legacy_coupling_label = common_physical_parameters.pop("coupling_model")
+        common_physical_parameters["directional_mnp_radius_nm"] = float(
+            au_to_nm(params.directional_mnp_radius_au)
+        )
+        common_physical_parameters[
+            "mnp_directional_radius_to_separation_ratio"
+        ] = float(params.directional_mnp_radius_au / params.R_au)
+        mode_metadata = _mode_metadata(kernel)
+        if qd_placement == "axis":
+            bright_kernel_label = (
+                "exact_sphere_bright_projection"
+                if kernel.is_spherical
+                else "exact_prolate_spheroid_bright_projection"
+            )
+            full_kernel_label = (
+                "analytic_sphere_green_series"
+                if kernel.is_spherical
+                else "analytic_prolate_spheroid_green_series"
+            )
+        else:
+            bright_kernel_label = (
+                "exact_sphere_equatorial_bright_projection"
+                if kernel.is_spherical
+                else "exact_prolate_spheroid_equatorial_bright_projection"
+            )
+            full_kernel_label = (
+                "analytic_sphere_equatorial_green_series"
+                if kernel.is_spherical
+                else "analytic_prolate_spheroid_equatorial_green_series"
+            )
         orientation_metadata[orientation] = {
+            "qd_placement": qd_placement,
+            "side_transverse_alignment": orientation_alignment,
             "common_physical_parameters": common_physical_parameters,
             "coupling_at_target_energy": {
                 "energy_eV": float(target_energy_eV),
@@ -492,12 +707,10 @@ def run_comparison(
                     "identity": "B=A*J; K=A*J^2",
                 },
                 "spheroid_n1": {
-                    "spatial_kernel": (
-                        "exact_sphere_bright_projection"
-                        if kernel.is_spherical
-                        else "exact_prolate_spheroid_bright_projection"
-                    ),
+                    "spatial_kernel": bright_kernel_label,
                     "retained_spheroidal_orders": [1],
+                    "exact_mode_count": 1,
+                    "bright_mode": mode_metadata["bright_mode"],
                     "B": _complex_metadata(target_bright.B),
                     "K_au_minus3": _complex_metadata(
                         target_bright.K_au_minus3
@@ -505,13 +718,10 @@ def run_comparison(
                     "identity": "K_1=B^2/A without complex conjugation",
                 },
                 "spheroid_full": {
-                    "spatial_kernel": (
-                        "analytic_sphere_green_series"
-                        if kernel.is_spherical
-                        else "analytic_prolate_spheroid_green_series"
-                    ),
+                    "spatial_kernel": full_kernel_label,
                     "retained_spheroidal_orders": [1, n_max],
                     "retained_order_semantics": "all integer n in the inclusive range",
+                    "exact_mode_count": _exact_mode_count(kernel),
                     "uniform_laser_drive_orders": [1],
                     "point_qd_reaction_orders": [1, n_max],
                     "B": _complex_metadata(target_full.B),
@@ -527,6 +737,8 @@ def run_comparison(
                 },
             },
             "n_max": n_max,
+            "exact_mode_count": _exact_mode_count(kernel),
+            "mode_metadata": mode_metadata,
             "asymptotic_order_ratio": kernel.asymptotic_order_ratio,
             "max_half_order_relative_change": float(
                 max_half_order_change
@@ -541,7 +753,7 @@ def run_comparison(
                     / np.maximum(np.abs(full.A_au3), np.finfo(float).tiny)
                 )
             ),
-            "L_bright": float(kernel.depolarization_by_degree[0]),
+            "L_bright": _bright_depolarization(kernel),
         }
         plot_data[orientation] = {
             "energies": energies,
@@ -562,9 +774,21 @@ def run_comparison(
         "comparison_schema_version": COMPARISON_SCHEMA_VERSION,
         "created_at": datetime.now().astimezone().isoformat(),
         "implementation": {
-            "legacy": "LegacyDipoleInteraction over HybridQDPlasmonModel",
-            "spheroid_n1": "SpheroidGreenInteraction truncated to n=1",
-            "spheroid_full": "SpheroidGreenInteraction summed through n_max",
+            "legacy": (
+                "LegacyDipoleInteraction over HybridQDPlasmonModel"
+                if qd_placement == "axis"
+                else "side point-dipole baseline over HybridQDPlasmonModel"
+            ),
+            "spheroid_n1": (
+                "SpheroidGreenInteraction truncated to n=1"
+                if qd_placement == "axis"
+                else "EquatorialSpheroidGreenInteraction truncated to n=1"
+            ),
+            "spheroid_full": (
+                "SpheroidGreenInteraction summed through n_max"
+                if qd_placement == "axis"
+                else "EquatorialSpheroidGreenInteraction summed through n_max"
+            ),
         },
         "material_response": "direct_piecewise_linear_n_k",
         "models": {
@@ -595,6 +819,8 @@ def run_comparison(
             "qd_source_for_green_kernel": "externally visible host dipole",
         },
         "numerical_settings": {
+            "qd_placement": qd_placement,
+            "side_transverse_alignment": side_transverse_alignment,
             "energy_window_eV": list(energy_window_eV),
             "energy_points": energy_points,
             "target_energy_eV": target_energy_eV,
@@ -612,7 +838,11 @@ def run_comparison(
         "scope_limits": [
             "strict quasistatics: no retardation or radiation reaction",
             "homogeneous prolate spheroid or its exact spherical limit",
-            "point QD on the positive symmetry axis",
+            (
+                "point QD on the positive symmetry axis"
+                if qd_placement == "axis"
+                else "point QD on the positive equatorial x axis"
+            ),
             "local frequency-dependent particle permittivity",
             "no geometry-derived Purcell/Lindblad-rate correction",
             "work-loss curve is not labelled pure metal absorption",
@@ -793,6 +1023,19 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", default="results/spheroid_green_comparison")
     parser.add_argument("--orientations", nargs="+", choices=("long", "trans"), default=("long", "trans"))
+    parser.add_argument(
+        "--qd-placement",
+        choices=("axis", "side"),
+        default="axis",
+        help="QD centre line: historical symmetry axis or equatorial side.",
+    )
+    parser.add_argument(
+        "--side-transverse-alignment",
+        choices=("radial", "tangential"),
+        default=None,
+        help="Required for side + trans: dipole parallel (radial) or "
+        "perpendicular (tangential) to the equatorial centre line.",
+    )
     parser.add_argument("--energy-min-ev", type=float, default=1.8)
     parser.add_argument("--energy-max-ev", type=float, default=2.3)
     parser.add_argument("--energy-points", type=int, default=1001)
@@ -846,6 +1089,8 @@ def main() -> None:
     run_dir = run_comparison(
         output_dir=args.output_dir,
         orientations=tuple(args.orientations),
+        qd_placement=args.qd_placement,
+        side_transverse_alignment=args.side_transverse_alignment,
         energy_window_eV=(args.energy_min_ev, args.energy_max_ev),
         energy_points=args.energy_points,
         target_energy_eV=args.target_energy_ev,

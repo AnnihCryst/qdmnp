@@ -17,10 +17,19 @@ from qd_mnp_spheroid_green import (
 )
 
 
-def _material_only_legacy_model(orientation: str) -> HybridQDPlasmonModel:
+def _material_only_legacy_model(
+    orientation: str,
+    *,
+    qd_placement: str = "axis",
+    side_transverse_alignment: str | None = None,
+) -> HybridQDPlasmonModel:
     """Construct the material-response part of the old API without fitting."""
 
-    params = make_default_params(orientation)
+    params = make_default_params(
+        orientation,
+        qd_placement=qd_placement,
+        side_transverse_alignment=side_transverse_alignment,
+    )
     model = object.__new__(HybridQDPlasmonModel)
     model.params = params
     model.orientation = orientation
@@ -470,6 +479,50 @@ class SpheroidModeResponseTests(unittest.TestCase):
 
 
 class GenericLinearResponseTests(unittest.TestCase):
+    def test_legacy_adapter_uses_the_selected_side_geometry_factor(self) -> None:
+        configurations = (
+            ("long", None),
+            ("trans", "radial"),
+            ("trans", "tangential"),
+        )
+        energies = np.asarray([1.9, 2.042, 2.2])
+        for orientation, alignment in configurations:
+            with self.subTest(orientation=orientation, alignment=alignment):
+                model = _material_only_legacy_model(
+                    orientation,
+                    qd_placement="side",
+                    side_transverse_alignment=alignment,
+                )
+                response = LegacyDipoleInteraction(model).frequency_response(
+                    energies,
+                    mnp_response="material",
+                )
+                expected_A = model.C * model.alpha_from_material(energies)
+                np.testing.assert_allclose(
+                    response.A_au3,
+                    expected_A,
+                    rtol=0.0,
+                    atol=0.0,
+                )
+                np.testing.assert_allclose(
+                    response.B,
+                    expected_A * model.J,
+                    rtol=0.0,
+                    atol=0.0,
+                )
+                np.testing.assert_allclose(
+                    response.K_au_minus3,
+                    expected_A * model.J**2,
+                    rtol=0.0,
+                    atol=0.0,
+                )
+                np.testing.assert_allclose(
+                    response.K_au_minus3,
+                    response.B * model.J,
+                    rtol=5.0e-16,
+                    atol=0.0,
+                )
+
     def test_legacy_adapter_supports_a_sphere_and_exports_consistent_metadata(self) -> None:
         for orientation in ("long", "trans"):
             with self.subTest(orientation=orientation):

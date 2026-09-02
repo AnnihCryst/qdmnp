@@ -34,6 +34,13 @@ from qd_mnp_rational_fit import (
     HybridSystemParams,
     sampled_positive_frequency_spectral_fraction,
 )
+from qd_mnp_modal_reduction import (
+    PositiveDarkKernelReduction,
+    ReducedInteractionResponse,
+    ReductionPolicy,
+    modal_measure_sha256,
+    reduce_positive_dark_measure,
+)
 from qd_mnp_spheroid_green import (
     QuasistaticInteractionResponse,
     SpheroidGreenInteraction,
@@ -47,6 +54,69 @@ def _readonly(value: np.ndarray, *, dtype=None) -> np.ndarray:
     result = np.array(value, dtype=dtype, copy=True)
     result.setflags(write=False)
     return result
+
+
+def build_positive_dark_reduction(
+    bright_model: HybridQDPlasmonModel,
+    spheroid_kernel: SpheroidGreenInteraction | object,
+    *,
+    fit_grid_points: int = 1001,
+    audit_grid_points: int = 1601,
+    rms_tolerance: float = 1.0e-6,
+    max_tolerance: float = 1.0e-4,
+    max_nodes: int | None = None,
+    policy: ReductionPolicy = "raise",
+) -> PositiveDarkKernelReduction:
+    """Build a positive dark-kernel reduction on independent frequency grids."""
+
+    for name, value in (
+        ("fit_grid_points", fit_grid_points),
+        ("audit_grid_points", audit_grid_points),
+    ):
+        if isinstance(value, (bool, np.bool_)) or not isinstance(
+            value, (int, np.integer)
+        ) or value < 101:
+            raise ValueError(f"{name} must be an integer >= 101.")
+    if fit_grid_points == audit_grid_points:
+        # Equal point counts are not mathematically invalid, but keeping them
+        # different makes accidental reuse of the construction grid visible.
+        raise ValueError("fit_grid_points and audit_grid_points must differ.")
+
+    depolarization = np.asarray(
+        spheroid_kernel.depolarization_by_mode
+        if hasattr(spheroid_kernel, "depolarization_by_mode")
+        else spheroid_kernel.depolarization_by_degree,
+        dtype=float,
+    )
+    weights = np.asarray(
+        spheroid_kernel.reaction_weight_by_mode_au_minus3
+        if hasattr(spheroid_kernel, "reaction_weight_by_mode_au_minus3")
+        else spheroid_kernel.reaction_weight_by_degree_au_minus3,
+        dtype=float,
+    )
+    bright_index = int(getattr(spheroid_kernel, "bright_mode_index", 0))
+    e_min, e_max = bright_model.fit_window_eV
+    fit_energies = np.linspace(e_min, e_max, int(fit_grid_points))
+    # An irrational in-cell offset keeps the holdout grid disjoint from the
+    # endpoint-inclusive construction grid (a half-cell grid would share the
+    # central energy for the canonical 1001/1601 point counts).
+    audit_offset = 0.5 * (np.sqrt(5.0) - 1.0)
+    audit_energies = e_min + (
+        np.arange(int(audit_grid_points), dtype=float) + audit_offset
+    ) * ((e_max - e_min) / float(audit_grid_points))
+    H_fit = np.asarray(bright_model.alpha_from_fit(fit_energies), dtype=complex)
+    H_audit = np.asarray(bright_model.alpha_from_fit(audit_energies), dtype=complex)
+    return reduce_positive_dark_measure(
+        depolarization,
+        weights,
+        bright_index=bright_index,
+        bright_susceptibility_fit=H_fit,
+        bright_susceptibility_audit=H_audit,
+        rms_tolerance=rms_tolerance,
+        max_tolerance=max_tolerance,
+        max_nodes=max_nodes,
+        policy=policy,
+    )
 
 
 @dataclass(frozen=True)
@@ -69,6 +139,28 @@ class ModalTransformDiagnostics:
             "minimum_imaginary_part_by_degree",
         ):
             object.__setattr__(self, name, _readonly(getattr(self, name), dtype=float))
+
+
+@dataclass(frozen=True)
+class DarkReductionReauditDiagnostics:
+    """Independent certificate for a reduction on the active material fit."""
+
+    normalized_rms: float
+    max_normalized_error: float
+    minimum_imaginary_part: float
+    passive_on_audit_grid: bool
+    accepted: bool
+    audit_grid_points: int
+    rms_tolerance: float
+    max_tolerance: float
+    energy_window_eV: tuple[float, float]
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self,
+            "energy_window_eV",
+            tuple(float(value) for value in self.energy_window_eV),
+        )
 
 
 @dataclass(frozen=True)
@@ -163,6 +255,9 @@ class FullQSSolveDiagnostics:
     work_nonnegative_within_tolerance: bool
     work_passivity_tolerance_au: float
     spatial_order_max: int
+    exact_spatial_mode_count: int
+    dynamic_spatial_mode_count: int
+    reduced_dark_node_count: int
     material_poles_per_spatial_order: int
     spectral_abscissa_au: float | None
     spectral_abscissa_available: bool
@@ -215,7 +310,7 @@ class FullQSSpheroidPulseModel:
     def __init__(
         self,
         bright_model: HybridQDPlasmonModel,
-        spheroid_kernel: SpheroidGreenInteraction,
+        spheroid_kernel: SpheroidGreenInteraction | object,
         *,
         fit_quality_policy: Policy = "raise",
         max_modal_normalized_rms: float = 0.03,
@@ -223,6 +318,10 @@ class FullQSSpheroidPulseModel:
         modal_audit_points: int = 2001,
         spatial_convergence_policy: Policy = "raise",
         spatial_convergence_rtol: float = 1.0e-8,
+        dark_reduction: PositiveDarkKernelReduction | None = None,
+        reduction_reaudit_points: int = 1709,
+        max_reduction_normalized_rms: float = 1.0e-6,
+        max_reduction_normalized_error: float = 1.0e-4,
     ) -> None:
         if fit_quality_policy not in {"raise", "warn", "ignore"}:
             raise ValueError("fit_quality_policy must be 'raise', 'warn' or 'ignore'.")
@@ -232,9 +331,17 @@ class FullQSSpheroidPulseModel:
             )
         if modal_audit_points < 101:
             raise ValueError("modal_audit_points must be at least 101.")
+        if (
+            isinstance(reduction_reaudit_points, (bool, np.bool_))
+            or not isinstance(reduction_reaudit_points, (int, np.integer))
+            or reduction_reaudit_points < 101
+        ):
+            raise ValueError("reduction_reaudit_points must be an integer >= 101.")
         for name, value in (
             ("max_modal_normalized_rms", max_modal_normalized_rms),
             ("max_modal_relative_error", max_modal_relative_error),
+            ("max_reduction_normalized_rms", max_reduction_normalized_rms),
+            ("max_reduction_normalized_error", max_reduction_normalized_error),
         ):
             if not np.isfinite(value) or value <= 0.0:
                 raise ValueError(f"{name} must be finite and positive.")
@@ -247,7 +354,117 @@ class FullQSSpheroidPulseModel:
         self.kernel = spheroid_kernel
         self.params: HybridSystemParams = bright_model.params
         self.orientation = bright_model.orientation
-        self.n_spatial_modes = spheroid_kernel.n_max
+        self.spatial_order_max = int(spheroid_kernel.n_max)
+        self.exact_spatial_mode_count = int(
+            getattr(spheroid_kernel, "mode_count", self.spatial_order_max)
+        )
+        exact_bright_mode_index = int(
+            getattr(spheroid_kernel, "bright_mode_index", 0)
+        )
+        if not (0 <= exact_bright_mode_index < self.exact_spatial_mode_count):
+            raise ValueError("The kernel bright_mode_index is outside its mode table.")
+        depolarization_values = (
+            spheroid_kernel.depolarization_by_mode
+            if hasattr(spheroid_kernel, "depolarization_by_mode")
+            else spheroid_kernel.depolarization_by_degree
+        )
+        reaction_weight_values = (
+            spheroid_kernel.reaction_weight_by_mode_au_minus3
+            if hasattr(spheroid_kernel, "reaction_weight_by_mode_au_minus3")
+            else spheroid_kernel.reaction_weight_by_degree_au_minus3
+        )
+        exact_depolarization = np.asarray(
+            depolarization_values,
+            dtype=float,
+        )
+        exact_reaction_weights = np.asarray(
+            reaction_weight_values,
+            dtype=float,
+        )
+        if not (
+            exact_depolarization.shape
+            == exact_reaction_weights.shape
+            == (self.exact_spatial_mode_count,)
+        ):
+            raise ValueError("The kernel modal arrays are inconsistent with mode_count.")
+        self.dark_reduction = dark_reduction
+        self.dark_reduction_reaudit_diagnostics: (
+            DarkReductionReauditDiagnostics | None
+        ) = None
+        if dark_reduction is None:
+            self.n_spatial_modes = self.exact_spatial_mode_count
+            self.bright_mode_index = exact_bright_mode_index
+            self.modal_depolarization = exact_depolarization
+            self.modal_reaction_weights_au_minus3 = exact_reaction_weights
+        else:
+            if not isinstance(dark_reduction, PositiveDarkKernelReduction):
+                raise TypeError(
+                    "dark_reduction must be a PositiveDarkKernelReduction instance."
+                )
+            if not dark_reduction.diagnostics.accepted:
+                raise ValueError("dark_reduction does not carry an accepted certificate.")
+            exact_bright_L = float(exact_depolarization[exact_bright_mode_index])
+            if not np.isclose(
+                dark_reduction.bright_depolarization,
+                exact_bright_L,
+                rtol=2.0e-14,
+                atol=1.0e-15,
+            ):
+                raise ValueError(
+                    "dark_reduction uses a different bright depolarization factor."
+                )
+            if (
+                dark_reduction.diagnostics.original_dark_mode_count
+                != self.exact_spatial_mode_count - 1
+            ):
+                raise ValueError(
+                    "dark_reduction was not built from this kernel's full mode table."
+                )
+            expected_measure_fingerprint = modal_measure_sha256(
+                exact_depolarization,
+                exact_reaction_weights,
+                bright_index=exact_bright_mode_index,
+            )
+            if (
+                dark_reduction.source_measure_sha256
+                != expected_measure_fingerprint
+            ):
+                raise ValueError(
+                    "dark_reduction was certified for a different full modal "
+                    "measure (depolarizations, reaction weights, or bright index)."
+                )
+            reduction_reaudit = self._reaudit_dark_reduction(
+                bright_model=bright_model,
+                dark_reduction=dark_reduction,
+                exact_depolarization=exact_depolarization,
+                exact_reaction_weights_au_minus3=exact_reaction_weights,
+                exact_bright_mode_index=exact_bright_mode_index,
+                points=int(reduction_reaudit_points),
+                rms_tolerance=float(max_reduction_normalized_rms),
+                max_tolerance=float(max_reduction_normalized_error),
+            )
+            self.dark_reduction_reaudit_diagnostics = reduction_reaudit
+            if not reduction_reaudit.accepted:
+                raise ValueError(
+                    "dark_reduction is not accurate/passive for the current "
+                    "bright material transfer on its independent re-audit grid: "
+                    f"NRMS={reduction_reaudit.normalized_rms:.6g}, max normalized "
+                    f"error={reduction_reaudit.max_normalized_error:.6g}, passive="
+                    f"{reduction_reaudit.passive_on_audit_grid}; limits are "
+                    f"{reduction_reaudit.rms_tolerance:.6g} and "
+                    f"{reduction_reaudit.max_tolerance:.6g}."
+                )
+            self.n_spatial_modes = 1 + dark_reduction.node_count
+            self.bright_mode_index = 0
+            self.modal_depolarization = np.concatenate(
+                ([exact_bright_L], dark_reduction.depolarization_nodes)
+            )
+            self.modal_reaction_weights_au_minus3 = np.concatenate(
+                (
+                    [float(exact_reaction_weights[exact_bright_mode_index])],
+                    dark_reduction.weights_au_minus3,
+                )
+            )
         self.n_material_modes = bright_model.n_modes
         self.fit = bright_model.fit
         self.fit_window_eV = bright_model.fit_window_eV
@@ -266,15 +483,15 @@ class FullQSSpheroidPulseModel:
                 "material-fit window: max half-order relative change="
                 f"{spatial.max_half_order_relative_change:.6g}, max tail-block "
                 f"relative mass={spatial.max_tail_block_relative_mass:.6g}, "
-                f"tolerance={spatial.tolerance:.6g}, n_max={self.n_spatial_modes}."
+                f"tolerance={spatial.tolerance:.6g}, n_max={self.spatial_order_max}."
             )
             if spatial_convergence_policy == "raise":
                 raise RuntimeError(message)
             if spatial_convergence_policy == "warn":
                 warnings.warn(message, RuntimeWarning, stacklevel=2)
         self.delta_L = np.asarray(
-            self.kernel.depolarization_by_degree
-            - self.kernel.depolarization_by_degree[0],
+            self.modal_depolarization
+            - self.modal_depolarization[self.bright_mode_index],
             dtype=float,
         )
         self.feedback_denominator = 1.0 + self.delta_L * self.alpha_inf
@@ -289,12 +506,12 @@ class FullQSSpheroidPulseModel:
             self.kernel.bright_source_coupling_au_minus3
         )
         self.reaction_weights_au_minus3 = np.asarray(
-            self.kernel.reaction_weight_by_degree_au_minus3,
+            self.modal_reaction_weights_au_minus3,
             dtype=float,
         )
         expected_bright_weight = self.C * self.bright_coupling_au_minus3**2
         if not np.isclose(
-            self.reaction_weights_au_minus3[0],
+            self.reaction_weights_au_minus3[self.bright_mode_index],
             expected_bright_weight,
             rtol=5.0e-13,
             atol=0.0,
@@ -311,7 +528,9 @@ class FullQSSpheroidPulseModel:
                 "The transformed common-material realization does not meet the "
                 "full-QS modal accuracy/passivity gate: max NRMS="
                 f"{self.modal_fit_diagnostics.max_normalized_rms:.5g}, max relative="
-                f"{self.modal_fit_diagnostics.max_relative_error:.5g}, passive="
+                f"{self.modal_fit_diagnostics.max_relative_error:.5g}, K NRMS="
+                f"{self.modal_fit_diagnostics.K_normalized_rms:.5g}, K max relative="
+                f"{self.modal_fit_diagnostics.K_max_relative_error:.5g}, passive="
                 f"{self.modal_fit_diagnostics.passive_on_audit_grid}."
             )
             if fit_quality_policy == "raise":
@@ -341,6 +560,99 @@ class FullQSSpheroidPulseModel:
                 f"{self.coupled_stability.eigensolver}."
             )
 
+    @staticmethod
+    def _reaudit_dark_reduction(
+        *,
+        bright_model: HybridQDPlasmonModel,
+        dark_reduction: PositiveDarkKernelReduction,
+        exact_depolarization: np.ndarray,
+        exact_reaction_weights_au_minus3: np.ndarray,
+        exact_bright_mode_index: int,
+        points: int,
+        rms_tolerance: float,
+        max_tolerance: float,
+    ) -> DarkReductionReauditDiagnostics:
+        """Recheck the exact dark sum with the material fit used at runtime.
+
+        A reduction certificate records how the positive spatial measure was
+        compressed for the susceptibility supplied to its builder.  The time
+        backend must additionally prove that the same nodes remain accurate
+        for *this* bright material transfer.  This guards against accidental
+        reuse of a certificate produced with another fit or another window.
+        """
+
+        e_min, e_max = (float(value) for value in bright_model.fit_window_eV)
+        # This in-cell offset differs from both the endpoint-inclusive
+        # construction grid and the golden-ratio holdout used by the public
+        # reducer.  The re-audit is therefore a fresh sampling of the active
+        # fit, not a replay of either certificate grid.
+        reaudit_offset = np.sqrt(2.0) - 1.0
+        energies = e_min + (
+            np.arange(points, dtype=float) + reaudit_offset
+        ) * ((e_max - e_min) / float(points))
+        H = np.asarray(bright_model.alpha_from_fit(energies), dtype=complex)
+        if H.shape != (points,) or np.any(~np.isfinite(H)):
+            raise ValueError(
+                "The current bright material transfer is non-finite on the "
+                "dark-reduction re-audit grid."
+            )
+
+        dark_mask = np.ones(exact_depolarization.size, dtype=bool)
+        dark_mask[exact_bright_mode_index] = False
+        dark_L = exact_depolarization[dark_mask]
+        dark_weights = exact_reaction_weights_au_minus3[dark_mask]
+        bright_L = float(exact_depolarization[exact_bright_mode_index])
+        exact_modal = H[None, :] / (
+            1.0 + (dark_L - bright_L)[:, None] * H[None, :]
+        )
+        exact_dark = np.sum(dark_weights[:, None] * exact_modal, axis=0)
+        reduced_dark = np.asarray(
+            dark_reduction.evaluate_from_bright(H),
+            dtype=complex,
+        )
+        if (
+            reduced_dark.shape != exact_dark.shape
+            or np.any(~np.isfinite(exact_dark))
+            or np.any(~np.isfinite(reduced_dark))
+        ):
+            raise ValueError(
+                "dark_reduction is non-finite on the current-transfer "
+                "re-audit grid."
+            )
+
+        error = reduced_dark - exact_dark
+        tiny = np.finfo(float).tiny
+        rms_scale = max(
+            float(np.sqrt(np.mean(np.abs(exact_dark) ** 2))),
+            tiny,
+        )
+        max_scale = max(float(np.max(np.abs(exact_dark))), tiny)
+        normalized_rms = float(
+            np.sqrt(np.mean(np.abs(error) ** 2)) / rms_scale
+        )
+        max_normalized_error = float(np.max(np.abs(error)) / max_scale)
+        minimum_imaginary = float(np.min(reduced_dark.imag))
+        passive = bool(
+            minimum_imaginary
+            >= -1.0e-12 * max(float(np.max(np.abs(reduced_dark))), 1.0)
+        )
+        accepted = bool(
+            normalized_rms <= rms_tolerance
+            and max_normalized_error <= max_tolerance
+            and passive
+        )
+        return DarkReductionReauditDiagnostics(
+            normalized_rms=normalized_rms,
+            max_normalized_error=max_normalized_error,
+            minimum_imaginary_part=minimum_imaginary,
+            passive_on_audit_grid=passive,
+            accepted=accepted,
+            audit_grid_points=int(points),
+            rms_tolerance=float(rms_tolerance),
+            max_tolerance=float(max_tolerance),
+            energy_window_eV=(e_min, e_max),
+        )
+
     def _validate_shared_configuration(self) -> None:
         geometry = self.kernel.geometry
         p = self.params
@@ -363,8 +675,16 @@ class FullQSSpheroidPulseModel:
             )
         if geometry.orientation != self.orientation:
             raise ValueError("The bright model and spheroid kernel orientations differ.")
+        geometry_placement = getattr(geometry, "qd_placement", "axis")
+        if geometry_placement != p.qd_placement:
+            raise ValueError("The bright model and spheroid kernel QD placements differ.")
+        geometry_alignment = getattr(geometry, "side_transverse_alignment", None)
+        if geometry_alignment != p.side_transverse_alignment:
+            raise ValueError(
+                "The bright model and spheroid kernel side transverse alignments differ."
+            )
         if not np.isclose(
-            self.kernel.depolarization_by_degree[0],
+            self.modal_depolarization[self.bright_mode_index],
             self.bright_model.L,
             rtol=1.0e-12,
             atol=1.0e-14,
@@ -385,7 +705,7 @@ class FullQSSpheroidPulseModel:
         delta_epsilon = epsilon - self.params.eps_m
         target = delta_epsilon[None, :] / (
             self.params.eps_m
-            + self.kernel.depolarization_by_degree[:, None] * delta_epsilon[None, :]
+            + self.modal_depolarization[:, None] * delta_epsilon[None, :]
         )
         error = fitted - target
         target_rms = np.sqrt(np.mean(np.abs(target) ** 2, axis=1))
@@ -405,7 +725,15 @@ class FullQSSpheroidPulseModel:
         minimum_imaginary = np.min(fitted.imag, axis=1)
 
         K_fit = np.sum(self.reaction_weights_au_minus3[:, None] * fitted, axis=0)
-        K_target = np.sum(self.reaction_weights_au_minus3[:, None] * target, axis=0)
+        # For a reduced realization the per-node target above audits the
+        # transformed material at the reduced nodes.  The physically relevant
+        # aggregate gate must instead use the unreduced analytic spatial
+        # kernel, otherwise a reduction error could disappear from both sides
+        # of the comparison.
+        K_target = np.asarray(
+            self.kernel.response_from_epsilon(epsilon).K_au_minus3,
+            dtype=complex,
+        )
         K_error = K_fit - K_target
         K_nrms = float(
             np.sqrt(np.mean(np.abs(K_error) ** 2))
@@ -602,7 +930,9 @@ class FullQSSpheroidPulseModel:
             mu_d,
             (self.n_spatial_modes, point_count),
         ).copy()
-        external_inputs[0] = incident + self.bright_coupling_au_minus3 * mu_d
+        external_inputs[self.bright_mode_index] = (
+            incident + self.bright_coupling_au_minus3 * mu_d
+        )
         q_sum = np.sum(q, axis=1)
         velocity_sum = np.sum(velocity, axis=1)
         internal_drives = (
@@ -611,7 +941,7 @@ class FullQSSpheroidPulseModel:
         modal_outputs = self.alpha_inf * internal_drives + q_sum
 
         _, field_weights = self._input_and_field_weights()
-        mu_p = self.C * modal_outputs[0]
+        mu_p = self.C * modal_outputs[self.bright_mode_index]
         mnp_field = np.sum(field_weights[:, None] * modal_outputs, axis=0)
         effective_field = local * (incident + mnp_field)
         rabi = 2.0 * self.params.d_au * effective_field
@@ -622,14 +952,14 @@ class FullQSSpheroidPulseModel:
             dmu_d,
             (self.n_spatial_modes, point_count),
         ).copy()
-        external_input_dots[0] = (
+        external_input_dots[self.bright_mode_index] = (
             incident_dot + self.bright_coupling_au_minus3 * dmu_d
         )
         internal_drive_dots = (
             external_input_dots - self.delta_L[:, None] * velocity_sum
         ) / self.feedback_denominator[:, None]
         modal_output_dots = self.alpha_inf * internal_drive_dots + velocity_sum
-        dmu_p = self.C * modal_output_dots[0]
+        dmu_p = self.C * modal_output_dots[self.bright_mode_index]
 
         return {
             "q": q,
@@ -639,7 +969,7 @@ class FullQSSpheroidPulseModel:
             "P": P_bloch,
             "incident": incident,
             "qd_source": mu_d,
-            "mnp_drive": external_inputs[0],
+            "mnp_drive": external_inputs[self.bright_mode_index],
             "internal_drives": internal_drives,
             "modal_outputs": modal_outputs,
             "mu_d": mu_d,
@@ -746,9 +1076,11 @@ class FullQSSpheroidPulseModel:
             local * self.params.d_au,
             dtype=float,
         )
-        input_coefficients[0] *= self.bright_coupling_au_minus3
+        input_coefficients[self.bright_mode_index] *= self.bright_coupling_au_minus3
         field_weights = self.reaction_weights_au_minus3.copy()
-        field_weights[0] = self.C * self.bright_coupling_au_minus3
+        field_weights[self.bright_mode_index] = (
+            self.C * self.bright_coupling_au_minus3
+        )
         return input_coefficients, field_weights
 
     def linearized_ground_state_matrix(self) -> csr_matrix:
@@ -1019,11 +1351,47 @@ class FullQSSpheroidPulseModel:
     def frequency_response_from_fit(
         self,
         energies_eV: float | np.ndarray,
-    ) -> QuasistaticInteractionResponse:
+    ) -> QuasistaticInteractionResponse | ReducedInteractionResponse | object:
         modal = self.modal_susceptibility_from_fit(energies_eV)
         frequency_shape = modal.shape[1:]
-        A = self.C * modal[0]
-        B = self.C * self.bright_coupling_au_minus3 * modal[0]
+        if self.dark_reduction is not None:
+            A = self.C * modal[self.bright_mode_index]
+            B = (
+                self.C
+                * self.bright_coupling_au_minus3
+                * modal[self.bright_mode_index]
+            )
+            K_by_mode = (
+                self.reaction_weights_au_minus3.reshape(
+                    (self.n_spatial_modes,) + (1,) * len(frequency_shape)
+                )
+                * modal
+            )
+            return ReducedInteractionResponse(
+                orientation=self.orientation,
+                eps_m=self.params.eps_m,
+                A_au3=A,
+                B=B,
+                K_au_minus3=np.sum(K_by_mode, axis=0),
+                K_by_mode_au_minus3=K_by_mode,
+                modal_susceptibility_by_mode=modal,
+                depolarization_by_mode=self.modal_depolarization,
+                reaction_weight_by_mode_au_minus3=(
+                    self.reaction_weights_au_minus3
+                ),
+                bright_mode_index=self.bright_mode_index,
+                spatial_order_max=self.spatial_order_max,
+                exact_mode_count=self.exact_spatial_mode_count,
+                reduction=self.dark_reduction,
+            )
+        if hasattr(self.kernel, "response_from_modal_susceptibility"):
+            return self.kernel.response_from_modal_susceptibility(modal)
+        A = self.C * modal[self.bright_mode_index]
+        B = (
+            self.C
+            * self.bright_coupling_au_minus3
+            * modal[self.bright_mode_index]
+        )
         K_by_degree = (
             self.reaction_weights_au_minus3.reshape(
                 (self.n_spatial_modes,) + (1,) * len(frequency_shape)
@@ -1075,7 +1443,9 @@ class FullQSSpheroidPulseModel:
         mu_d = local * self.params.d_au * P_bloch
 
         external_inputs = np.full(self.n_spatial_modes, mu_d, dtype=float)
-        external_inputs[0] = incident + self.bright_coupling_au_minus3 * mu_d
+        external_inputs[self.bright_mode_index] = (
+            incident + self.bright_coupling_au_minus3 * mu_d
+        )
         q_sum = np.sum(q, axis=1)
         velocity_sum = np.sum(velocity, axis=1)
         internal_drives = (
@@ -1083,16 +1453,12 @@ class FullQSSpheroidPulseModel:
         ) / self.feedback_denominator
         modal_outputs = self.alpha_inf * internal_drives + q_sum
 
-        mu_p = self.C * modal_outputs[0]
-        mnp_field = (
-            self.bright_coupling_au_minus3 * mu_p
-            + float(
-                np.dot(
-                    self.reaction_weights_au_minus3[1:],
-                    modal_outputs[1:],
-                )
-            )
+        mu_p = self.C * modal_outputs[self.bright_mode_index]
+        field_weights = self.reaction_weights_au_minus3.copy()
+        field_weights[self.bright_mode_index] = (
+            self.C * self.bright_coupling_au_minus3
         )
+        mnp_field = float(np.dot(field_weights, modal_outputs))
         effective_field = local * (incident + mnp_field)
         rabi = 2.0 * self.params.d_au * effective_field
         dW = rabi * Q_bloch - self.params.gamma_au * (W + 1.0)
@@ -1105,14 +1471,14 @@ class FullQSSpheroidPulseModel:
 
         dmu_d = local * self.params.d_au * dP
         external_input_dots = np.full(self.n_spatial_modes, dmu_d, dtype=float)
-        external_input_dots[0] = (
+        external_input_dots[self.bright_mode_index] = (
             incident_dot + self.bright_coupling_au_minus3 * dmu_d
         )
         internal_drive_dots = (
             external_input_dots - self.delta_L * velocity_sum
         ) / self.feedback_denominator
         modal_output_dots = self.alpha_inf * internal_drive_dots + velocity_sum
-        dmu_p = self.C * modal_output_dots[0]
+        dmu_p = self.C * modal_output_dots[self.bright_mode_index]
         dmu_total = dmu_p + dmu_d
 
         return {
@@ -1532,7 +1898,12 @@ class FullQSSpheroidPulseModel:
             response_tail_window_fraction=float(response_tail_window_fraction),
             work_nonnegative_within_tolerance=work_nonnegative,
             work_passivity_tolerance_au=work_tolerance,
-            spatial_order_max=self.n_spatial_modes,
+            spatial_order_max=self.spatial_order_max,
+            exact_spatial_mode_count=self.exact_spatial_mode_count,
+            dynamic_spatial_mode_count=self.n_spatial_modes,
+            reduced_dark_node_count=(
+                0 if self.dark_reduction is None else self.dark_reduction.node_count
+            ),
             material_poles_per_spatial_order=self.n_material_modes,
             spectral_abscissa_au=self.coupled_stability.spectral_abscissa_au,
             spectral_abscissa_available=(

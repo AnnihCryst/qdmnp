@@ -47,6 +47,8 @@ MATERIAL_INTERPOLATION = 'piecewise_linear_n_k_no_extrapolation'
 MATERIAL_HIGH_FREQUENCY_EPSILON = 1.0
 
 DipoleOrientation = Literal['long', 'trans']
+QDPlacement = Literal['axis', 'side']
+SideTransverseAlignment = Literal['radial', 'tangential']
 QDDipoleConvention = Literal['bare_internal', 'effective_external']
 ORIENTATION_FACTORS: dict[DipoleOrientation, float] = {
     'long': 2.0,
@@ -140,6 +142,57 @@ def orientation_factor(orientation: DipoleOrientation) -> float:
         return ORIENTATION_FACTORS[orientation]
     except KeyError as exc:
         raise ValueError("orientation must be either 'long' or 'trans'.") from exc
+
+
+def interaction_factor(
+    orientation: DipoleOrientation,
+    *,
+    qd_placement: QDPlacement = 'axis',
+    side_transverse_alignment: SideTransverseAlignment | None = None,
+) -> float:
+    """Return the point-dipole tensor factor for the selected geometry.
+
+    ``orientation`` continues to select the MNP polarization relative to its
+    long axis.  ``qd_placement`` independently selects whether the QD lies on
+    that axis or on an equatorial radial line.  A transverse dipole beside the
+    particle can then be radial (parallel to the centre line) or tangential.
+
+    The historical two configurations remain the defaults and retain exactly
+    the values returned by :func:`orientation_factor`.
+    """
+
+    orientation_factor(orientation)
+    if qd_placement not in {'axis', 'side'}:
+        raise ValueError("qd_placement must be either 'axis' or 'side'.")
+    if side_transverse_alignment not in {None, 'radial', 'tangential'}:
+        raise ValueError(
+            "side_transverse_alignment must be None, 'radial' or 'tangential'."
+        )
+
+    if qd_placement == 'axis':
+        if side_transverse_alignment is not None:
+            raise ValueError(
+                "side_transverse_alignment must be None when qd_placement='axis'."
+            )
+        return orientation_factor(orientation)
+
+    if orientation == 'long':
+        if side_transverse_alignment is not None:
+            raise ValueError(
+                "side_transverse_alignment applies only to orientation='trans' "
+                "when qd_placement='side'."
+            )
+        # The long-axis dipole is perpendicular to the equatorial centre line.
+        return -1.0
+
+    if side_transverse_alignment is None:
+        raise ValueError(
+            "qd_placement='side' with orientation='trans' requires "
+            "side_transverse_alignment='radial' or 'tangential'."
+        )
+    # A radial side dipole is parallel to the centre line; a tangential side
+    # dipole is perpendicular to it.
+    return 2.0 if side_transverse_alignment == 'radial' else -1.0
 
 
 def eV_to_au(value: float | np.ndarray) -> float | np.ndarray:
@@ -351,12 +404,35 @@ class HybridSystemParams:
         default='effective_external',
         kw_only=True,
     )
+    qd_placement: QDPlacement = field(default='axis', kw_only=True)
+    side_transverse_alignment: SideTransverseAlignment | None = field(
+        default=None,
+        kw_only=True,
+    )
     material: MaterialDispersion = field(default_factory=lambda: DEFAULT_AU_MATERIAL)
 
     @property
     def axial_surface_gap_au(self) -> float:
         """Surface-to-surface gap for a QD on the ellipsoid long axis."""
         return float(self.R_au - self.c_au - self.qd_radius_au)
+
+    @property
+    def directional_mnp_radius_au(self) -> float:
+        """Particle radius along the selected QD centre line."""
+
+        if self.qd_placement == 'axis':
+            return float(self.c_au)
+        if self.qd_placement == 'side':
+            return float(self.a_au)
+        raise ValueError("qd_placement must be either 'axis' or 'side'.")
+
+    @property
+    def surface_gap_au(self) -> float:
+        """Surface gap along the selected axial or equatorial centre line."""
+
+        return float(
+            self.R_au - self.directional_mnp_radius_au - self.qd_radius_au
+        )
 
     @property
     def pure_dephasing_au(self) -> float:
@@ -1022,7 +1098,11 @@ class HybridQDPlasmonModel:
     ) -> None:
         if n_modes < 1:
             raise ValueError('n_modes must be >= 1')
-        expected_g = orientation_factor(orientation)
+        expected_g = interaction_factor(
+            orientation,
+            qd_placement=params.qd_placement,
+            side_transverse_alignment=params.side_transverse_alignment,
+        )
         if len(fit_window_eV) != 2 or not np.all(np.isfinite(fit_window_eV)):
             raise ValueError('fit_window_eV must contain two finite values.')
         if fit_window_eV[0] <= 0.0 or fit_window_eV[1] <= fit_window_eV[0]:
@@ -1104,7 +1184,10 @@ class HybridQDPlasmonModel:
                 warnings.warn(message, RuntimeWarning, stacklevel=2)
         if not np.isclose(self.params.G, expected_g, rtol=0.0, atol=1e-12):
             raise ValueError(
-                f'Inconsistent quasistatic orientation: orientation={orientation!r} '
+                'Inconsistent quasistatic geometry: '
+                f'orientation={orientation!r}, qd_placement={params.qd_placement!r}, '
+                'side_transverse_alignment='
+                f'{params.side_transverse_alignment!r} '
                 f'requires G={expected_g:g}, got G={self.params.G:g}.'
             )
 
@@ -1160,10 +1243,13 @@ class HybridQDPlasmonModel:
             raise ValueError('This implementation supports prolate/spherical MNPs and requires c >= a.')
         if p.qd_radius_au < 0.0:
             raise ValueError('QD radius must be non-negative; zero denotes the point-QD limit.')
-        if p.axial_surface_gap_au <= 0.0:
-            gap_nm = float(au_to_nm(p.axial_surface_gap_au))
+        if p.surface_gap_au <= 0.0:
+            gap_nm = float(au_to_nm(p.surface_gap_au))
+            directional_radius = 'c' if p.qd_placement == 'axis' else 'a'
             raise ValueError(
-                'Non-positive QD-MNP surface gap: require R > c + qd_radius '
+                'Non-positive QD-MNP surface gap: require '
+                f'R > {directional_radius} + qd_radius for '
+                f'qd_placement={p.qd_placement!r} '
                 f'(current gap={gap_nm:.6g} nm). The particles overlap or touch.'
             )
         if not np.isreal(p.eps_m) or p.eps_m <= 0.0:
@@ -2049,14 +2135,18 @@ class HybridQDPlasmonModel:
             raise ValueError('Linear-stability parameters must be finite.')
         if d < 0.0 or omega0 <= 0.0 or gamma1 < 0.0 or gamma2 < 0.0:
             raise ValueError('Linear-stability dipole/frequency/rates must be physically non-negative.')
-        if separation <= p.c_au + p.qd_radius_au:
+        if separation <= p.directional_mnp_radius_au + p.qd_radius_au:
             raise ValueError('Linear-stability separation must preserve a positive QD-MNP gap.')
         if not any(
             np.isclose(coupling_factor, value, rtol=0.0, atol=1e-12)
             for value in ORIENTATION_FACTORS.values()
         ):
             raise ValueError('Linear-stability G must be exactly 2 (long) or -1 (trans).')
-        expected_coupling_factor = orientation_factor(self.orientation)
+        expected_coupling_factor = interaction_factor(
+            self.orientation,
+            qd_placement=p.qd_placement,
+            side_transverse_alignment=p.side_transverse_alignment,
+        )
         if not np.isclose(
             coupling_factor,
             expected_coupling_factor,
@@ -2064,10 +2154,11 @@ class HybridQDPlasmonModel:
             atol=1e-12,
         ):
             raise ValueError(
-                f'orientation={self.orientation!r} requires '
+                f'orientation={self.orientation!r}, '
+                f'qd_placement={p.qd_placement!r}, '
+                f'side_transverse_alignment={p.side_transverse_alignment!r} requires '
                 f'G={expected_coupling_factor:g} in the linear-stability '
-                'Jacobian; mixing a transverse coupling with a longitudinal '
-                'MNP polarizability (or vice versa) is outside this model.'
+                'Jacobian.'
             )
         if gamma2 < 0.5 * gamma1:
             raise ValueError('Linear-stability check requires Gamma2 >= gamma1/2.')
@@ -2531,14 +2622,24 @@ class HybridQDPlasmonModel:
 # ================================================================
 # Convenience helpers
 # ================================================================
-def make_default_params(orientation: DipoleOrientation = 'long') -> HybridSystemParams:
+def make_default_params(
+    orientation: DipoleOrientation = 'long',
+    *,
+    qd_placement: QDPlacement = 'axis',
+    side_transverse_alignment: SideTransverseAlignment | None = None,
+) -> HybridSystemParams:
     default_d_au = float(dipole_si_to_au(7.5e-29))
     default_omega0_au = float(eV_to_au(2.042))
     return HybridSystemParams(
         c_au=float(nm_to_au(15.0)),
         a_au=float(nm_to_au(7.0)),
         R_au=float(nm_to_au(18.0)),
-        G=orientation_factor(orientation), eps_m=1.0,
+        G=interaction_factor(
+            orientation,
+            qd_placement=qd_placement,
+            side_transverse_alignment=side_transverse_alignment,
+        ),
+        eps_m=1.0,
         d_au=default_d_au,
         omega0_au=default_omega0_au,
         # Retain the legacy 30 ns value as provenance, but model construction
@@ -2552,6 +2653,8 @@ def make_default_params(orientation: DipoleOrientation = 'long') -> HybridSystem
         # interband matrix element.  Preserve its original external-response
         # normalization until a literature profile supplies a sourced bare d.
         qd_dipole_convention='effective_external',
+        qd_placement=qd_placement,
+        side_transverse_alignment=side_transverse_alignment,
     )
 
 
@@ -2571,8 +2674,14 @@ def make_params_with_overrides(
     eps_qd: float | None = None,
     qd_dipole_convention: QDDipoleConvention | None = None,
     orientation: DipoleOrientation = 'long',
+    qd_placement: QDPlacement = 'axis',
+    side_transverse_alignment: SideTransverseAlignment | None = None,
 ) -> HybridSystemParams:
-    params = make_default_params(orientation)
+    params = make_default_params(
+        orientation,
+        qd_placement=qd_placement,
+        side_transverse_alignment=side_transverse_alignment,
+    )
     updates = {}
     if c_nm is not None:
         updates['c_au'] = float(nm_to_au(c_nm))
@@ -2583,10 +2692,16 @@ def make_params_with_overrides(
     if qd_radius_nm is not None:
         updates['qd_radius_au'] = float(nm_to_au(qd_radius_nm))
     if g_factor is not None:
-        expected_g = orientation_factor(orientation)
+        expected_g = interaction_factor(
+            orientation,
+            qd_placement=qd_placement,
+            side_transverse_alignment=side_transverse_alignment,
+        )
         if not np.isclose(float(g_factor), expected_g, rtol=0.0, atol=1e-12):
             raise ValueError(
-                f'orientation={orientation!r} requires G={expected_g:g}; '
+                f'orientation={orientation!r}, qd_placement={qd_placement!r}, '
+                'side_transverse_alignment='
+                f'{side_transverse_alignment!r} requires G={expected_g:g}; '
                 f'phenomenological G={float(g_factor):g} is outside this model.'
             )
         updates['G'] = expected_g
@@ -2628,7 +2743,7 @@ def params_to_physical_dict(
         'a_nm': float(au_to_nm(params.a_au)),
         'R_nm': float(au_to_nm(params.R_au)),
         'qd_radius_nm': float(au_to_nm(params.qd_radius_au)),
-        'surface_gap_nm': float(au_to_nm(params.axial_surface_gap_au)),
+        'surface_gap_nm': float(au_to_nm(params.surface_gap_au)),
         'mnp_size_to_separation_ratio_c_over_R': float(params.c_au / params.R_au),
         'G': float(params.G),
         'eps_m': float(params.eps_m),
@@ -2655,6 +2770,8 @@ def params_to_physical_dict(
         # Schema-1 compatibility alias: this has always been the total Gamma2.
         'gamma_dephasing_mev': float(au_to_eV(params.Gamma_au) * 1000.0),
         'orientation': orientation,
+        'qd_placement': params.qd_placement,
+        'side_transverse_alignment': params.side_transverse_alignment,
     }
 
 

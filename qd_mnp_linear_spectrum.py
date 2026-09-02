@@ -449,7 +449,7 @@ def compute_spectrum(
                 "orientation": orientation,
                 "G": float(params.G),
                 "R_nm": float(au_to_nm(params.R_au)),
-                "surface_gap_nm": float(au_to_nm(params.axial_surface_gap_au)),
+                "surface_gap_nm": float(au_to_nm(params.surface_gap_au)),
                 "eps_qd": float(params.eps_qd),
                 "qd_local_field_factor": float(params.qd_local_field_factor),
                 "qd_dipole_convention": params.qd_dipole_convention,

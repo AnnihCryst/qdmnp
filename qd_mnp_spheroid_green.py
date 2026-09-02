@@ -840,18 +840,31 @@ class LegacyDipoleInteraction:
         else:
             raise ValueError("mnp_response must be 'material' or 'fit'.")
         A = self.model.C * np.asarray(alpha_dimensionless, dtype=complex)
-        geometry = ProlateSpheroidGeometry.from_params(
-            self.model.params,
+        return point_dipole_response_from_A(
+            A,
             orientation=self.model.orientation,
+            eps_m=self.model.params.eps_m,
+            C_au3=self.model.C,
+            J_au_minus3=self.model.J,
+            bright_depolarization=self.model.L,
         )
-        return legacy_dipole_response_from_A(A, geometry)
 
 
-def legacy_dipole_response_from_A(
+def point_dipole_response_from_A(
     A_au3: complex | np.ndarray,
-    geometry: ProlateSpheroidGeometry,
+    *,
+    orientation: DipoleOrientation,
+    eps_m: float,
+    C_au3: float,
+    J_au_minus3: float,
+    bright_depolarization: float,
 ) -> QuasistaticInteractionResponse:
-    """Build the old central point-dipole channels from a supplied MNP A."""
+    """Build a one-dipole A/B/K response for an explicit scalar geometry.
+
+    Unlike :func:`legacy_dipole_response_from_A`, this helper does not infer
+    ``J`` from an axial geometry.  It therefore also represents the radial and
+    tangential point-dipole limits of a QD beside the spheroid.
+    """
 
     A = np.asarray(A_au3, dtype=complex)
     if A.ndim > 1 or A.size == 0:
@@ -860,15 +873,51 @@ def legacy_dipole_response_from_A(
         )
     if np.any(~np.isfinite(A)):
         raise ValueError("A_au3 must contain only finite values.")
-    J = orientation_factor(geometry.orientation) / (
-        geometry.eps_m * geometry.R_au**3
+    if orientation not in {"long", "trans"}:
+        raise ValueError("orientation must be 'long' or 'trans'.")
+    scalar_values = np.asarray(
+        [eps_m, C_au3, J_au_minus3, bright_depolarization],
+        dtype=float,
     )
+    if np.any(~np.isfinite(scalar_values)):
+        raise ValueError("Point-dipole response scalars must be finite.")
+    if eps_m <= 0.0 or C_au3 <= 0.0:
+        raise ValueError("eps_m and C_au3 must be positive.")
+    if not 0.0 < bright_depolarization < 1.0:
+        raise ValueError("bright_depolarization must lie in (0, 1).")
+
+    J = float(J_au_minus3)
+    C = float(C_au3)
     B = A * J
     K = A * J**2
     mode_shape = (1,) + A.shape
+    return QuasistaticInteractionResponse(
+        model="legacy",
+        orientation=orientation,
+        eps_m=float(eps_m),
+        A_au3=A,
+        B=B,
+        K_au_minus3=K,
+        degrees=np.asarray([1]),
+        K_by_degree_au_minus3=K.reshape(mode_shape),
+        modal_susceptibility_by_degree=(A / C).reshape(mode_shape),
+        reaction_weight_by_degree_au_minus3=np.asarray([C * J**2]),
+        depolarization_by_degree=np.asarray([bright_depolarization]),
+        geometric_factor_by_degree=np.zeros(1, dtype=float),
+        log_abs_geometric_factor_by_degree=np.full(1, -np.inf, dtype=float),
+    )
+
+
+def legacy_dipole_response_from_A(
+    A_au3: complex | np.ndarray,
+    geometry: ProlateSpheroidGeometry,
+) -> QuasistaticInteractionResponse:
+    """Build the old central point-dipole channels from a supplied MNP A."""
+
+    J = orientation_factor(geometry.orientation) / (
+        geometry.eps_m * geometry.R_au**3
+    )
     C = geometry.eps_m * geometry.a_au**2 * geometry.c_au / 3.0
-    modal_susceptibility = (A / C).reshape(mode_shape)
-    reaction_weight = np.asarray([C * J**2], dtype=float)
     eccentricity_squared = float(1.0 - (geometry.a_au / geometry.c_au) ** 2)
     if eccentricity_squared <= 0.0:
         L_long = 1.0 / 3.0
@@ -888,29 +937,16 @@ def legacy_dipole_response_from_A(
             * (np.arctanh(eccentricity) - eccentricity)
             / eccentricity**3
         )
-    depolarization = np.asarray(
-        [L_long if geometry.orientation == "long" else 0.5 * (1.0 - L_long)],
-        dtype=float,
+    depolarization = (
+        L_long if geometry.orientation == "long" else 0.5 * (1.0 - L_long)
     )
-    # A central point dipole has no spheroidal-harmonic normalization g_nm.
-    # Zero/-inf explicitly mark this diagnostic as unavailable.  The exported
-    # susceptibility and reaction weight, in contrast, are physical metadata
-    # and obey K_1 = w_1 chi_1 exactly.
-    geometric = np.zeros(1, dtype=float)
-    return QuasistaticInteractionResponse(
-        model="legacy",
+    return point_dipole_response_from_A(
+        A_au3,
         orientation=geometry.orientation,
         eps_m=geometry.eps_m,
-        A_au3=A,
-        B=B,
-        K_au_minus3=K,
-        degrees=np.asarray([1]),
-        K_by_degree_au_minus3=K.reshape(mode_shape),
-        modal_susceptibility_by_degree=modal_susceptibility,
-        reaction_weight_by_degree_au_minus3=reaction_weight,
-        depolarization_by_degree=depolarization,
-        geometric_factor_by_degree=geometric,
-        log_abs_geometric_factor_by_degree=np.full(1, -np.inf, dtype=float),
+        C_au3=C,
+        J_au_minus3=J,
+        bright_depolarization=depolarization,
     )
 
 

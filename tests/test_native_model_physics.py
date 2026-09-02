@@ -25,6 +25,7 @@ from qd_mnp_rational_fit import (
     RationalLorentzFit,
     eV_to_au,
     fs_to_au,
+    interaction_factor,
     make_default_params,
     orientation_factor,
     sampled_positive_frequency_spectral_fraction,
@@ -89,6 +90,82 @@ class NativeOrientationTests(unittest.TestCase):
         self.assertEqual(orientation_factor("trans"), -1.0)
         self.assertEqual(make_default_params("long").G, 2.0)
         self.assertEqual(make_default_params("trans").G, -1.0)
+
+    def test_interaction_factor_covers_all_five_supported_configurations(self) -> None:
+        configurations = (
+            ("long", "axis", None, 2.0),
+            ("trans", "axis", None, -1.0),
+            ("long", "side", None, -1.0),
+            ("trans", "side", "radial", 2.0),
+            ("trans", "side", "tangential", -1.0),
+        )
+        for orientation, placement, alignment, expected in configurations:
+            with self.subTest(
+                orientation=orientation,
+                placement=placement,
+                alignment=alignment,
+            ):
+                self.assertEqual(
+                    interaction_factor(
+                        orientation,
+                        qd_placement=placement,
+                        side_transverse_alignment=alignment,
+                    ),
+                    expected,
+                )
+                self.assertEqual(
+                    make_default_params(
+                        orientation,
+                        qd_placement=placement,
+                        side_transverse_alignment=alignment,
+                    ).G,
+                    expected,
+                )
+
+    def test_point_dipole_model_uses_geometry_g_and_orientation_L(self) -> None:
+        fit = replace(_passive_lorentz_model().fit, alpha_inf=0.0)
+        configurations = (
+            ("long", "axis", None, 2.0, "long"),
+            ("trans", "axis", None, -1.0, "trans"),
+            ("long", "side", None, -1.0, "long"),
+            ("trans", "side", "radial", 2.0, "trans"),
+            ("trans", "side", "tangential", -1.0, "trans"),
+        )
+        for orientation, placement, alignment, expected_g, expected_L in configurations:
+            with (
+                self.subTest(
+                    orientation=orientation,
+                    placement=placement,
+                    alignment=alignment,
+                ),
+                patch.object(
+                    HybridQDPlasmonModel,
+                    "_fit_rational_alpha",
+                    return_value=fit,
+                ),
+            ):
+                params = make_default_params(
+                    orientation,
+                    qd_placement=placement,
+                    side_transverse_alignment=alignment,
+                )
+                model = HybridQDPlasmonModel(
+                    params,
+                    orientation=orientation,
+                    n_modes=3,
+                    radiative_consistency_policy="ignore",
+                    verbose=False,
+                )
+                expected_depolarization = (
+                    model.L_long if expected_L == "long" else model.L_trans
+                )
+                self.assertEqual(model.L, expected_depolarization)
+                self.assertEqual(params.G, expected_g)
+                self.assertAlmostEqual(
+                    model.J,
+                    expected_g / (params.eps_m * params.R_au**3),
+                    places=15,
+                )
 
     def test_model_rejects_orientation_and_g_conflict_before_fitting(self) -> None:
         longitudinal_params = make_default_params("long")

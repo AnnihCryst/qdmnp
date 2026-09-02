@@ -53,6 +53,9 @@ class ParameterValidationTests(unittest.TestCase):
         self.assertAlmostEqual(float(au_to_nm(params.R_au)), 18.0, places=12)
         self.assertAlmostEqual(float(au_to_nm(qd_radius_au)), 2.0, places=12)
         self.assertAlmostEqual(gap_nm, 1.0, places=12)
+        self.assertEqual(params.qd_placement, "axis")
+        self.assertIsNone(params.side_transverse_alignment)
+        self.assertEqual(params.surface_gap_au, params.axial_surface_gap_au)
 
     def test_default_records_legacy_radiative_rate_inconsistency(self) -> None:
         params = make_default_params()
@@ -134,6 +137,8 @@ class ParameterValidationTests(unittest.TestCase):
         )
         self.assertIs(params.material, base.material)
         self.assertEqual(params.qd_radius_au, 0.0)
+        self.assertEqual(params.qd_placement, "axis")
+        self.assertIsNone(params.side_transverse_alignment)
 
     def test_model_rejects_nonpositive_surface_gap(self) -> None:
         base = make_default_params()
@@ -161,6 +166,49 @@ class ParameterValidationTests(unittest.TestCase):
         params = make_default_params()
         model = _construct_model_without_fitting(params)
         self.assertIs(model.params, params)
+
+    def test_side_placement_uses_equatorial_radius_for_gap_and_overlap(self) -> None:
+        params = make_params_with_overrides(
+            r_nm=10.0,
+            orientation="long",
+            qd_placement="side",
+        )
+
+        self.assertLess(params.axial_surface_gap_au, 0.0)
+        self.assertAlmostEqual(float(au_to_nm(params.surface_gap_au)), 1.0, places=12)
+        self.assertEqual(params.G, -1.0)
+        model = _construct_model_without_fitting(params)
+        self.assertIs(model.params, params)
+
+    def test_side_placement_rejects_overlap_against_equatorial_radius(self) -> None:
+        params = make_params_with_overrides(
+            r_nm=8.5,
+            orientation="long",
+            qd_placement="side",
+        )
+        with self.assertRaisesRegex(ValueError, "R > a.*qd_placement='side'"):
+            _construct_model_without_fitting(params)
+
+    def test_invalid_placement_alignment_combinations_are_rejected(self) -> None:
+        invalid = (
+            {"qd_placement": "invalid"},
+            {
+                "qd_placement": "axis",
+                "side_transverse_alignment": "radial",
+            },
+            {
+                "orientation": "long",
+                "qd_placement": "side",
+                "side_transverse_alignment": "tangential",
+            },
+            {
+                "orientation": "trans",
+                "qd_placement": "side",
+            },
+        )
+        for kwargs in invalid:
+            with self.subTest(kwargs=kwargs), self.assertRaises(ValueError):
+                make_default_params(**kwargs)
 
     def test_qd_radius_override_reaches_canonical_parameters(self) -> None:
         params = make_params_with_overrides(qd_radius_nm=3.0, r_nm=19.5)

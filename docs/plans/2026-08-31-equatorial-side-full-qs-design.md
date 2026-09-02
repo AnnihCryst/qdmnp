@@ -254,6 +254,15 @@ refinement near small gaps, and extrapolation to zero mesh size. CI runs fast
 sphere/convergence checks and compares the analytic kernel against immutable
 high-resolution fixtures with mesh and quadrature provenance.
 
+Implementation-scope note (2026-09-02): the checked-in independent oracle
+currently uses piecewise-constant centroid collocation on globally refined
+affine-icosphere meshes plus two-term zero-mesh extrapolation.  Adaptive
+near-panel quadrature and local refinement were not implemented in this
+iteration.  The resulting immutable fixture therefore certifies only its
+listed discrete cases, including the smallest tested `gap/a = 0.5`; it makes
+no validation claim for `gap/a < 0.5`.  Extending that range requires the
+adaptive/local methods above and a regenerated independent fixture.
+
 Acceptance targets are 0.5% for ordinary `A/B`, 1% for ordinary `K`, and 2%
 for small-gap `K`, while also lying within three estimated BEM uncertainties.
 Failure of BEM self-convergence never widens the analytic-kernel tolerance.

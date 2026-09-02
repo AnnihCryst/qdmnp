@@ -106,6 +106,11 @@ class SpheroidGreenComparisonTests(unittest.TestCase):
             self.assertTrue(
                 all("full_series_converged" in row for row in gap_rows)
             )
+            for row in gap_rows:
+                self.assertEqual(
+                    int(row["exact_mode_count"]),
+                    20 if row["model"] == "spheroid_full" else 1,
+                )
 
     def test_plotting_run_creates_every_owned_figure(self) -> None:
         with TemporaryDirectory() as directory:
@@ -133,6 +138,8 @@ class SpheroidGreenComparisonTests(unittest.TestCase):
             args = parse_args()
         self.assertEqual(args.n_max, 7)
         self.assertIsNone(args.multipole_orders)
+        self.assertEqual(args.qd_placement, "axis")
+        self.assertIsNone(args.side_transverse_alignment)
 
         with TemporaryDirectory() as directory:
             run_dir = run_comparison(
@@ -155,6 +162,162 @@ class SpheroidGreenComparisonTests(unittest.TestCase):
             self.assertTrue(
                 all(order <= 7 for order in settings["multipole_orders"])
             )
+
+    def test_side_long_and_radial_transverse_export_exact_mode_metadata(self) -> None:
+        with TemporaryDirectory() as directory:
+            run_dir = Path(
+                run_comparison(
+                    output_dir=directory,
+                    orientations=("long", "trans"),
+                    qd_placement="side",
+                    side_transverse_alignment="radial",
+                    energy_window_eV=(2.03, 2.05),
+                    energy_points=3,
+                    target_energy_eV=2.042,
+                    n_max=4,
+                    gaps_nm=(1.0,),
+                    convergence_policy="ignore",
+                    make_plots=False,
+                )
+            )
+            metadata = json.loads(
+                (run_dir / "metadata.json").read_text(encoding="utf-8")
+            )
+            settings = metadata["numerical_settings"]
+            self.assertEqual(settings["qd_placement"], "side")
+            self.assertEqual(settings["side_transverse_alignment"], "radial")
+
+            long = metadata["orientation_diagnostics"]["long"]
+            radial = metadata["orientation_diagnostics"]["trans"]
+            self.assertIsNone(long["side_transverse_alignment"])
+            self.assertEqual(radial["side_transverse_alignment"], "radial")
+            self.assertEqual(long["exact_mode_count"], 6)
+            self.assertEqual(radial["exact_mode_count"], 8)
+            self.assertEqual(
+                long["mode_metadata"]["bright_mode"],
+                {"index": 0, "n": 1, "m": 0, "sector": "cos"},
+            )
+            self.assertEqual(
+                radial["mode_metadata"]["bright_mode"],
+                {"index": 0, "n": 1, "m": 1, "sector": "cos"},
+            )
+            self.assertEqual(
+                long["coupling_at_target_energy"]["spheroid_full"][
+                    "exact_mode_count"
+                ],
+                6,
+            )
+            self.assertEqual(
+                radial["coupling_at_target_energy"]["spheroid_full"][
+                    "exact_mode_count"
+                ],
+                8,
+            )
+            self.assertAlmostEqual(
+                long["common_physical_parameters"]["directional_mnp_radius_nm"],
+                7.0,
+            )
+
+            with (run_dir / "gap_sweep.csv").open(
+                newline="",
+                encoding="utf-8",
+            ) as stream:
+                gap_rows = list(csv.DictReader(stream))
+            self.assertEqual(len(gap_rows), 6)
+            self.assertTrue(
+                all(float(row["center_distance_nm"]) == 10.0 for row in gap_rows)
+            )
+            self.assertTrue(all(row["qd_placement"] == "side" for row in gap_rows))
+            self.assertEqual(
+                {row["side_transverse_alignment"] for row in gap_rows},
+                {"", "radial"},
+            )
+            for row in gap_rows:
+                expected_mode_count = {
+                    "legacy": 1,
+                    "spheroid_n1": 1,
+                    "spheroid_full": 6 if row["orientation"] == "long" else 8,
+                }[row["model"]]
+                self.assertEqual(int(row["exact_mode_count"]), expected_mode_count)
+
+    def test_side_tangential_cli_and_mode_sector(self) -> None:
+        with patch.object(
+            sys,
+            "argv",
+            [
+                "green",
+                "--qd-placement",
+                "side",
+                "--orientations",
+                "trans",
+                "--side-transverse-alignment",
+                "tangential",
+            ],
+        ):
+            args = parse_args()
+        self.assertEqual(args.qd_placement, "side")
+        self.assertEqual(args.orientations, ["trans"])
+        self.assertEqual(args.side_transverse_alignment, "tangential")
+
+        with TemporaryDirectory() as directory:
+            run_dir = Path(
+                run_comparison(
+                    output_dir=directory,
+                    orientations=("trans",),
+                    qd_placement="side",
+                    side_transverse_alignment="tangential",
+                    energy_window_eV=(2.03, 2.05),
+                    energy_points=3,
+                    target_energy_eV=2.042,
+                    n_max=4,
+                    gaps_nm=(1.0,),
+                    convergence_policy="ignore",
+                    make_plots=False,
+                )
+            )
+            metadata = json.loads(
+                (run_dir / "metadata.json").read_text(encoding="utf-8")
+            )
+            diagnostic = metadata["orientation_diagnostics"]["trans"]
+            self.assertEqual(diagnostic["exact_mode_count"], 6)
+            self.assertEqual(
+                diagnostic["mode_metadata"]["bright_mode"],
+                {"index": 0, "n": 1, "m": 1, "sector": "sin"},
+            )
+            self.assertEqual(
+                diagnostic["common_physical_parameters"]["G"],
+                -1.0,
+            )
+
+    def test_invalid_side_alignment_combinations_fail_before_export(self) -> None:
+        invalid = (
+            {
+                "orientations": ("trans",),
+                "qd_placement": "side",
+                "side_transverse_alignment": None,
+            },
+            {
+                "orientations": ("long",),
+                "qd_placement": "side",
+                "side_transverse_alignment": "radial",
+            },
+            {
+                "orientations": ("long",),
+                "qd_placement": "axis",
+                "side_transverse_alignment": "tangential",
+            },
+        )
+        for options in invalid:
+            with self.subTest(options=options), TemporaryDirectory() as directory:
+                with self.assertRaisesRegex(ValueError, "side_transverse_alignment"):
+                    run_comparison(
+                        output_dir=directory,
+                        energy_points=3,
+                        gaps_nm=(1.0,),
+                        make_plots=False,
+                        **options,
+                    )
+                self.assertEqual(list(Path(directory).iterdir()), [])
 
     def test_runner_does_not_close_unrelated_matplotlib_figures(self) -> None:
         sentinel = plt.figure()

@@ -14,7 +14,10 @@ import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 import numpy as np
 
-from qd_mnp_full_qs_model import FullQSSpheroidPulseModel
+from qd_mnp_full_qs_model import (
+    FullQSSpheroidPulseModel,
+    build_positive_dark_reduction,
+)
 from qd_mnp_linear_spectrum import linear_coupled_alpha_au
 from qd_mnp_pulse_absorption_sweep import spectral_effective_alpha_au
 from qd_mnp_rational_fit import (
@@ -34,10 +37,12 @@ from qd_mnp_spheroid_green import (
     qd_linear_polarizability_from_params,
     solve_linear_hybrid_response,
 )
+from qd_mnp_spheroid_equatorial import EquatorialSpheroidGreenInteraction
 
 
 PULSE_COMPARISON_SCHEMA_VERSION = 2
 POLICIES = {"raise", "warn", "ignore"}
+SIDE_DIRECT_REFERENCE_ORDER_MAX = 8
 
 
 def _write_csv(path: Path, rows: list[dict[str, object]]) -> None:
@@ -120,8 +125,16 @@ def run_pulse_comparison(
     *,
     output_dir: str | Path = "results/spheroid_pulse_comparison",
     orientation: str = "long",
+    qd_placement: str = "axis",
+    side_transverse_alignment: str | None = None,
     spatial_order_max: int = 80,
     material_fit_modes: int = 9,
+    reduction_fit_grid_points: int = 1001,
+    reduction_audit_grid_points: int = 1601,
+    reduction_rms_tolerance: float = 1.0e-6,
+    reduction_max_tolerance: float = 1.0e-4,
+    reduction_max_nodes: int | None = None,
+    reduction_policy: str = "raise",
     pulse_energy_eV: float = 2.042,
     pulse_tau_fs: float = 5.0,
     pulse_E0_au: float = 1.0e-5,
@@ -152,6 +165,8 @@ def run_pulse_comparison(
     tail_window_fraction: float = 0.05,
     max_auto_tail_extensions: int = 3,
     fit_quality_policy: str = "raise",
+    max_modal_normalized_rms: float = 0.03,
+    max_modal_relative_error: float = 0.06,
     spatial_convergence_policy: str = "raise",
     spatial_convergence_rtol: float = 1.0e-8,
     work_passivity_policy: str = "raise",
@@ -163,6 +178,30 @@ def run_pulse_comparison(
 
     if orientation not in {"long", "trans"}:
         raise ValueError("orientation must be 'long' or 'trans'.")
+    if qd_placement not in {"axis", "side"}:
+        raise ValueError("qd_placement must be 'axis' or 'side'.")
+    if side_transverse_alignment not in {None, "radial", "tangential"}:
+        raise ValueError(
+            "side_transverse_alignment must be None, 'radial' or 'tangential'."
+        )
+    if qd_placement == "axis" and side_transverse_alignment is not None:
+        raise ValueError(
+            "side_transverse_alignment must be omitted when qd_placement='axis'."
+        )
+    if qd_placement == "side" and orientation == "long":
+        if side_transverse_alignment is not None:
+            raise ValueError(
+                "side_transverse_alignment applies only to a side/transverse channel."
+            )
+    if (
+        qd_placement == "side"
+        and orientation == "trans"
+        and side_transverse_alignment is None
+    ):
+        raise ValueError(
+            "A side/transverse channel requires side_transverse_alignment="
+            "'radial' or 'tangential'."
+        )
     if spatial_order_max < 1:
         raise ValueError("spatial_order_max must be at least 1.")
     if material_fit_modes < 1:
@@ -180,6 +219,7 @@ def run_pulse_comparison(
         ("fit_quality_policy", fit_quality_policy),
         ("spatial_convergence_policy", spatial_convergence_policy),
         ("work_passivity_policy", work_passivity_policy),
+        ("reduction_policy", reduction_policy),
     ):
         if policy not in POLICIES:
             raise ValueError(
@@ -210,6 +250,38 @@ def run_pulse_comparison(
         0.0 < spatial_convergence_rtol < 1.0
     ):
         raise ValueError("spatial_convergence_rtol must lie in (0, 1).")
+    for name, value in (
+        ("max_modal_normalized_rms", max_modal_normalized_rms),
+        ("max_modal_relative_error", max_modal_relative_error),
+    ):
+        if not np.isfinite(value) or value <= 0.0:
+            raise ValueError(f"{name} must be finite and positive.")
+    for name, value in (
+        ("reduction_fit_grid_points", reduction_fit_grid_points),
+        ("reduction_audit_grid_points", reduction_audit_grid_points),
+    ):
+        if (
+            isinstance(value, (bool, np.bool_))
+            or not isinstance(value, (int, np.integer))
+            or value < 101
+        ):
+            raise ValueError(f"{name} must be an integer at least 101.")
+    if reduction_fit_grid_points == reduction_audit_grid_points:
+        raise ValueError(
+            "reduction_fit_grid_points and reduction_audit_grid_points must differ."
+        )
+    for name, value in (
+        ("reduction_rms_tolerance", reduction_rms_tolerance),
+        ("reduction_max_tolerance", reduction_max_tolerance),
+    ):
+        if not np.isfinite(value) or value <= 0.0:
+            raise ValueError(f"{name} must be finite and positive.")
+    if reduction_max_nodes is not None and (
+        isinstance(reduction_max_nodes, (bool, np.bool_))
+        or not isinstance(reduction_max_nodes, (int, np.integer))
+        or reduction_max_nodes < 1
+    ):
+        raise ValueError("reduction_max_nodes must be a positive integer or None.")
 
     params = make_params_with_overrides(
         c_nm=c_nm,
@@ -224,6 +296,8 @@ def run_pulse_comparison(
         gamma2_coherence_mev=gamma2_coherence_meV,
         qd_dipole_convention=qd_dipole_convention,
         orientation=orientation,
+        qd_placement=qd_placement,
+        side_transverse_alignment=side_transverse_alignment,
     )
     legacy_model = HybridQDPlasmonModel(
         params,
@@ -232,17 +306,53 @@ def run_pulse_comparison(
         radiative_consistency_policy="ignore",
         verbose=False,
     )
-    kernel = SpheroidGreenInteraction.from_params(
-        params,
-        orientation=orientation,
-        n_max=spatial_order_max,
-    )
+    if qd_placement == "side":
+        kernel = EquatorialSpheroidGreenInteraction.from_params(
+            params,
+            orientation=orientation,
+            n_max=spatial_order_max,
+        )
+    else:
+        kernel = SpheroidGreenInteraction.from_params(
+            params,
+            orientation=orientation,
+            n_max=spatial_order_max,
+        )
+    dark_reduction = None
+    if (
+        qd_placement == "side"
+        and spatial_order_max > SIDE_DIRECT_REFERENCE_ORDER_MAX
+    ):
+        dark_reduction = build_positive_dark_reduction(
+            legacy_model,
+            kernel,
+            fit_grid_points=int(reduction_fit_grid_points),
+            audit_grid_points=int(reduction_audit_grid_points),
+            rms_tolerance=float(reduction_rms_tolerance),
+            max_tolerance=float(reduction_max_tolerance),
+            max_nodes=(
+                None if reduction_max_nodes is None else int(reduction_max_nodes)
+            ),
+            policy=reduction_policy,
+        )
+        if not dark_reduction.diagnostics.accepted:
+            raise RuntimeError(
+                "The production side-QD time backend refuses an uncertified "
+                "dark-kernel reduction, irrespective of the diagnostic "
+                "reduction_policy. Increase reduction_max_nodes or relax only "
+                "an explicitly justified and recorded accuracy tolerance."
+            )
     full_model = FullQSSpheroidPulseModel(
         legacy_model,
         kernel,
+        dark_reduction=dark_reduction,
         fit_quality_policy=fit_quality_policy,
+        max_modal_normalized_rms=max_modal_normalized_rms,
+        max_modal_relative_error=max_modal_relative_error,
         spatial_convergence_policy=spatial_convergence_policy,
         spatial_convergence_rtol=spatial_convergence_rtol,
+        max_reduction_normalized_rms=float(reduction_rms_tolerance),
+        max_reduction_normalized_error=float(reduction_max_tolerance),
     )
     pulse = GaussianPulse(
         E0_au=pulse_E0_au,
@@ -502,7 +612,214 @@ def run_pulse_comparison(
     )
     fit_response = full_frequency_response
     common_physical_parameters = params_to_physical_dict(params, orientation)
+    common_physical_parameters["directional_mnp_radius_to_separation"] = float(
+        (params.a_au if qd_placement == "side" else params.c_au) / params.R_au
+    )
     legacy_coupling_label = common_physical_parameters.pop("coupling_model")
+    exact_spatial_mode_count = int(full_model.exact_spatial_mode_count)
+    dynamic_spatial_mode_count = int(full_model.n_spatial_modes)
+    reduced_dark_node_count = (
+        0 if dark_reduction is None else int(dark_reduction.node_count)
+    )
+    if qd_placement == "side":
+        exact_mode_table = [
+            {
+                "index": index,
+                "n": int(degree),
+                "m": int(order),
+                "sector": str(sector),
+            }
+            for index, (degree, order, sector) in enumerate(
+                zip(
+                    kernel.mode_degrees,
+                    kernel.mode_orders,
+                    kernel.mode_sectors,
+                )
+            )
+        ]
+        bright_index = int(kernel.bright_mode_index)
+        bright_mode = exact_mode_table[bright_index]
+        spatial_kernel_name = (
+            "analytic_sphere_equatorial_green_series"
+            if kernel.is_spherical
+            else "analytic_prolate_spheroid_equatorial_green_series"
+        )
+        retained_mode_semantics = (
+            "all symmetry-allowed real (n,m,sector) modes through n_max"
+        )
+    else:
+        exact_mode_table = None
+        bright_index = int(getattr(kernel, "bright_mode_index", 0))
+        bright_mode = {"index": bright_index, "n": 1}
+        spatial_kernel_name = (
+            "analytic_sphere_green_series"
+            if kernel.is_spherical
+            else "analytic_prolate_spheroid_green_series"
+        )
+        retained_mode_semantics = "all integer n in the inclusive range"
+
+    if dark_reduction is None:
+        dynamic_mode_table = [
+            {
+                "full_modal_outputs_au_row": dynamic_index,
+                "role": (
+                    "bright"
+                    if dynamic_index == int(full_model.bright_mode_index)
+                    else "exact_dark"
+                ),
+                "depolarization": float(
+                    full_model.modal_depolarization[dynamic_index]
+                ),
+                "reaction_weight_au_minus3": float(
+                    full_model.modal_reaction_weights_au_minus3[dynamic_index]
+                ),
+                "source_mode_indices": [dynamic_index],
+            }
+            for dynamic_index in range(dynamic_spatial_mode_count)
+        ]
+    else:
+        dynamic_mode_table = [
+            {
+                "full_modal_outputs_au_row": 0,
+                "role": "bright",
+                "depolarization": float(full_model.modal_depolarization[0]),
+                "reaction_weight_au_minus3": float(
+                    full_model.modal_reaction_weights_au_minus3[0]
+                ),
+                "source_mode_indices": [bright_index],
+            }
+        ]
+        dynamic_mode_table.extend(
+            {
+                "full_modal_outputs_au_row": node_index + 1,
+                "role": "reduced_dark_node",
+                "depolarization": float(depolarization),
+                "reaction_weight_au_minus3": float(weight),
+                "source_mode_indices": [
+                    int(source_index) for source_index in source_indices
+                ],
+            }
+            for node_index, (depolarization, weight, source_indices) in enumerate(
+                zip(
+                    dark_reduction.depolarization_nodes,
+                    dark_reduction.weights_au_minus3,
+                    dark_reduction.source_mode_indices,
+                )
+            )
+        )
+
+    if dark_reduction is None:
+        dark_reduction_metadata = {
+            "applied": False,
+            "backend": "direct_full_modal_reference",
+            "selection_rule": (
+                "axis backward-compatible direct model"
+                if qd_placement == "axis"
+                else "side direct reference for n_max <= "
+                f"{SIDE_DIRECT_REFERENCE_ORDER_MAX}"
+            ),
+            "fit_grid_points": int(reduction_fit_grid_points),
+            "audit_grid_points": int(reduction_audit_grid_points),
+            "rms_tolerance": float(reduction_rms_tolerance),
+            "max_tolerance": float(reduction_max_tolerance),
+            "policy": reduction_policy,
+            "certificate": None,
+        }
+    else:
+        reduction_diagnostics = dark_reduction.diagnostics
+        reduction_reaudit = full_model.dark_reduction_reaudit_diagnostics
+        if reduction_reaudit is None or not reduction_reaudit.accepted:
+            raise RuntimeError(
+                "Internal error: the active material transfer lacks an accepted "
+                "dark-reduction re-audit certificate."
+            )
+        dark_reduction_metadata = {
+            "applied": True,
+            "backend": "exact_bright_plus_positive_dark_measure_reduction",
+            "selection_rule": "side production model for n_max > "
+            f"{SIDE_DIRECT_REFERENCE_ORDER_MAX}",
+            "fit_grid_points": int(reduction_fit_grid_points),
+            "audit_grid_points": int(reduction_audit_grid_points),
+            "rms_tolerance": float(reduction_rms_tolerance),
+            "max_tolerance": float(reduction_max_tolerance),
+            "maximum_nodes": (
+                None if reduction_max_nodes is None else int(reduction_max_nodes)
+            ),
+            "policy": reduction_policy,
+            "certificate": {
+                "source_measure_sha256": dark_reduction.source_measure_sha256,
+                "accepted": bool(reduction_diagnostics.accepted),
+                "passive_on_audit_grid": bool(
+                    reduction_diagnostics.passive_on_audit_grid
+                ),
+                "fit_normalized_rms": float(
+                    reduction_diagnostics.fit_normalized_rms
+                ),
+                "fit_max_normalized_error": float(
+                    reduction_diagnostics.fit_max_normalized_error
+                ),
+                "audit_normalized_rms": float(
+                    reduction_diagnostics.audit_normalized_rms
+                ),
+                "audit_max_normalized_error": float(
+                    reduction_diagnostics.audit_max_normalized_error
+                ),
+                "max_normalized_rms": float(
+                    reduction_diagnostics.max_normalized_rms
+                ),
+                "max_normalized_error": float(
+                    reduction_diagnostics.max_normalized_error
+                ),
+                "total_weight_relative_error": float(
+                    reduction_diagnostics.total_weight_relative_error
+                ),
+                "first_moment_relative_error": float(
+                    reduction_diagnostics.first_moment_relative_error
+                ),
+                "original_dark_mode_count": int(
+                    reduction_diagnostics.original_dark_mode_count
+                ),
+                "positive_dark_mode_count": int(
+                    reduction_diagnostics.positive_dark_mode_count
+                ),
+                "reduced_node_count": int(
+                    reduction_diagnostics.reduced_node_count
+                ),
+                "depolarization_nodes": [
+                    float(value)
+                    for value in dark_reduction.depolarization_nodes
+                ],
+                "weights_au_minus3": [
+                    float(value) for value in dark_reduction.weights_au_minus3
+                ],
+                "source_mode_indices": [
+                    [int(index) for index in group]
+                    for group in dark_reduction.source_mode_indices
+                ],
+                "current_transfer_reaudit": {
+                    "accepted": bool(reduction_reaudit.accepted),
+                    "passive_on_audit_grid": bool(
+                        reduction_reaudit.passive_on_audit_grid
+                    ),
+                    "normalized_rms": float(reduction_reaudit.normalized_rms),
+                    "max_normalized_error": float(
+                        reduction_reaudit.max_normalized_error
+                    ),
+                    "minimum_imaginary_part": float(
+                        reduction_reaudit.minimum_imaginary_part
+                    ),
+                    "audit_grid_points": int(
+                        reduction_reaudit.audit_grid_points
+                    ),
+                    "rms_tolerance": float(reduction_reaudit.rms_tolerance),
+                    "max_tolerance": float(reduction_reaudit.max_tolerance),
+                    "energy_window_eV": [
+                        float(value)
+                        for value in reduction_reaudit.energy_window_eV
+                    ],
+                },
+            },
+        }
     metadata = {
         "pulse_comparison_schema_version": PULSE_COMPARISON_SCHEMA_VERSION,
         "created_at": datetime.now().astimezone().isoformat(),
@@ -510,6 +827,7 @@ def run_pulse_comparison(
         "implementation": {
             "legacy": "HybridQDPlasmonModel through its unchanged public API",
             "spheroid_full": "FullQSSpheroidPulseModel",
+            "spheroid_full_time_backend": dark_reduction_metadata["backend"],
         },
         "models": ["legacy", "spheroid_full"],
         "physical_parameters": common_physical_parameters,
@@ -529,14 +847,22 @@ def run_pulse_comparison(
                 "identity": "B=A*J; K=A*J^2",
             },
             "spheroid_full": {
-                "spatial_kernel": (
-                    "analytic_sphere_green_series"
-                    if kernel.is_spherical
-                    else "analytic_prolate_spheroid_green_series"
+                "spatial_kernel": spatial_kernel_name,
+                "qd_placement": qd_placement,
+                "side_transverse_alignment": side_transverse_alignment,
+                "frequency_response_source": (
+                    "same_causal_bright_fit_transformed_by_exact_or_reduced_spatial_mode"
                 ),
-                "frequency_response_source": "same_causal_bright_fit_transformed_by_spatial_order",
                 "retained_spheroidal_orders": [1, spatial_order_max],
-                "retained_order_semantics": "all integer n in the inclusive range",
+                "retained_order_semantics": retained_mode_semantics,
+                "exact_spatial_mode_count": exact_spatial_mode_count,
+                "dynamic_spatial_mode_count": dynamic_spatial_mode_count,
+                "reduced_dark_node_count": reduced_dark_node_count,
+                "bright_mode": bright_mode,
+                "exact_equatorial_mode_table": exact_mode_table,
+                "full_modal_outputs_au_row_metadata": (
+                    "full_qs.full_modal_outputs_au_rows"
+                ),
                 "uniform_laser_drive_orders": [1],
                 "point_qd_reaction_orders": [1, spatial_order_max],
                 "reported_mnp_dipole_orders": [1],
@@ -599,15 +925,24 @@ def run_pulse_comparison(
             },
             "spheroid_full": {
                 "fit_quality_policy": fit_quality_policy,
+                "max_modal_normalized_rms": max_modal_normalized_rms,
+                "max_modal_relative_error": max_modal_relative_error,
                 "spatial_convergence_policy": spatial_convergence_policy,
                 "work_passivity_policy": work_passivity_policy,
             },
         },
         "full_qs": {
             "spatial_order_max": spatial_order_max,
+            "exact_spatial_mode_count": exact_spatial_mode_count,
+            "dynamic_spatial_mode_count": dynamic_spatial_mode_count,
+            "reduced_dark_node_count": reduced_dark_node_count,
+            "full_modal_outputs_au_rows": dynamic_mode_table,
+            "dark_reduction": dark_reduction_metadata,
             "spatial_convergence_policy": spatial_convergence_policy,
             "spatial_convergence_rtol": spatial_convergence_rtol,
             "material_fit_modes_per_spatial_order": material_fit_modes,
+            "modal_fit_normalized_rms_limit": max_modal_normalized_rms,
+            "modal_fit_relative_error_limit": max_modal_relative_error,
             "asymptotic_order_ratio": kernel.asymptotic_order_ratio,
             "carrier_half_order_relative_change": float(
                 direct_response.relative_half_order_change()[0]
@@ -621,6 +956,16 @@ def run_pulse_comparison(
             "modal_fit_max_relative_error": (
                 full_model.modal_fit_diagnostics.max_relative_error
             ),
+            "modal_fit_K_normalized_rms": (
+                full_model.modal_fit_diagnostics.K_normalized_rms
+            ),
+            "modal_fit_K_max_relative_error": (
+                full_model.modal_fit_diagnostics.K_max_relative_error
+            ),
+            "modal_fit_passive_on_audit_grid": (
+                full_model.modal_fit_diagnostics.passive_on_audit_grid
+            ),
+            "modal_fit_accepted": full_model.modal_fit_diagnostics.accepted,
             "fit_window_max_half_order_relative_change": (
                 full_model.spatial_convergence_diagnostics.max_half_order_relative_change
             ),
@@ -766,8 +1111,33 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", default="results/spheroid_pulse_comparison")
     parser.add_argument("--orientation", choices=("long", "trans"), default="long")
+    parser.add_argument(
+        "--qd-placement",
+        choices=("axis", "side"),
+        default="axis",
+        help="Place the QD on the spheroid major axis or on an equatorial side axis.",
+    )
+    parser.add_argument(
+        "--side-transverse-alignment",
+        choices=("radial", "tangential"),
+        help="For --qd-placement side --orientation trans, select E parallel "
+        "to R (radial) or perpendicular to both R and the spheroid axis "
+        "(tangential).",
+    )
     parser.add_argument("--spatial-order-max", type=int, default=80)
     parser.add_argument("--material-fit-modes", type=int, default=9)
+    parser.add_argument("--reduction-fit-grid-points", type=int, default=1001)
+    parser.add_argument("--reduction-audit-grid-points", type=int, default=1601)
+    parser.add_argument("--reduction-rms-tolerance", type=float, default=1.0e-6)
+    parser.add_argument("--reduction-max-tolerance", type=float, default=1.0e-4)
+    parser.add_argument("--reduction-max-nodes", type=int)
+    parser.add_argument(
+        "--reduction-policy",
+        choices=tuple(sorted(POLICIES)),
+        default="raise",
+        help="Diagnostic action if reduction misses its audit gate; the "
+        "production backend never propagates an uncertified reduction.",
+    )
     parser.add_argument("--pulse-energy-ev", type=float, default=2.042)
     parser.add_argument("--pulse-tau-fs", type=float, default=5.0)
     parser.add_argument("--pulse-e0-au", type=float, default=1.0e-5)
@@ -831,6 +1201,8 @@ def parse_args() -> argparse.Namespace:
         choices=tuple(sorted(POLICIES)),
         default="raise",
     )
+    parser.add_argument("--max-modal-normalized-rms", type=float, default=0.03)
+    parser.add_argument("--max-modal-relative-error", type=float, default=0.06)
     parser.add_argument(
         "--spatial-convergence-policy",
         choices=tuple(sorted(POLICIES)),
@@ -854,8 +1226,16 @@ def main() -> None:
     run_dir = run_pulse_comparison(
         output_dir=args.output_dir,
         orientation=args.orientation,
+        qd_placement=args.qd_placement,
+        side_transverse_alignment=args.side_transverse_alignment,
         spatial_order_max=args.spatial_order_max,
         material_fit_modes=args.material_fit_modes,
+        reduction_fit_grid_points=args.reduction_fit_grid_points,
+        reduction_audit_grid_points=args.reduction_audit_grid_points,
+        reduction_rms_tolerance=args.reduction_rms_tolerance,
+        reduction_max_tolerance=args.reduction_max_tolerance,
+        reduction_max_nodes=args.reduction_max_nodes,
+        reduction_policy=args.reduction_policy,
         pulse_energy_eV=args.pulse_energy_ev,
         pulse_tau_fs=args.pulse_tau_fs,
         pulse_E0_au=args.pulse_e0_au,
@@ -884,6 +1264,8 @@ def main() -> None:
         tail_window_fraction=args.tail_window_fraction,
         max_auto_tail_extensions=args.max_auto_tail_extensions,
         fit_quality_policy=args.fit_quality_policy,
+        max_modal_normalized_rms=args.max_modal_normalized_rms,
+        max_modal_relative_error=args.max_modal_relative_error,
         spatial_convergence_policy=args.spatial_convergence_policy,
         spatial_convergence_rtol=args.spatial_convergence_rtol,
         work_passivity_policy=args.work_passivity_policy,

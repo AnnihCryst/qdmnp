@@ -1,0 +1,1662 @@
+{
+  "cases": [
+    {
+      "a_au": 1.0,
+      "acceptance_relative": {
+        "A": 0.005,
+        "B_dipole": 0.005,
+        "B_field": 0.005,
+        "K": 0.01,
+        "uncertainty_sigma_multiplier": 3.0
+      },
+      "c_au": 1.0,
+      "correction_orders": [
+        1.0,
+        2.0
+      ],
+      "eps_m": 1.0,
+      "epsilon_particle": [
+        -8.0,
+        1.0
+      ],
+      "estimated_absolute_uncertainty": {
+        "A": 0.005882766706815898,
+        "B_dipole": 0.00043674447519852683,
+        "B_field": 0.00043672381574148616,
+        "K": 6.947396314008651e-05
+      },
+      "estimated_relative_uncertainty": {
+        "A": 0.003953056961759623,
+        "B_dipole": 0.003961976895867516,
+        "B_field": 0.003961792332847238,
+        "K": 0.0066208309022067905
+      },
+      "extrapolated": {
+        "A_au3": [
+          1.485951040700079,
+          0.08098605932714038
+        ],
+        "B_dipole": [
+          0.11007062362469265,
+          0.005998982299393011
+        ],
+        "B_field": [
+          0.11007054438989039,
+          0.0059989781509369134
+        ],
+        "K_au_minus3": [
+          0.01047931971899251,
+          0.0005403051077733397
+        ]
+      },
+      "extrapolation_h_scale_au": 0.3249196962329064,
+      "extrapolation_levels": [
+        2,
+        3,
+        4
+      ],
+      "extrapolation_relative_residual": {
+        "A": 5.777246946043346e-16,
+        "B_dipole": 1.1643434333853418e-16,
+        "B_field": 3.6284438079532995e-16,
+        "K": 1.0411238396615031e-16
+      },
+      "finest_relative_change": {
+        "A": 0.03654490622144307,
+        "B_dipole": 0.03656298351091356,
+        "B_field": 0.03655404821918728,
+        "K": 0.036648651632783275
+      },
+      "id": "sphere_axis_long_ordinary",
+      "lower_order_extrapolated": {
+        "A_au3": [
+          1.4918145813728616,
+          0.0805108384254042
+        ],
+        "B_dipole": [
+          0.11050594918054918,
+          0.005963805644710655
+        ],
+        "B_field": [
+          0.11050585211709187,
+          0.005963837378684595
+        ],
+        "K_au_minus3": [
+          0.010548770392646028,
+          0.0005385063628045433
+        ]
+      },
+      "orientation": "long",
+      "placement": "axis",
+      "polarization": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "qd_position_au": [
+        0.0,
+        0.0,
+        3.0
+      ],
+      "raw_levels": [
+        {
+          "max_edge_au": 0.6180339887498949,
+          "mesh_sha256": "a08ab61b05aed85b791b0877e5353b093c62b71506185788bdc373b5f3c60b99",
+          "minimum_qd_surface_distance_au": 2.0,
+          "observables": {
+            "A_au3": [
+              1.0444956584300782,
+              0.045787727104356656
+            ],
+            "B_dipole": [
+              0.07733923134797208,
+              0.003390215598277991
+            ],
+            "B_field": [
+              0.07735501769341666,
+              0.003390691189627269
+            ],
+            "K_au_minus3": [
+              0.007191435303045188,
+              0.00030064223542521296
+            ]
+          },
+          "panel_count": 80,
+          "qd_distance_over_max_edge": 3.2360679774997894,
+          "reciprocity_relative_error": 0.00020397329024176205,
+          "relative_net_charge_point_dipole": 0.00031510895789296507,
+          "relative_net_charge_uniform": 4.282301287654058e-16,
+          "relative_residual_point_dipole": 4.487231644565775e-16,
+          "relative_residual_uniform": 5.997104111865292e-16,
+          "subdivision_level": 1,
+          "vertex_count": 42
+        },
+        {
+          "max_edge_au": 0.3249196962329064,
+          "mesh_sha256": "a94583c85a97349a6cbe1f6a0468912d97b90029c9d95796e5d6a1a68510a2b1",
+          "minimum_qd_surface_distance_au": 2.0,
+          "observables": {
+            "A_au3": [
+              1.2743766912246295,
+              0.061639721980252415
+            ],
+            "B_dipole": [
+              0.09439028197270853,
+              0.004565393423107128
+            ],
+            "B_field": [
+              0.09439385867216653,
+              0.004565578797935225
+            ],
+            "K_au_minus3": [
+              0.00895974498577795,
+              0.00041183982931306716
+            ]
+          },
+          "panel_count": 320,
+          "qd_distance_over_max_edge": 6.155367074350505,
+          "reciprocity_relative_error": 3.789778477852868e-05,
+          "relative_net_charge_point_dipole": 5.5463940715333654e-05,
+          "relative_net_charge_uniform": 7.228156994084801e-16,
+          "relative_residual_point_dipole": 6.042324535933329e-16,
+          "relative_residual_uniform": 1.0326986514717883e-15,
+          "subdivision_level": 2,
+          "vertex_count": 162
+        },
+        {
+          "max_edge_au": 0.16464716006392044,
+          "mesh_sha256": "12fa48909c8f5b1eba12a80d2d3b25ef4712a35fcf5df7e6cdd0279ad7cd3dd2",
+          "minimum_qd_surface_distance_au": 2.0,
+          "observables": {
+            "A_au3": [
+              1.3833756041800769,
+              0.07080691911885102
+            ],
+            "B_dipole": [
+              0.10246908647174911,
+              0.005244724623811645
+            ],
+            "B_field": [
+              0.1024708457190135,
+              0.005244844883390565
+            ],
+            "K_au_minus3": [
+              0.009764214178514053,
+              0.00047378547599794923
+            ]
+          },
+          "panel_count": 1280,
+          "qd_distance_over_max_edge": 12.147187957712397,
+          "reciprocity_relative_error": 1.718584029674089e-05,
+          "relative_net_charge_point_dipole": 2.290591539515357e-05,
+          "relative_net_charge_uniform": 1.9416386038337437e-16,
+          "relative_residual_point_dipole": 1.1321945445530203e-15,
+          "relative_residual_uniform": 1.4134426936942505e-15,
+          "subdivision_level": 3,
+          "vertex_count": 642
+        },
+        {
+          "max_edge_au": 0.0826039665339507,
+          "mesh_sha256": "45364677066a703640a3897f9db200ec95c0ad95809ef122c73b46d33719742f",
+          "minimum_qd_surface_distance_au": 2.0,
+          "observables": {
+            "A_au3": [
+              1.435679268835673,
+              0.07578265812127852
+            ],
+            "B_dipole": [
+              0.10634530548558506,
+              0.0056134261618145855
+            ],
+            "B_field": [
+              0.10634614500244917,
+              0.005613491715382946
+            ],
+            "K_au_minus3": [
+              0.010134651539072718,
+              0.000506566765913972
+            ]
+          },
+          "panel_count": 5120,
+          "qd_distance_over_max_edge": 24.211912380478587,
+          "reciprocity_relative_error": 7.907213491159715e-06,
+          "relative_net_charge_point_dipole": 9.884753786718754e-06,
+          "relative_net_charge_uniform": 1.8185984743664948e-16,
+          "relative_residual_point_dipole": 1.0159123193785543e-15,
+          "relative_residual_uniform": 1.0384064266621882e-15,
+          "subdivision_level": 4,
+          "vertex_count": 2562
+        }
+      ],
+      "regime": "ordinary",
+      "side_transverse_alignment": null,
+      "surface_gap_au": 2.0,
+      "uncertainty_method": "lower_order_stability_plus_fit_residual"
+    },
+    {
+      "a_au": 1.0,
+      "acceptance_relative": {
+        "A": 0.005,
+        "B_dipole": 0.005,
+        "B_field": 0.005,
+        "K": 0.01,
+        "uncertainty_sigma_multiplier": 3.0
+      },
+      "c_au": 1.5,
+      "correction_orders": [
+        1.0,
+        2.0
+      ],
+      "eps_m": 1.0,
+      "epsilon_particle": [
+        -8.0,
+        1.0
+      ],
+      "estimated_absolute_uncertainty": {
+        "A": 0.039355831218149014,
+        "B_dipole": 0.007087878262151922,
+        "B_field": 0.005853811591323889,
+        "K": 0.0008332986745334286
+      },
+      "estimated_relative_uncertainty": {
+        "A": 0.009768959636615839,
+        "B_dipole": 0.01053325012415406,
+        "B_field": 0.008698231349434881,
+        "K": 0.004034218932668293
+      },
+      "extrapolated": {
+        "A_au3": [
+          4.009284926806969,
+          0.39464864913378683
+        ],
+        "B_dipole": [
+          0.6696712484387419,
+          0.06589203937300835
+        ],
+        "B_field": [
+          0.6697519501439141,
+          0.06592529066964974
+        ],
+        "K_au_minus3": [
+          0.20596983124987944,
+          0.015571780599278346
+        ]
+      },
+      "extrapolation_h_scale_au": 0.4873795443493595,
+      "extrapolation_levels": [
+        2,
+        3,
+        4
+      ],
+      "extrapolation_relative_residual": {
+        "A": 3.045113719437219e-16,
+        "B_dipole": 1.7566686329648737e-16,
+        "B_field": 4.1695049464024764e-16,
+        "K": 5.44714672082829e-16
+      },
+      "finest_relative_change": {
+        "A": 0.06399893293071479,
+        "B_dipole": 0.07214736190187326,
+        "B_field": 0.06715111444997701,
+        "K": 0.05676377491279549
+      },
+      "id": "prolate_axis_long_ordinary",
+      "lower_order_extrapolated": {
+        "A_au3": [
+          3.972639243993736,
+          0.38029680667285715
+        ],
+        "B_dipole": [
+          0.6630857974048865,
+          0.06327099894222936
+        ],
+        "B_field": [
+          0.6644107168195855,
+          0.06352980810411102
+        ],
+        "K_au_minus3": [
+          0.20673640712439012,
+          0.015245057307183401
+        ]
+      },
+      "orientation": "long",
+      "placement": "axis",
+      "polarization": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "qd_position_au": [
+        0.0,
+        0.0,
+        2.5
+      ],
+      "raw_levels": [
+        {
+          "max_edge_au": 0.9270509831248424,
+          "mesh_sha256": "6b1b902f1f2bac437c866406f4ee7d1604eeb2a295c9fc09f22649e6b5399fa3",
+          "minimum_qd_surface_distance_au": 1.0,
+          "observables": {
+            "A_au3": [
+              2.3855560061404373,
+              0.1597991401143482
+            ],
+            "B_dipole": [
+              0.3599224952992444,
+              0.023617547953598262
+            ],
+            "B_field": [
+              0.380487530966634,
+              0.025348006791845124
+            ],
+            "K_au_minus3": [
+              0.11567455652964458,
+              0.0033708486424025353
+            ]
+          },
+          "panel_count": 80,
+          "qd_distance_over_max_edge": 1.078689325833263,
+          "reciprocity_relative_error": 0.05412021585305569,
+          "relative_net_charge_point_dipole": 0.20429632577263174,
+          "relative_net_charge_uniform": 8.132443637818375e-16,
+          "relative_residual_point_dipole": 2.8938971898668436e-16,
+          "relative_residual_uniform": 8.868729188753832e-16,
+          "subdivision_level": 1,
+          "vertex_count": 42
+        },
+        {
+          "max_edge_au": 0.4873795443493595,
+          "mesh_sha256": "7e565a2c867c3a369588f742822f4c3e8c9ade1353abb9a642cece7fb2713a2a",
+          "minimum_qd_surface_distance_au": 1.0,
+          "observables": {
+            "A_au3": [
+              3.0950660168374644,
+              0.24339240112347052
+            ],
+            "B_dipole": [
+              0.49851353122661085,
+              0.038693547939506384
+            ],
+            "B_field": [
+              0.5090186868589527,
+              0.03990268200612769
+            ],
+            "K_au_minus3": [
+              0.16196127696169768,
+              0.008764267934070874
+            ]
+          },
+          "panel_count": 320,
+          "qd_distance_over_max_edge": 2.0517890247835022,
+          "reciprocity_relative_error": 0.020710771083413515,
+          "relative_net_charge_point_dipole": 0.06645216420628211,
+          "relative_net_charge_uniform": 1.8369225040184488e-16,
+          "relative_residual_point_dipole": 5.3507319328532755e-16,
+          "relative_residual_uniform": 1.1413497621211442e-15,
+          "subdivision_level": 2,
+          "vertex_count": 162
+        },
+        {
+          "max_edge_au": 0.2469707400958805,
+          "mesh_sha256": "8889482a8946c1361dcb11fe5a2d825b872bbf45883a323d1e88aec32688c0d1",
+          "minimum_qd_surface_distance_au": 1.0,
+          "observables": {
+            "A_au3": [
+              3.5170470657007615,
+              0.3066549633007075
+            ],
+            "B_dipole": [
+              0.5777333746614257,
+              0.05003736398490983
+            ],
+            "B_field": [
+              0.5840802236580191,
+              0.05084481053349641
+            ],
+            "K_au_minus3": [
+              0.1842753904360652,
+              0.011863872344529012
+            ]
+          },
+          "panel_count": 1280,
+          "qd_distance_over_max_edge": 4.049062652570802,
+          "reciprocity_relative_error": 0.010912712859102124,
+          "relative_net_charge_point_dipole": 0.027953047463311394,
+          "relative_net_charge_uniform": 1.802246781660115e-16,
+          "relative_residual_point_dipole": 9.77103411986677e-16,
+          "relative_residual_uniform": 2.287549257204815e-15,
+          "subdivision_level": 3,
+          "vertex_count": 642
+        },
+        {
+          "max_edge_au": 0.12390594980092598,
+          "mesh_sha256": "2cbc55da8a2ea37f17ac719a00718c352546e860a6ccec9da441db8cb856d409",
+          "minimum_qd_surface_distance_au": 1.0,
+          "observables": {
+            "A_au3": [
+              3.754886608993873,
+              0.3475877280742581
+            ],
+            "B_dipole": [
+              0.6222085296866442,
+              0.057405483687342315
+            ],
+            "B_field": [
+              0.6256856219755117,
+              0.05787295192607073
+            ],
+            "K_au_minus3": [
+              0.19524132411026587,
+              0.013645168922505783
+            ]
+          },
+          "panel_count": 5120,
+          "qd_distance_over_max_edge": 8.070637460159535,
+          "reciprocity_relative_error": 0.0055834161407147375,
+          "relative_net_charge_point_dipole": 0.012719253281298479,
+          "relative_net_charge_uniform": 1.696134397846772e-16,
+          "relative_residual_point_dipole": 9.133934564374178e-16,
+          "relative_residual_uniform": 1.6169385988206339e-15,
+          "subdivision_level": 4,
+          "vertex_count": 2562
+        }
+      ],
+      "regime": "ordinary",
+      "side_transverse_alignment": null,
+      "surface_gap_au": 1.0,
+      "uncertainty_method": "lower_order_stability_plus_fit_residual"
+    },
+    {
+      "a_au": 1.0,
+      "acceptance_relative": {
+        "A": 0.005,
+        "B_dipole": 0.005,
+        "B_field": 0.005,
+        "K": 0.01,
+        "uncertainty_sigma_multiplier": 3.0
+      },
+      "c_au": 1.5,
+      "correction_orders": [
+        1.0,
+        2.0
+      ],
+      "eps_m": 1.0,
+      "epsilon_particle": [
+        -8.0,
+        1.0
+      ],
+      "estimated_absolute_uncertainty": {
+        "A": 0.01188125981274134,
+        "B_dipole": 0.0011436398830955191,
+        "B_field": 0.0012665406063809264,
+        "K": 0.0006927442313434124
+      },
+      "estimated_relative_uncertainty": {
+        "A": 0.006512655350856938,
+        "B_dipole": 0.007505333065868876,
+        "B_field": 0.008312016077550409,
+        "K": 0.01773805586000771
+      },
+      "extrapolated": {
+        "A_au3": [
+          1.8225278745991955,
+          0.08116265558485693
+        ],
+        "B_dipole": [
+          -0.1522261043283512,
+          -0.0067788640172664495
+        ],
+        "B_field": [
+          -0.15222377310375979,
+          -0.006779327108385898
+        ],
+        "K_au_minus3": [
+          0.03901902053471387,
+          0.0016554849111642045
+        ]
+      },
+      "extrapolation_h_scale_au": 0.4873795443493595,
+      "extrapolation_levels": [
+        2,
+        3,
+        4
+      ],
+      "extrapolation_relative_residual": {
+        "A": 2.6089289393554754e-16,
+        "B_dipole": 3.414546391534775e-16,
+        "B_field": 1.984682386074781e-16,
+        "K": 4.83519972092307e-16
+      },
+      "finest_relative_change": {
+        "A": 0.029676695110562493,
+        "B_dipole": 0.03429289904107337,
+        "B_field": 0.03286646428205971,
+        "K": 0.04567324314952763
+      },
+      "id": "prolate_axis_trans_ordinary",
+      "lower_order_extrapolated": {
+        "A_au3": [
+          1.834409120685356,
+          0.0811807159823069
+        ],
+        "B_dipole": [
+          -0.15336974072940893,
+          -0.0067760418935125175
+        ],
+        "B_field": [
+          -0.153490292376161,
+          -0.006786678315639348
+        ],
+        "K_au_minus3": [
+          0.039711677143394755,
+          0.0016665027380948197
+        ]
+      },
+      "orientation": "trans",
+      "placement": "axis",
+      "polarization": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "qd_position_au": [
+        0.0,
+        0.0,
+        2.5
+      ],
+      "raw_levels": [
+        {
+          "max_edge_au": 0.9270509831248424,
+          "mesh_sha256": "6b1b902f1f2bac437c866406f4ee7d1604eeb2a295c9fc09f22649e6b5399fa3",
+          "minimum_qd_surface_distance_au": 1.0,
+          "observables": {
+            "A_au3": [
+              1.3393649760566566,
+              0.05019112311026093
+            ],
+            "B_dipole": [
+              -0.10707740177954832,
+              -0.003930758343435781
+            ],
+            "B_field": [
+              -0.10712103496993308,
+              -0.003971236952852917
+            ],
+            "K_au_minus3": [
+              0.02328016818541185,
+              0.0008017552146120493
+            ]
+          },
+          "panel_count": 80,
+          "qd_distance_over_max_edge": 1.078689325833263,
+          "reciprocity_relative_error": 0.0005552315771576022,
+          "relative_net_charge_point_dipole": 3.1974423605552323e-16,
+          "relative_net_charge_uniform": 2.9740142783928725e-16,
+          "relative_residual_point_dipole": 2.9698804999437683e-16,
+          "relative_residual_uniform": 3.6235315665394814e-16,
+          "subdivision_level": 1,
+          "vertex_count": 42
+        },
+        {
+          "max_edge_au": 0.4873795443493595,
+          "mesh_sha256": "7e565a2c867c3a369588f742822f4c3e8c9ade1353abb9a642cece7fb2713a2a",
+          "minimum_qd_surface_distance_au": 1.0,
+          "observables": {
+            "A_au3": [
+              1.6054074153887734,
+              0.06517717847843314
+            ],
+            "B_dipole": [
+              -0.131352679328034,
+              -0.005274053869074634
+            ],
+            "B_field": [
+              -0.13205675537695177,
+              -0.005330935037832328
+            ],
+            "K_au_minus3": [
+              0.03170721319196577,
+              0.0012043113411106538
+            ]
+          },
+          "panel_count": 320,
+          "qd_distance_over_max_edge": 2.0517890247835022,
+          "reciprocity_relative_error": 0.005344634776204959,
+          "relative_net_charge_point_dipole": 7.439984196232515e-16,
+          "relative_net_charge_uniform": 6.364990608329004e-17,
+          "relative_residual_point_dipole": 5.026393561592398e-16,
+          "relative_residual_uniform": 6.168085910880244e-16,
+          "subdivision_level": 2,
+          "vertex_count": 162
+        },
+        {
+          "max_edge_au": 0.2469707400958805,
+          "mesh_sha256": "8889482a8946c1361dcb11fe5a2d825b872bbf45883a323d1e88aec32688c0d1",
+          "minimum_qd_surface_distance_au": 1.0,
+          "observables": {
+            "A_au3": [
+              1.7218999642632304,
+              0.07307658464096893
+            ],
+            "B_dipole": [
+              -0.14255309449529607,
+              -0.0060140974604729865
+            ],
+            "B_field": [
+              -0.1430058800451504,
+              -0.006051192963038376
+            ],
+            "K_au_minus3": [
+              0.03586154584827465,
+              0.0014355721691240045
+            ]
+          },
+          "panel_count": 1280,
+          "qd_distance_over_max_edge": 4.049062652570802,
+          "reciprocity_relative_error": 0.0031739702369588414,
+          "relative_net_charge_point_dipole": 3.040984575516499e-16,
+          "relative_net_charge_uniform": 1.5830570656631958e-16,
+          "relative_residual_point_dipole": 8.86016582471895e-16,
+          "relative_residual_uniform": 7.346136069149203e-16,
+          "subdivision_level": 3,
+          "vertex_count": 642
+        },
+        {
+          "max_edge_au": 0.12390594980092598,
+          "mesh_sha256": "2cbc55da8a2ea37f17ac719a00718c352546e860a6ccec9da441db8cb856d409",
+          "minimum_qd_surface_distance_au": 1.0,
+          "observables": {
+            "A_au3": [
+              1.7744551140847165,
+              0.07710951718153912
+            ],
+            "B_dipole": [
+              -0.14760534905521755,
+              -0.006394605327373426
+            ],
+            "B_field": [
+              -0.1478563033756268,
+              -0.00641551276429989
+            ],
+            "K_au_minus3": [
+              0.037575554298308125,
+              0.0015473912757290047
+            ]
+          },
+          "panel_count": 5120,
+          "qd_distance_over_max_edge": 8.070637460159535,
+          "reciprocity_relative_error": 0.0017015643218573878,
+          "relative_net_charge_point_dipole": 1.6283872109496515e-16,
+          "relative_net_charge_uniform": 1.1066974727410579e-16,
+          "relative_residual_point_dipole": 8.97518113676508e-16,
+          "relative_residual_uniform": 8.114364941716415e-16,
+          "subdivision_level": 4,
+          "vertex_count": 2562
+        }
+      ],
+      "regime": "ordinary",
+      "side_transverse_alignment": null,
+      "surface_gap_au": 1.0,
+      "uncertainty_method": "lower_order_stability_plus_fit_residual"
+    },
+    {
+      "a_au": 1.0,
+      "acceptance_relative": {
+        "A": 0.005,
+        "B_dipole": 0.005,
+        "B_field": 0.005,
+        "K": 0.01,
+        "uncertainty_sigma_multiplier": 3.0
+      },
+      "c_au": 1.5,
+      "correction_orders": [
+        1.0,
+        2.0
+      ],
+      "eps_m": 1.0,
+      "epsilon_particle": [
+        -8.0,
+        1.0
+      ],
+      "estimated_absolute_uncertainty": {
+        "A": 0.039355831218149014,
+        "B_dipole": 0.0034346225233447907,
+        "B_field": 0.004171386107087047,
+        "K": 0.000609325227573703
+      },
+      "estimated_relative_uncertainty": {
+        "A": 0.009768959636615839,
+        "B_dipole": 0.008745273245474397,
+        "B_field": 0.010621951310495448,
+        "K": 0.006932773919290264
+      },
+      "extrapolated": {
+        "A_au3": [
+          4.009284926806969,
+          0.39464864913378683
+        ],
+        "B_dipole": [
+          -0.39085016423367325,
+          -0.03848646266564059
+        ],
+        "B_field": [
+          -0.3908248500225032,
+          -0.03847089098015313
+        ],
+        "K_au_minus3": [
+          0.08770043237773545,
+          0.005777610175621565
+        ]
+      },
+      "extrapolation_h_scale_au": 0.4873795443493595,
+      "extrapolation_levels": [
+        2,
+        3,
+        4
+      ],
+      "extrapolation_relative_residual": {
+        "A": 3.045113719437219e-16,
+        "B_dipole": 2.290745373598794e-16,
+        "B_field": 2.833237710895474e-16,
+        "K": 1.447081457533173e-16
+      },
+      "finest_relative_change": {
+        "A": 0.06399893293071479,
+        "B_dipole": 0.058052695780367,
+        "B_field": 0.06149054154163145,
+        "K": 0.044374474082925004
+      },
+      "id": "prolate_side_long_ordinary",
+      "lower_order_extrapolated": {
+        "A_au3": [
+          3.972639243993736,
+          0.38029680667285715
+        ],
+        "B_dipole": [
+          -0.38766704846522015,
+          -0.03719634411198259
+        ],
+        "B_field": [
+          -0.38689587340573567,
+          -0.03706960414324478
+        ],
+        "K_au_minus3": [
+          0.08830077895718993,
+          0.005673393010552448
+        ]
+      },
+      "orientation": "long",
+      "placement": "side",
+      "polarization": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "qd_position_au": [
+        2.0,
+        0.0,
+        0.0
+      ],
+      "raw_levels": [
+        {
+          "max_edge_au": 0.9270509831248424,
+          "mesh_sha256": "6b1b902f1f2bac437c866406f4ee7d1604eeb2a295c9fc09f22649e6b5399fa3",
+          "minimum_qd_surface_distance_au": 1.0,
+          "observables": {
+            "A_au3": [
+              2.3855560061404373,
+              0.1597991401143482
+            ],
+            "B_dipole": [
+              -0.24939049814671863,
+              -0.017026026773422392
+            ],
+            "B_field": [
+              -0.24117850836134277,
+              -0.016258092849332433
+            ],
+            "K_au_minus3": [
+              0.058580023027202534,
+              0.0029037663353992456
+            ]
+          },
+          "panel_count": 80,
+          "qd_distance_over_max_edge": 1.078689325833263,
+          "reciprocity_relative_error": 0.032995097297899206,
+          "relative_net_charge_point_dipole": 1.2035302752601554e-16,
+          "relative_net_charge_uniform": 8.132443637818375e-16,
+          "relative_residual_point_dipole": 2.4332099756292856e-16,
+          "relative_residual_uniform": 8.868729188753832e-16,
+          "subdivision_level": 1,
+          "vertex_count": 42
+        },
+        {
+          "max_edge_au": 0.4873795443493595,
+          "mesh_sha256": "7e565a2c867c3a369588f742822f4c3e8c9ade1353abb9a642cece7fb2713a2a",
+          "minimum_qd_surface_distance_au": 1.0,
+          "observables": {
+            "A_au3": [
+              3.0950660168374644,
+              0.24339240112347052
+            ],
+            "B_dipole": [
+              -0.3095351632305921,
+              -0.024591931581966372
+            ],
+            "B_field": [
+              -0.30543736130743027,
+              -0.02408910909832228
+            ],
+            "K_au_minus3": [
+              0.07253495249116888,
+              0.004010033228224698
+            ]
+          },
+          "panel_count": 320,
+          "qd_distance_over_max_edge": 2.0517890247835022,
+          "reciprocity_relative_error": 0.013295962546964588,
+          "relative_net_charge_point_dipole": 1.286214484422773e-16,
+          "relative_net_charge_uniform": 1.8369225040184488e-16,
+          "relative_residual_point_dipole": 5.134341319110757e-16,
+          "relative_residual_uniform": 1.1413497621211442e-15,
+          "subdivision_level": 2,
+          "vertex_count": 162
+        },
+        {
+          "max_edge_au": 0.2469707400958805,
+          "mesh_sha256": "8889482a8946c1361dcb11fe5a2d825b872bbf45883a323d1e88aec32688c0d1",
+          "minimum_qd_surface_distance_au": 1.0,
+          "observables": {
+            "A_au3": [
+              3.5170470657007615,
+              0.3066549633007075
+            ],
+            "B_dipole": [
+              -0.34712852308632114,
+              -0.030425625104582656
+            ],
+            "B_field": [
+              -0.34444983253230876,
+              -0.030075252385572543
+            ],
+            "K_au_minus3": [
+              0.08049026644399565,
+              0.00479952302103505
+            ]
+          },
+          "panel_count": 1280,
+          "qd_distance_over_max_edge": 4.049062652570802,
+          "reciprocity_relative_error": 0.0077527195683495245,
+          "relative_net_charge_point_dipole": 1.56072395875441e-16,
+          "relative_net_charge_uniform": 1.802246781660115e-16,
+          "relative_residual_point_dipole": 6.830523287912824e-16,
+          "relative_residual_uniform": 2.287549257204815e-15,
+          "subdivision_level": 3,
+          "vertex_count": 642
+        },
+        {
+          "max_edge_au": 0.12390594980092598,
+          "mesh_sha256": "2cbc55da8a2ea37f17ac719a00718c352546e860a6ccec9da441db8cb856d409",
+          "minimum_qd_surface_distance_au": 1.0,
+          "observables": {
+            "A_au3": [
+              3.754886608993873,
+              0.3475877280742581
+            ],
+            "B_dipole": [
+              -0.36826853669559856,
+              -0.03418035022679034
+            ],
+            "B_field": [
+              -0.3667605641508406,
+              -0.03397423447732135
+            ],
+            "K_au_minus3": [
+              0.08420497485856232,
+              0.005265739031437454
+            ]
+          },
+          "panel_count": 5120,
+          "qd_distance_over_max_edge": 8.070637460159535,
+          "reciprocity_relative_error": 0.004115149987338344,
+          "relative_net_charge_point_dipole": 2.737731906071281e-16,
+          "relative_net_charge_uniform": 1.696134397846772e-16,
+          "relative_residual_point_dipole": 7.6243447462916835e-16,
+          "relative_residual_uniform": 1.6169385988206339e-15,
+          "subdivision_level": 4,
+          "vertex_count": 2562
+        }
+      ],
+      "regime": "ordinary",
+      "side_transverse_alignment": null,
+      "surface_gap_au": 1.0,
+      "uncertainty_method": "lower_order_stability_plus_fit_residual"
+    },
+    {
+      "a_au": 1.0,
+      "acceptance_relative": {
+        "A": 0.005,
+        "B_dipole": 0.005,
+        "B_field": 0.005,
+        "K": 0.01,
+        "uncertainty_sigma_multiplier": 3.0
+      },
+      "c_au": 1.5,
+      "correction_orders": [
+        1.0,
+        2.0
+      ],
+      "eps_m": 1.0,
+      "epsilon_particle": [
+        -8.0,
+        1.0
+      ],
+      "estimated_absolute_uncertainty": {
+        "A": 0.01188125981274134,
+        "B_dipole": 0.0022752224583480808,
+        "B_field": 0.002222689697524565,
+        "K": 0.00262504153258123
+      },
+      "estimated_relative_uncertainty": {
+        "A": 0.006512655350856938,
+        "B_dipole": 0.0058716286702277425,
+        "B_field": 0.005736176621199718,
+        "K": 0.013469014984261923
+      },
+      "extrapolated": {
+        "A_au3": [
+          1.8225278745991955,
+          0.08116265558485693
+        ],
+        "B_dipole": [
+          0.38711059723600716,
+          0.017239311916426386
+        ],
+        "B_field": [
+          0.3871026219422772,
+          0.01723866250319887
+        ],
+        "K_au_minus3": [
+          0.1947211281910768,
+          0.008226861466664894
+        ]
+      },
+      "extrapolation_h_scale_au": 0.4873795443493595,
+      "extrapolation_levels": [
+        2,
+        3,
+        4
+      ],
+      "extrapolation_relative_residual": {
+        "A": 2.6089289393554754e-16,
+        "B_dipole": 1.2572497769184236e-16,
+        "B_field": 1.7820102349341762e-16,
+        "K": 3.1085423620976276e-16
+      },
+      "finest_relative_change": {
+        "A": 0.029676695110562493,
+        "B_dipole": 0.027495162593641306,
+        "B_field": 0.028199437052333323,
+        "K": 0.037453490070203634
+      },
+      "id": "prolate_side_trans_radial_ordinary",
+      "lower_order_extrapolated": {
+        "A_au3": [
+          1.834409120685356,
+          0.0811807159823069
+        ],
+        "B_dipole": [
+          0.3893858120238924,
+          0.01724521987376097
+        ],
+        "B_field": [
+          0.3893253115891745,
+          0.0172381881011134
+        ],
+        "K_au_minus3": [
+          0.1973460188014077,
+          0.008198713081755559
+        ]
+      },
+      "orientation": "trans",
+      "placement": "side",
+      "polarization": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "qd_position_au": [
+        2.0,
+        0.0,
+        0.0
+      ],
+      "raw_levels": [
+        {
+          "max_edge_au": 0.9270509831248424,
+          "mesh_sha256": "6b1b902f1f2bac437c866406f4ee7d1604eeb2a295c9fc09f22649e6b5399fa3",
+          "minimum_qd_surface_distance_au": 1.0,
+          "observables": {
+            "A_au3": [
+              1.3393649760566566,
+              0.05019112311026093
+            ],
+            "B_dipole": [
+              0.2846388868386202,
+              0.010760283898032578
+            ],
+            "B_field": [
+              0.28933199945369825,
+              0.010878965454738685
+            ],
+            "K_au_minus3": [
+              0.12118449076090214,
+              0.004540354996841591
+            ]
+          },
+          "panel_count": 80,
+          "qd_distance_over_max_edge": 1.078689325833263,
+          "reciprocity_relative_error": 0.01621423816582136,
+          "relative_net_charge_point_dipole": 0.022596730256378608,
+          "relative_net_charge_uniform": 2.9740142783928725e-16,
+          "relative_residual_point_dipole": 5.736082847063777e-16,
+          "relative_residual_uniform": 3.6235315665394814e-16,
+          "subdivision_level": 1,
+          "vertex_count": 42
+        },
+        {
+          "max_edge_au": 0.4873795443493595,
+          "mesh_sha256": "7e565a2c867c3a369588f742822f4c3e8c9ade1353abb9a642cece7fb2713a2a",
+          "minimum_qd_surface_distance_au": 1.0,
+          "observables": {
+            "A_au3": [
+              1.6054074153887734,
+              0.06517717847843314
+            ],
+            "B_dipole": [
+              0.34435672729662514,
+              0.014054478912237926
+            ],
+            "B_field": [
+              0.3433699219211583,
+              0.013975614812787345
+            ],
+            "K_au_minus3": [
+              0.16475518109377107,
+              0.006962443944014532
+            ]
+          },
+          "panel_count": 320,
+          "qd_distance_over_max_edge": 2.0517890247835022,
+          "reciprocity_relative_error": 0.0028723940988829868,
+          "relative_net_charge_point_dipole": 0.032077030879593973,
+          "relative_net_charge_uniform": 6.364990608329004e-17,
+          "relative_residual_point_dipole": 7.517454760423799e-16,
+          "relative_residual_uniform": 6.168085910880244e-16,
+          "subdivision_level": 2,
+          "vertex_count": 162
+        },
+        {
+          "max_edge_au": 0.2469707400958805,
+          "mesh_sha256": "8889482a8946c1361dcb11fe5a2d825b872bbf45883a323d1e88aec32688c0d1",
+          "minimum_qd_surface_distance_au": 1.0,
+          "observables": {
+            "A_au3": [
+              1.7218999642632304,
+              0.07307658464096893
+            ],
+            "B_dipole": [
+              0.3672447547845964,
+              0.01563012672763272
+            ],
+            "B_field": [
+              0.36669924595014947,
+              0.015584797210022152
+            ],
+            "K_au_minus3": [
+              0.1816118058171201,
+              0.007563885227113909
+            ]
+          },
+          "panel_count": 1280,
+          "qd_distance_over_max_edge": 4.049062652570802,
+          "reciprocity_relative_error": 0.0014891808193044744,
+          "relative_net_charge_point_dipole": 0.014503741283120066,
+          "relative_net_charge_uniform": 1.5830570656631958e-16,
+          "relative_residual_point_dipole": 1.3336862639092094e-15,
+          "relative_residual_uniform": 7.346136069149203e-16,
+          "subdivision_level": 3,
+          "vertex_count": 642
+        },
+        {
+          "max_edge_au": 0.12390594980092598,
+          "mesh_sha256": "2cbc55da8a2ea37f17ac719a00718c352546e860a6ccec9da441db8cb856d409",
+          "minimum_qd_surface_distance_au": 1.0,
+          "observables": {
+            "A_au3": [
+              1.7744551140847165,
+              0.07710951718153912
+            ],
+            "B_dipole": [
+              0.37760584160973715,
+              0.016433178600740752
+            ],
+            "B_field": [
+              0.3773175186013079,
+              0.01640881707024313
+            ],
+            "K_au_minus3": [
+              0.18867714244891715,
+              0.00788852862812216
+            ]
+          },
+          "panel_count": 5120,
+          "qd_distance_over_max_edge": 8.070637460159535,
+          "reciprocity_relative_error": 0.0007655516125680963,
+          "relative_net_charge_point_dipole": 0.006887974834537944,
+          "relative_net_charge_uniform": 1.1066974727410579e-16,
+          "relative_residual_point_dipole": 1.0980642480047812e-15,
+          "relative_residual_uniform": 8.114364941716415e-16,
+          "subdivision_level": 4,
+          "vertex_count": 2562
+        }
+      ],
+      "regime": "ordinary",
+      "side_transverse_alignment": "radial",
+      "surface_gap_au": 1.0,
+      "uncertainty_method": "lower_order_stability_plus_fit_residual"
+    },
+    {
+      "a_au": 1.0,
+      "acceptance_relative": {
+        "A": 0.005,
+        "B_dipole": 0.005,
+        "B_field": 0.005,
+        "K": 0.01,
+        "uncertainty_sigma_multiplier": 3.0
+      },
+      "c_au": 1.5,
+      "correction_orders": [
+        1.0,
+        2.0
+      ],
+      "eps_m": 1.0,
+      "epsilon_particle": [
+        -8.0,
+        1.0
+      ],
+      "estimated_absolute_uncertainty": {
+        "A": 0.01183476134318473,
+        "B_dipole": 0.0011988419878180005,
+        "B_field": 0.0012624442142308403,
+        "K": 0.0007548820371322935
+      },
+      "estimated_relative_uncertainty": {
+        "A": 0.0064871873662010115,
+        "B_dipole": 0.005718152435893778,
+        "B_field": 0.006021836354386154,
+        "K": 0.012973957792983656
+      },
+      "extrapolated": {
+        "A_au3": [
+          1.8225222999373156,
+          0.08116187121811996
+        ],
+        "B_dipole": [
+          -0.209447899873321,
+          -0.009327223823728074
+        ],
+        "B_field": [
+          -0.20943682031436905,
+          -0.00932678431759683
+        ],
+        "K_au_minus3": [
+          0.05813894500170073,
+          0.0022996218555170864
+        ]
+      },
+      "extrapolation_h_scale_au": 0.4873795443493595,
+      "extrapolation_levels": [
+        2,
+        3,
+        4
+      ],
+      "extrapolation_relative_residual": {
+        "A": 2.261157503858094e-16,
+        "B_dipole": 4.0015393325081245e-16,
+        "B_field": 9.032100745339314e-16,
+        "K": 4.248480215847346e-16
+      },
+      "finest_relative_change": {
+        "A": 0.029801773251511378,
+        "B_dipole": 0.028446907971275224,
+        "B_field": 0.02900262596579619,
+        "K": 0.03102860107573711
+      },
+      "id": "prolate_side_trans_tangential_ordinary",
+      "lower_order_extrapolated": {
+        "A_au3": [
+          1.8343570540581773,
+          0.08117494596047481
+        ],
+        "B_dipole": [
+          -0.21064674039906203,
+          -0.009325351499941929
+        ],
+        "B_field": [
+          -0.21069926448949086,
+          -0.00932647007892462
+        ],
+        "K_au_minus3": [
+          0.05889366945286708,
+          0.0023150456292657215
+        ]
+      },
+      "orientation": "trans",
+      "placement": "side",
+      "polarization": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "qd_position_au": [
+        2.0,
+        0.0,
+        0.0
+      ],
+      "raw_levels": [
+        {
+          "max_edge_au": 0.9270509831248424,
+          "mesh_sha256": "6b1b902f1f2bac437c866406f4ee7d1604eeb2a295c9fc09f22649e6b5399fa3",
+          "minimum_qd_surface_distance_au": 1.0,
+          "observables": {
+            "A_au3": [
+              1.3381376044687712,
+              0.05009073170610276
+            ],
+            "B_dipole": [
+              -0.158584199043407,
+              -0.005975894340846213
+            ],
+            "B_field": [
+              -0.15577168143332357,
+              -0.005844633641110666
+            ],
+            "K_au_minus3": [
+              0.0418627950973965,
+              0.001430626649007197
+            ]
+          },
+          "panel_count": 80,
+          "qd_distance_over_max_edge": 1.078689325833263,
+          "reciprocity_relative_error": 0.017741881078953525,
+          "relative_net_charge_point_dipole": 7.52630414777083e-16,
+          "relative_net_charge_uniform": 6.622261057109215e-17,
+          "relative_residual_point_dipole": 5.72571489028036e-16,
+          "relative_residual_uniform": 4.592901631904138e-16,
+          "subdivision_level": 1,
+          "vertex_count": 42
+        },
+        {
+          "max_edge_au": 0.4873795443493595,
+          "mesh_sha256": "7e565a2c867c3a369588f742822f4c3e8c9ade1353abb9a642cece7fb2713a2a",
+          "minimum_qd_surface_distance_au": 1.0,
+          "observables": {
+            "A_au3": [
+              1.6045886045345952,
+              0.06510858065554831
+            ],
+            "B_dipole": [
+              -0.18559411393962716,
+              -0.007553624551390702
+            ],
+            "B_field": [
+              -0.18509752938580235,
+              -0.007520702244288547
+            ],
+            "K_au_minus3": [
+              0.050612027213668406,
+              0.0018496702560596647
+            ]
+          },
+          "panel_count": 320,
+          "qd_distance_over_max_edge": 2.0517890247835022,
+          "reciprocity_relative_error": 0.0026793037811696143,
+          "relative_net_charge_point_dipole": 4.902373874869643e-16,
+          "relative_net_charge_uniform": 5.121210113504441e-16,
+          "relative_residual_point_dipole": 1.3905401649497485e-15,
+          "relative_residual_uniform": 9.615258148319147e-16,
+          "subdivision_level": 2,
+          "vertex_count": 162
+        },
+        {
+          "max_edge_au": 0.2469707400958805,
+          "mesh_sha256": "8889482a8946c1361dcb11fe5a2d825b872bbf45883a323d1e88aec32688c0d1",
+          "minimum_qd_surface_distance_au": 1.0,
+          "observables": {
+            "A_au3": [
+              1.7214455379075069,
+              0.07303749511286999
+            ],
+            "B_dipole": [
+              -0.1983082935240805,
+              -0.008427004217893589
+            ],
+            "B_field": [
+              -0.1981014815331939,
+              -0.008411336546425641
+            ],
+            "K_au_minus3": [
+              0.05492154112446194,
+              0.0020838118998360074
+            ]
+          },
+          "panel_count": 1280,
+          "qd_distance_over_max_edge": 4.049062652570802,
+          "reciprocity_relative_error": 0.001044926583340767,
+          "relative_net_charge_point_dipole": 1.450757091323887e-17,
+          "relative_net_charge_uniform": 4.845140491509562e-17,
+          "relative_residual_point_dipole": 1.8829454266975005e-15,
+          "relative_residual_uniform": 1.2216105119344978e-15,
+          "subdivision_level": 3,
+          "vertex_count": 642
+        },
+        {
+          "max_edge_au": 0.12390594980092598,
+          "mesh_sha256": "2cbc55da8a2ea37f17ac719a00718c352546e860a6ccec9da441db8cb856d409",
+          "minimum_qd_surface_distance_au": 1.0,
+          "observables": {
+            "A_au3": [
+              1.7742149087257038,
+              0.07708850263459004
+            ],
+            "B_dipole": [
+              -0.20410255832954394,
+              -0.008875200801698386
+            ],
+            "B_field": [
+              -0.2040061943394711,
+              -0.00886743765870286
+            ],
+            "K_au_minus3": [
+              0.056678015366445345,
+              0.0021944812544350666
+            ]
+          },
+          "panel_count": 5120,
+          "qd_distance_over_max_edge": 8.070637460159535,
+          "reciprocity_relative_error": 0.000473217561724922,
+          "relative_net_charge_point_dipole": 2.352522798359207e-16,
+          "relative_net_charge_uniform": 7.236289128149137e-17,
+          "relative_residual_point_dipole": 1.4596268070837678e-15,
+          "relative_residual_uniform": 9.65762421240901e-16,
+          "subdivision_level": 4,
+          "vertex_count": 2562
+        }
+      ],
+      "regime": "ordinary",
+      "side_transverse_alignment": "tangential",
+      "surface_gap_au": 1.0,
+      "uncertainty_method": "lower_order_stability_plus_fit_residual"
+    },
+    {
+      "a_au": 1.0,
+      "acceptance_relative": {
+        "A": 0.005,
+        "B_dipole": 0.005,
+        "B_field": 0.005,
+        "K": 0.02,
+        "uncertainty_sigma_multiplier": 3.0
+      },
+      "c_au": 1.5,
+      "correction_orders": [
+        1.0,
+        2.0
+      ],
+      "eps_m": 1.0,
+      "epsilon_particle": [
+        -8.0,
+        1.0
+      ],
+      "estimated_absolute_uncertainty": {
+        "A": 0.01188125981274134,
+        "B_dipole": 0.012601382563738538,
+        "B_field": 0.004811381844289526,
+        "K": 0.0981136984794017
+      },
+      "estimated_relative_uncertainty": {
+        "A": 0.006512655350856938,
+        "B_dipole": 0.015249318633787165,
+        "B_field": 0.005799124733319713,
+        "K": 0.04634316232522091
+      },
+      "extrapolated": {
+        "A_au3": [
+          1.8225278745991955,
+          0.08116265558485693
+        ],
+        "B_dipole": [
+          0.825538324473613,
+          0.036776545027792686
+        ],
+        "B_field": [
+          0.8288523175209411,
+          0.036911344058263566
+        ],
+        "K_au_minus3": [
+          2.115534615714994,
+          0.08172858835679904
+        ]
+      },
+      "extrapolation_h_scale_au": 0.4873795443493595,
+      "extrapolation_levels": [
+        2,
+        3,
+        4
+      ],
+      "extrapolation_relative_residual": {
+        "A": 2.6089289393554754e-16,
+        "B_dipole": 3.0842955577234043e-16,
+        "B_field": 3.861845765212591e-16,
+        "K": 2.471528061891075e-16
+      },
+      "finest_relative_change": {
+        "A": 0.029676695110562493,
+        "B_dipole": 0.02615139167325044,
+        "B_field": 0.027491111394108002,
+        "K": 0.03785386229586788
+      },
+      "id": "prolate_side_trans_radial_small_gap",
+      "lower_order_extrapolated": {
+        "A_au3": [
+          1.834409120685356,
+          0.0811807159823069
+        ],
+        "B_dipole": [
+          0.8381350724993614,
+          0.03711827839388031
+        ],
+        "B_field": [
+          0.8336636870473748,
+          0.036922231283079386
+        ],
+        "K_au_minus3": [
+          2.213560946793631,
+          0.08586818309160303
+        ]
+      },
+      "orientation": "trans",
+      "placement": "side",
+      "polarization": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "qd_position_au": [
+        1.5,
+        0.0,
+        0.0
+      ],
+      "raw_levels": [
+        {
+          "max_edge_au": 0.9270509831248424,
+          "mesh_sha256": "6b1b902f1f2bac437c866406f4ee7d1604eeb2a295c9fc09f22649e6b5399fa3",
+          "minimum_qd_surface_distance_au": 0.5,
+          "observables": {
+            "A_au3": [
+              1.3393649760566566,
+              0.05019112311026093
+            ],
+            "B_dipole": [
+              0.42564572588557864,
+              0.016168558648862543
+            ],
+            "B_field": [
+              0.6021176456558464,
+              0.02264343074272007
+            ],
+            "K_au_minus3": [
+              0.9444257553590322,
+              -0.032107474479320816
+            ]
+          },
+          "panel_count": 80,
+          "qd_distance_over_max_edge": 0.5393446629166315,
+          "reciprocity_relative_error": 0.29307549225664525,
+          "relative_net_charge_point_dipole": 0.9636665859252793,
+          "relative_net_charge_uniform": 2.9740142783928725e-16,
+          "relative_residual_point_dipole": 6.37470399447325e-16,
+          "relative_residual_uniform": 3.6235315665394814e-16,
+          "subdivision_level": 1,
+          "vertex_count": 42
+        },
+        {
+          "max_edge_au": 0.4873795443493595,
+          "mesh_sha256": "7e565a2c867c3a369588f742822f4c3e8c9ade1353abb9a642cece7fb2713a2a",
+          "minimum_qd_surface_distance_au": 0.5,
+          "observables": {
+            "A_au3": [
+              1.6054074153887734,
+              0.06517717847843314
+            ],
+            "B_dipole": [
+              0.7323618713484599,
+              0.029959990525669306
+            ],
+            "B_field": [
+              0.7373753821994515,
+              0.030045405227126707
+            ],
+            "K_au_minus3": [
+              1.7302865261466032,
+              0.06321424173502543
+            ]
+          },
+          "panel_count": 320,
+          "qd_distance_over_max_edge": 1.0258945123917511,
+          "reciprocity_relative_error": 0.006794478362039831,
+          "relative_net_charge_point_dipole": 0.014253417627116181,
+          "relative_net_charge_uniform": 6.364990608329004e-17,
+          "relative_residual_point_dipole": 6.348236609812151e-16,
+          "relative_residual_uniform": 6.168085910880244e-16,
+          "subdivision_level": 2,
+          "vertex_count": 162
+        },
+        {
+          "max_edge_au": 0.2469707400958805,
+          "mesh_sha256": "8889482a8946c1361dcb11fe5a2d825b872bbf45883a323d1e88aec32688c0d1",
+          "minimum_qd_surface_distance_au": 0.5,
+          "observables": {
+            "A_au3": [
+              1.7218999642632304,
+              0.07307658464096893
+            ],
+            "B_dipole": [
+              0.7882825038628224,
+              0.033592572227778755
+            ],
+            "B_field": [
+              0.7863021640914634,
+              0.033440762161733535
+            ],
+            "K_au_minus3": [
+              1.9978219467681908,
+              0.07561976203609912
+            ]
+          },
+          "panel_count": 1280,
+          "qd_distance_over_max_edge": 2.024531326285401,
+          "reciprocity_relative_error": 0.0025173069440196007,
+          "relative_net_charge_point_dipole": 0.014588897644989713,
+          "relative_net_charge_uniform": 1.5830570656631958e-16,
+          "relative_residual_point_dipole": 9.6002371297308e-16,
+          "relative_residual_uniform": 7.346136069149203e-16,
+          "subdivision_level": 3,
+          "vertex_count": 642
+        },
+        {
+          "max_edge_au": 0.12390594980092598,
+          "mesh_sha256": "2cbc55da8a2ea37f17ac719a00718c352546e860a6ccec9da441db8cb856d409",
+          "minimum_qd_surface_distance_au": 0.5,
+          "observables": {
+            "A_au3": [
+              1.7744551140847165,
+              0.07710951718153912
+            ],
+            "B_dipole": [
+              0.8094048155845707,
+              0.03524852750924013
+            ],
+            "B_field": [
+              0.8084817577286582,
+              0.035172353586736683
+            ],
+            "K_au_minus3": [
+              2.076382665169355,
+              0.07950434205411093
+            ]
+          },
+          "panel_count": 5120,
+          "qd_distance_over_max_edge": 4.0353187300797675,
+          "reciprocity_relative_error": 0.001143208639117286,
+          "relative_net_charge_point_dipole": 0.006682975528241353,
+          "relative_net_charge_uniform": 1.1066974727410579e-16,
+          "relative_residual_point_dipole": 7.957972189875623e-16,
+          "relative_residual_uniform": 8.114364941716415e-16,
+          "subdivision_level": 4,
+          "vertex_count": 2562
+        }
+      ],
+      "regime": "small_gap",
+      "side_transverse_alignment": "radial",
+      "surface_gap_au": 0.5,
+      "uncertainty_method": "lower_order_stability_plus_fit_residual"
+    }
+  ],
+  "generated_utc": "2026-09-01T10:28:55.131199+00:00",
+  "mesh_levels": [
+    1,
+    2,
+    3,
+    4
+  ],
+  "provenance": {
+    "collocation": "triangle centroid",
+    "density_basis": "piecewise constant",
+    "equation": "[Lambda I + K*] sigma = n dot E_inc",
+    "extrapolation": "X(h)=X0+c1*h+c2*h^2 on finest three levels",
+    "generator": "generate_spheroid_bem_fixtures.py",
+    "generator_sha256": "6f1d804cc697464eaa80301419fd7f752fd45ed4596efaf4468eff49325e6e3e",
+    "independence": "No spheroidal harmonics, depolarization factors, or analytic full-QS response are imported by this generator or its solver.",
+    "numpy": "2.3.4",
+    "python": "3.14.7",
+    "quadrature": "constant-panel centroid Nystrom",
+    "scipy": "1.16.3",
+    "scope_limit": "The small-gap fixture has gap/a=0.5. Smaller gaps require additional local refinement or near-singular quadrature and are not certified by this fixture set.",
+    "solver_module": "qd_mnp_bem_validation.py",
+    "solver_sha256": "2ec840aa2765f2c858e790c1e4edea0896440c6c65213f40f1f9f1c40ff8a5d1",
+    "surface_mesh": "affine icosphere; flat triangular panels",
+    "uncertainty": "max(two-term versus leading-only X0 shift, absolute fit residual)"
+  },
+  "schema": "qdmnp.independent_spheroid_bem_fixture",
+  "schema_version": 1
+}
