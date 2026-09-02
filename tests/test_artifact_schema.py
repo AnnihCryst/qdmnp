@@ -116,7 +116,7 @@ class PulseArtifactSchemaTests(unittest.TestCase):
 
             metadata = json.loads((run_dir / "params.json").read_text(encoding="utf-8"))
             alias_map = metadata["observables"]["legacy_aliases"]
-            self.assertEqual(metadata["schema_version"], 3)
+            self.assertEqual(metadata["schema_version"], 4)
             physical = metadata["physical"]
             self.assertEqual(physical["model_profile"], "quasistatic_ellipsoid_tls")
             self.assertEqual(physical["orientation"], "long")

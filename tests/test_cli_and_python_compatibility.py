@@ -70,25 +70,44 @@ class CliAndPythonCompatibilityTests(unittest.TestCase):
                     with self.assertRaises(SystemExit):
                         module.parse_args()
 
-    def test_rational_fit_artifact_forwards_transverse_orientation_to_parameters(self) -> None:
-        """The CLI path must keep ``orientation='trans'`` and therefore ``G=-1``."""
+    def test_rational_fit_artifact_forwards_geometry_to_parameters(self) -> None:
+        """The CLI path must forward the QD position and the polarization."""
 
-        with tempfile.TemporaryDirectory() as run_dir:
-            with patch(
-                "sys.argv",
-                [core.__name__, "--orientation", "trans", "--run-dir", run_dir],
-            ):
-                args = core.parse_args()
+        cases = (
+            (["--orientation", "trans"], "tip", "transverse"),
+            (["--field-polarization", "transverse"], "tip", "transverse"),
+            (
+                ["--qd-position", "equatorial", "--field-polarization", "longitudinal"],
+                "equatorial",
+                "longitudinal",
+            ),
+            (["--qd-position", "equatorial"], "equatorial", "longitudinal"),
+        )
+        for argv_tail, expected_position, expected_polarization in cases:
+            with self.subTest(argv_tail=argv_tail):
+                with tempfile.TemporaryDirectory() as run_dir:
+                    with patch(
+                        "sys.argv",
+                        [core.__name__, *argv_tail, "--run-dir", run_dir],
+                    ):
+                        args = core.parse_args()
 
-            with patch.object(
-                core,
-                "make_params_with_overrides",
-                side_effect=RuntimeError("stop after argument forwarding"),
-            ) as factory:
-                with self.assertRaisesRegex(RuntimeError, "argument forwarding"):
-                    core.build_rational_fit_artifact(args)
+                    with patch.object(
+                        core,
+                        "make_params_with_overrides",
+                        side_effect=RuntimeError("stop after argument forwarding"),
+                    ) as factory:
+                        with self.assertRaisesRegex(RuntimeError, "argument forwarding"):
+                            core.build_rational_fit_artifact(args)
 
-        self.assertEqual(factory.call_args.kwargs["orientation"], "trans")
+                self.assertEqual(
+                    factory.call_args.kwargs["qd_position"],
+                    expected_position,
+                )
+                self.assertEqual(
+                    factory.call_args.kwargs["field_polarization"],
+                    expected_polarization,
+                )
 
     def test_historical_plot_helper_warns_and_delegates(self) -> None:
         output = Path("unused.png")

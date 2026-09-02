@@ -41,16 +41,51 @@ AU_FIELD_V_M = AU_ENERGY_J / (E_CHARGE * AU_LENGTH_M)
 AU_DIPOLE_C_M = E_CHARGE * AU_LENGTH_M
 AU_SPEED_OF_LIGHT = C_SI * AU_TIME_S / AU_LENGTH_M
 DEBYE_C_M = 3.33564e-30
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 NATIVE_MODEL_PROFILE = 'quasistatic_ellipsoid_tls'
 MATERIAL_INTERPOLATION = 'piecewise_linear_n_k_no_extrapolation'
 MATERIAL_HIGH_FREQUENCY_EPSILON = 1.0
 
 DipoleOrientation = Literal['long', 'trans']
 QDDipoleConvention = Literal['bare_internal', 'effective_external']
+QDPosition = Literal['tip', 'equatorial']
+FieldPolarization = Literal['longitudinal', 'transverse']
+
+# ``orientation`` has always named the MNP polarizability branch selected by the
+# incident polarization.  It keeps exactly that meaning; ``field_polarization``
+# is the explicit spelling of the same choice.
+ORIENTATION_TO_POLARIZATION: dict[DipoleOrientation, FieldPolarization] = {
+    'long': 'longitudinal',
+    'trans': 'transverse',
+}
+POLARIZATION_TO_ORIENTATION: dict[FieldPolarization, DipoleOrientation] = {
+    'longitudinal': 'long',
+    'transverse': 'trans',
+}
+
+# The MNP is the axisymmetric prolate spheroid (x**2+y**2)/a**2+z**2/c**2=1 with
+# c>a and its symmetry axis along z.  The QD sits on the positive z axis for the
+# tip geometry and, by axial symmetry without loss of generality, on the
+# positive x axis for the equatorial geometry.
+QD_POSITION_UNIT_VECTORS: dict[QDPosition, tuple[float, float, float]] = {
+    'tip': (0.0, 0.0, 1.0),
+    'equatorial': (1.0, 0.0, 0.0),
+}
+FIELD_POLARIZATION_UNIT_VECTORS: dict[FieldPolarization, tuple[float, float, float]] = {
+    'longitudinal': (0.0, 0.0, 1.0),
+    'transverse': (1.0, 0.0, 0.0),
+}
+
+# Point-dipole tensor factors G=3*(e_L.r_D_hat)**2-1 of the two admissible
+# alignments.  Every geometry below evaluates G from the actual vectors; these
+# names exist so that messages and metadata can quote the exact values.
+PARALLEL_DIPOLE_FACTOR = 2.0
+PERPENDICULAR_DIPOLE_FACTOR = -1.0
+# Legacy tip-geometry lookup: on the long axis a longitudinal field is parallel
+# to r_D and a transverse field is perpendicular to it.
 ORIENTATION_FACTORS: dict[DipoleOrientation, float] = {
-    'long': 2.0,
-    'trans': -1.0,
+    'long': PARALLEL_DIPOLE_FACTOR,
+    'trans': PERPENDICULAR_DIPOLE_FACTOR,
 }
 
 # Deterministic initial guesses for the bundled Johnson--Christy table,
@@ -135,11 +170,114 @@ _CANONICAL_PASSIVE_N9_SEEDS: dict[DipoleOrientation, tuple[float, np.ndarray, np
 
 
 def orientation_factor(orientation: DipoleOrientation) -> float:
-    """Return the quasistatic dipole-tensor factor for an orientation."""
+    """Return the tip-geometry quasistatic dipole-tensor factor.
+
+    This is ``geometric_coupling_factor('tip', ...)`` for the polarization that
+    ``orientation`` names.  Use :func:`geometric_coupling_factor` whenever the
+    QD position is not the long-axis tip.
+    """
     try:
         return ORIENTATION_FACTORS[orientation]
     except KeyError as exc:
         raise ValueError("orientation must be either 'long' or 'trans'.") from exc
+
+
+def validate_qd_position(qd_position: QDPosition) -> QDPosition:
+    if qd_position not in QD_POSITION_UNIT_VECTORS:
+        raise ValueError("qd_position must be either 'tip' or 'equatorial'.")
+    return qd_position
+
+
+def validate_field_polarization(field_polarization: FieldPolarization) -> FieldPolarization:
+    if field_polarization not in FIELD_POLARIZATION_UNIT_VECTORS:
+        raise ValueError(
+            "field_polarization must be either 'longitudinal' or 'transverse'."
+        )
+    return field_polarization
+
+
+def field_polarization_from_orientation(
+    orientation: DipoleOrientation,
+) -> FieldPolarization:
+    """Map the legacy ``orientation`` alias onto the incident polarization."""
+    try:
+        return ORIENTATION_TO_POLARIZATION[orientation]
+    except KeyError as exc:
+        raise ValueError("orientation must be either 'long' or 'trans'.") from exc
+
+
+def orientation_from_field_polarization(
+    field_polarization: FieldPolarization,
+) -> DipoleOrientation:
+    """Map the incident polarization onto the legacy ``orientation`` alias."""
+    try:
+        return POLARIZATION_TO_ORIENTATION[field_polarization]
+    except KeyError as exc:
+        raise ValueError(
+            "field_polarization must be either 'longitudinal' or 'transverse'."
+        ) from exc
+
+
+def resolve_field_polarization(
+    orientation: DipoleOrientation | None = None,
+    field_polarization: FieldPolarization | None = None,
+    *,
+    default: FieldPolarization = 'longitudinal',
+) -> FieldPolarization:
+    """Reconcile the legacy ``orientation`` alias with ``field_polarization``.
+
+    Command-line entry points accept either spelling.  Supplying both requires
+    them to name the same polarization.
+    """
+    if orientation is not None:
+        aliased = field_polarization_from_orientation(orientation)
+        if field_polarization is not None and field_polarization != aliased:
+            raise ValueError(
+                f'orientation={orientation!r} contradicts '
+                f'field_polarization={field_polarization!r}.'
+            )
+        return aliased
+    if field_polarization is None:
+        return validate_field_polarization(default)
+    return validate_field_polarization(field_polarization)
+
+
+def qd_position_unit_vector(qd_position: QDPosition) -> np.ndarray:
+    """Unit vector r_D_hat from the MNP centre towards the QD."""
+    return np.asarray(
+        QD_POSITION_UNIT_VECTORS[validate_qd_position(qd_position)],
+        dtype=float,
+    )
+
+
+def field_polarization_unit_vector(field_polarization: FieldPolarization) -> np.ndarray:
+    """Unit vector e_L of the incident field, and of the QD transition dipole."""
+    return np.asarray(
+        FIELD_POLARIZATION_UNIT_VECTORS[validate_field_polarization(field_polarization)],
+        dtype=float,
+    )
+
+
+def geometric_coupling_factor(
+    qd_position: QDPosition,
+    field_polarization: FieldPolarization,
+) -> float:
+    """Quasistatic point-dipole tensor factor G=3*(e_L.r_D_hat)**2-1.
+
+    The QD transition dipole is taken along the incident polarization, so the
+    same factor governs both the QD field seen by the MNP and the MNP reaction
+    field projected back onto the QD dipole.  With the four supported
+    combinations e_L is either parallel to r_D_hat (G=2) or perpendicular to it
+    (G=-1); no other alignment occurs because both vectors are principal axes
+    of the spheroid.
+    """
+    projection = float(
+        np.dot(
+            field_polarization_unit_vector(field_polarization),
+            qd_position_unit_vector(qd_position),
+        )
+    )
+    return float(3.0 * projection**2 - 1.0)
 
 
 def eV_to_au(value: float | np.ndarray) -> float | np.ndarray:
@@ -351,12 +489,59 @@ class HybridSystemParams:
         default='effective_external',
         kw_only=True,
     )
+    # Where the QD sits relative to the spheroid, and along which principal
+    # axis the incident field oscillates.  The two are independent: all four
+    # combinations are supported.  ``R_au`` is always the centre-to-centre
+    # distance measured along ``qd_position``.
+    qd_position: QDPosition = field(default='tip', kw_only=True)
+    field_polarization: FieldPolarization = field(
+        default='longitudinal',
+        kw_only=True,
+    )
     material: MaterialDispersion = field(default_factory=lambda: DEFAULT_AU_MATERIAL)
 
     @property
+    def mnp_directional_semiaxis_au(self) -> float:
+        """MNP surface radius along r_D_hat: c at the tip, a at the equator."""
+        validate_qd_position(self.qd_position)
+        return float(self.c_au if self.qd_position == 'tip' else self.a_au)
+
+    @property
+    def qd_position_vector_au(self) -> np.ndarray:
+        """QD centre r_D: (0,0,c+h) at the tip and (a+h,0,0) at the equator."""
+        return self.R_au * qd_position_unit_vector(self.qd_position)
+
+    @property
+    def field_polarization_vector(self) -> np.ndarray:
+        """Unit polarization e_L of the incident field and the QD dipole."""
+        return field_polarization_unit_vector(self.field_polarization)
+
+    @property
+    def orientation(self) -> DipoleOrientation:
+        """Legacy alias of the MNP polarizability branch."""
+        return orientation_from_field_polarization(self.field_polarization)
+
+    @property
+    def geometric_coupling_factor(self) -> float:
+        """G implied by the actual r_D and e_L, independent of the stored G."""
+        return geometric_coupling_factor(self.qd_position, self.field_polarization)
+
+    @property
+    def surface_gap_au(self) -> float:
+        """Surface-to-surface gap h measured along the actual QD direction."""
+        return float(
+            self.R_au - self.mnp_directional_semiaxis_au - self.qd_radius_au
+        )
+
+    @property
     def axial_surface_gap_au(self) -> float:
-        """Surface-to-surface gap for a QD on the ellipsoid long axis."""
-        return float(self.R_au - self.c_au - self.qd_radius_au)
+        """Directional surface-to-surface gap.
+
+        Retained name: for the tip geometry this is the long-axis gap it has
+        always been.  For the equatorial geometry the relevant MNP radius is
+        the short semiaxis a, and this returns that gap instead.
+        """
+        return self.surface_gap_au
 
     @property
     def pure_dephasing_au(self) -> float:
@@ -1007,7 +1192,7 @@ class HybridQDPlasmonModel:
         self,
         params: HybridSystemParams,
         *,
-        orientation: DipoleOrientation = 'long',
+        orientation: DipoleOrientation | None = None,
         n_modes: int = 9,
         fit_window_eV: tuple[float, float] = (0.8, 3.0),
         weight_center_eV: float | None = None,
@@ -1022,7 +1207,22 @@ class HybridQDPlasmonModel:
     ) -> None:
         if n_modes < 1:
             raise ValueError('n_modes must be >= 1')
-        expected_g = orientation_factor(orientation)
+        validate_qd_position(params.qd_position)
+        validate_field_polarization(params.field_polarization)
+        # ``orientation`` names the MNP polarizability branch, i.e. the incident
+        # polarization.  It is now carried by the parameters; the argument
+        # remains for callers that spell it out and must then agree.
+        params_orientation = params.orientation
+        if orientation is None:
+            orientation = params_orientation
+        elif orientation != params_orientation:
+            raise ValueError(
+                f'orientation={orientation!r} contradicts '
+                f'field_polarization={params.field_polarization!r}; the two '
+                'name the same MNP polarizability branch.'
+            )
+        # G follows from the actual r_D and e_L, never from a free parameter.
+        expected_g = params.geometric_coupling_factor
         if len(fit_window_eV) != 2 or not np.all(np.isfinite(fit_window_eV)):
             raise ValueError('fit_window_eV must contain two finite values.')
         if fit_window_eV[0] <= 0.0 or fit_window_eV[1] <= fit_window_eV[0]:
@@ -1104,8 +1304,10 @@ class HybridQDPlasmonModel:
                 warnings.warn(message, RuntimeWarning, stacklevel=2)
         if not np.isclose(self.params.G, expected_g, rtol=0.0, atol=1e-12):
             raise ValueError(
-                f'Inconsistent quasistatic orientation: orientation={orientation!r} '
-                f'requires G={expected_g:g}, got G={self.params.G:g}.'
+                'Inconsistent quasistatic geometry: '
+                f'qd_position={params.qd_position!r} with '
+                f'field_polarization={params.field_polarization!r} requires '
+                f'G={expected_g:g}, got G={self.params.G:g}.'
             )
 
         self.L_long, self.L_trans = self._depolarization_factors()
@@ -1160,10 +1362,14 @@ class HybridQDPlasmonModel:
             raise ValueError('This implementation supports prolate/spherical MNPs and requires c >= a.')
         if p.qd_radius_au < 0.0:
             raise ValueError('QD radius must be non-negative; zero denotes the point-QD limit.')
-        if p.axial_surface_gap_au <= 0.0:
-            gap_nm = float(au_to_nm(p.axial_surface_gap_au))
+        validate_qd_position(p.qd_position)
+        validate_field_polarization(p.field_polarization)
+        if p.surface_gap_au <= 0.0:
+            gap_nm = float(au_to_nm(p.surface_gap_au))
+            semiaxis = 'c' if p.qd_position == 'tip' else 'a'
             raise ValueError(
-                'Non-positive QD-MNP surface gap: require R > c + qd_radius '
+                f'Non-positive QD-MNP surface gap for qd_position={p.qd_position!r}: '
+                f'require R > {semiaxis} + qd_radius '
                 f'(current gap={gap_nm:.6g} nm). The particles overlap or touch.'
             )
         if not np.isreal(p.eps_m) or p.eps_m <= 0.0:
@@ -1175,11 +1381,13 @@ class HybridQDPlasmonModel:
                 "qd_dipole_convention must be 'bare_internal' or "
                 "'effective_external'."
             )
-        if not any(
-            np.isclose(p.G, value, rtol=0.0, atol=1e-12)
-            for value in ORIENTATION_FACTORS.values()
-        ):
-            raise ValueError('Quasistatic dipole factor G must be exactly 2 (long) or -1 (trans).')
+        expected_g = p.geometric_coupling_factor
+        if not np.isclose(p.G, expected_g, rtol=0.0, atol=1e-12):
+            raise ValueError(
+                'Quasistatic dipole factor G must equal the geometric value '
+                f'{expected_g:g} implied by qd_position={p.qd_position!r} and '
+                f'field_polarization={p.field_polarization!r}; got G={p.G:g}.'
+            )
         if p.d_au < 0.0 or p.omega0_au <= 0.0:
             raise ValueError('QD transition-dipole magnitude must be non-negative and omega0 positive.')
         if p.gamma_au < 0.0 or p.Gamma_au < 0.0:
@@ -2049,14 +2257,9 @@ class HybridQDPlasmonModel:
             raise ValueError('Linear-stability parameters must be finite.')
         if d < 0.0 or omega0 <= 0.0 or gamma1 < 0.0 or gamma2 < 0.0:
             raise ValueError('Linear-stability dipole/frequency/rates must be physically non-negative.')
-        if separation <= p.c_au + p.qd_radius_au:
+        if separation <= p.mnp_directional_semiaxis_au + p.qd_radius_au:
             raise ValueError('Linear-stability separation must preserve a positive QD-MNP gap.')
-        if not any(
-            np.isclose(coupling_factor, value, rtol=0.0, atol=1e-12)
-            for value in ORIENTATION_FACTORS.values()
-        ):
-            raise ValueError('Linear-stability G must be exactly 2 (long) or -1 (trans).')
-        expected_coupling_factor = orientation_factor(self.orientation)
+        expected_coupling_factor = p.geometric_coupling_factor
         if not np.isclose(
             coupling_factor,
             expected_coupling_factor,
@@ -2064,10 +2267,11 @@ class HybridQDPlasmonModel:
             atol=1e-12,
         ):
             raise ValueError(
-                f'orientation={self.orientation!r} requires '
+                f'qd_position={p.qd_position!r} with '
+                f'field_polarization={p.field_polarization!r} requires '
                 f'G={expected_coupling_factor:g} in the linear-stability '
-                'Jacobian; mixing a transverse coupling with a longitudinal '
-                'MNP polarizability (or vice versa) is outside this model.'
+                'Jacobian; G is fixed by r_D and e_L and is not a free '
+                'coupling parameter.'
             )
         if gamma2 < 0.5 * gamma1:
             raise ValueError('Linear-stability check requires Gamma2 >= gamma1/2.')
@@ -2531,14 +2735,28 @@ class HybridQDPlasmonModel:
 # ================================================================
 # Convenience helpers
 # ================================================================
-def make_default_params(orientation: DipoleOrientation = 'long') -> HybridSystemParams:
+def make_default_params(
+    orientation: DipoleOrientation | None = None,
+    *,
+    qd_position: QDPosition = 'tip',
+    field_polarization: FieldPolarization | None = None,
+) -> HybridSystemParams:
+    """Default parameters for one QD position and one incident polarization.
+
+    ``orientation`` is the legacy alias of ``field_polarization``; supplying
+    both requires them to agree.  ``R_au`` is the centre-to-centre distance
+    along ``qd_position``, so the default 18 nm is a 3 nm tip gap and, for the
+    equatorial geometry, an 11 nm gap from the 7 nm short semiaxis.
+    """
+    validate_qd_position(qd_position)
+    field_polarization = resolve_field_polarization(orientation, field_polarization)
     default_d_au = float(dipole_si_to_au(7.5e-29))
     default_omega0_au = float(eV_to_au(2.042))
     return HybridSystemParams(
         c_au=float(nm_to_au(15.0)),
         a_au=float(nm_to_au(7.0)),
         R_au=float(nm_to_au(18.0)),
-        G=orientation_factor(orientation), eps_m=1.0,
+        G=geometric_coupling_factor(qd_position, field_polarization), eps_m=1.0,
         d_au=default_d_au,
         omega0_au=default_omega0_au,
         # Retain the legacy 30 ns value as provenance, but model construction
@@ -2552,6 +2770,8 @@ def make_default_params(orientation: DipoleOrientation = 'long') -> HybridSystem
         # interband matrix element.  Preserve its original external-response
         # normalization until a literature profile supplies a sourced bare d.
         qd_dipole_convention='effective_external',
+        qd_position=qd_position,
+        field_polarization=field_polarization,
     )
 
 
@@ -2570,9 +2790,15 @@ def make_params_with_overrides(
     gamma_dephasing_mev: float | None = None,
     eps_qd: float | None = None,
     qd_dipole_convention: QDDipoleConvention | None = None,
-    orientation: DipoleOrientation = 'long',
+    orientation: DipoleOrientation | None = None,
+    qd_position: QDPosition = 'tip',
+    field_polarization: FieldPolarization | None = None,
 ) -> HybridSystemParams:
-    params = make_default_params(orientation)
+    params = make_default_params(
+        orientation,
+        qd_position=qd_position,
+        field_polarization=field_polarization,
+    )
     updates = {}
     if c_nm is not None:
         updates['c_au'] = float(nm_to_au(c_nm))
@@ -2583,11 +2809,13 @@ def make_params_with_overrides(
     if qd_radius_nm is not None:
         updates['qd_radius_au'] = float(nm_to_au(qd_radius_nm))
     if g_factor is not None:
-        expected_g = orientation_factor(orientation)
+        expected_g = params.geometric_coupling_factor
         if not np.isclose(float(g_factor), expected_g, rtol=0.0, atol=1e-12):
             raise ValueError(
-                f'orientation={orientation!r} requires G={expected_g:g}; '
-                f'phenomenological G={float(g_factor):g} is outside this model.'
+                f'qd_position={params.qd_position!r} with '
+                f'field_polarization={params.field_polarization!r} requires '
+                f'G={expected_g:g}; phenomenological G={float(g_factor):g} is '
+                'outside this model.'
             )
         updates['G'] = expected_g
     if eps_m is not None:
@@ -2615,10 +2843,14 @@ def make_params_with_overrides(
 
 def params_to_physical_dict(
     params: HybridSystemParams,
-    orientation: str = 'long',
-) -> dict[str, float | str | bool | None]:
+    orientation: str | None = None,
+) -> dict[str, float | str | bool | list[float] | None]:
     radiative = params.radiative_rate_diagnostics
     radiative_ratio = radiative.gamma1_over_homogeneous_radiative_rate
+    if orientation is None:
+        orientation = params.orientation
+    position_vector = params.qd_position_vector_au
+    polarization_vector = params.field_polarization_vector
     return {
         'model_profile': NATIVE_MODEL_PROFILE,
         'coupling_model': 'quasistatic_point_dipole',
@@ -2628,8 +2860,19 @@ def params_to_physical_dict(
         'a_nm': float(au_to_nm(params.a_au)),
         'R_nm': float(au_to_nm(params.R_au)),
         'qd_radius_nm': float(au_to_nm(params.qd_radius_au)),
-        'surface_gap_nm': float(au_to_nm(params.axial_surface_gap_au)),
+        'surface_gap_nm': float(au_to_nm(params.surface_gap_au)),
         'mnp_size_to_separation_ratio_c_over_R': float(params.c_au / params.R_au),
+        'qd_position': params.qd_position,
+        'field_polarization': params.field_polarization,
+        'qd_position_vector_nm': [
+            float(au_to_nm(component)) for component in position_vector
+        ],
+        'field_polarization_vector': [
+            float(component) for component in polarization_vector
+        ],
+        'mnp_directional_semiaxis_nm': float(
+            au_to_nm(params.mnp_directional_semiaxis_au)
+        ),
         'G': float(params.G),
         'eps_m': float(params.eps_m),
         'eps_qd': float(params.eps_qd),
@@ -2826,7 +3069,11 @@ def build_rational_fit_artifact(args: argparse.Namespace) -> Path:
     run_dir = Path(run_dir)
     run_dir.mkdir(parents=True, exist_ok=True)
 
-    orientation = args.orientation
+    field_polarization = resolve_field_polarization(
+        args.orientation,
+        args.field_polarization,
+    )
+    orientation = orientation_from_field_polarization(field_polarization)
     params = make_params_with_overrides(
         c_nm=args.c_nm,
         a_nm=args.a_nm,
@@ -2840,7 +3087,8 @@ def build_rational_fit_artifact(args: argparse.Namespace) -> Path:
         omega0_ev=args.omega0_ev,
         gamma_population_mev=args.gamma_population_mev,
         gamma2_coherence_mev=args.gamma2_coherence_mev,
-        orientation=orientation,
+        qd_position=args.qd_position,
+        field_polarization=field_polarization,
     )
     fit_window_ev = (args.fit_min_ev, args.fit_max_ev)
     energy_plot = np.linspace(args.energy_min_ev, args.energy_max_ev, args.points)
@@ -3200,7 +3448,30 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--G', dest='g_factor', type=float, default=None)
     parser.add_argument('--eps-m', type=float, default=None)
     parser.add_argument('--eps-qd', type=float, default=None)
-    parser.add_argument('--orientation', choices=['long', 'trans'], default='long')
+    parser.add_argument(
+        '--qd-position',
+        choices=['tip', 'equatorial'],
+        default='tip',
+        help=(
+            'QD centre: tip is (0,0,c+h) on the long axis, equatorial is '
+            '(a+h,0,0) beside the particle.'
+        ),
+    )
+    parser.add_argument(
+        '--field-polarization',
+        choices=['longitudinal', 'transverse'],
+        default=None,
+        help=(
+            'Incident polarization e_L: longitudinal is e_z along the long MNP '
+            'axis, transverse is e_x. Independent of --qd-position.'
+        ),
+    )
+    parser.add_argument(
+        '--orientation',
+        choices=['long', 'trans'],
+        default=None,
+        help='Legacy alias of --field-polarization.',
+    )
     parser.add_argument(
         '--qd-dipole-convention',
         choices=['bare_internal', 'effective_external'],

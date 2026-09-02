@@ -35,10 +35,12 @@ from qd_mnp_rational_fit import (
     HybridQDPlasmonModel,
     au_to_nm,
     eV_to_au,
+    field_polarization_from_orientation,
     make_params_with_overrides,
     nm_to_au,
     params_to_physical_dict,
     timestamped_run_dir,
+    validate_qd_position,
 )
 from qd_mnp_spheroid_green import (
     LegacyDipoleInteraction,
@@ -153,6 +155,7 @@ def run_comparison(
     *,
     output_dir: str | Path = "results/spheroid_green_comparison",
     orientations: tuple[str, ...] = ("long", "trans"),
+    qd_position: str = "tip",
     energy_window_eV: tuple[float, float] = (1.8, 2.3),
     energy_points: int = 1001,
     target_energy_eV: float = 2.042,
@@ -190,6 +193,7 @@ def run_comparison(
         raise ValueError("target_energy_eV must lie inside energy_window_eV.")
     if not orientations or any(value not in {"long", "trans"} for value in orientations):
         raise ValueError("orientations must contain only 'long' and/or 'trans'.")
+    validate_qd_position(qd_position)
     if not np.isfinite(convergence_rtol) or convergence_rtol <= 0.0:
         raise ValueError("convergence_rtol must be finite and positive.")
     if convergence_policy not in POLICIES:
@@ -223,7 +227,8 @@ def run_comparison(
             gamma_population_mev=gamma_population_meV,
             gamma2_coherence_mev=gamma2_coherence_meV,
             qd_dipole_convention=qd_dipole_convention,
-            orientation=orientation,
+            qd_position=qd_position,
+            field_polarization=field_polarization_from_orientation(orientation),
         )
         legacy_model = HybridQDPlasmonModel(
             params,
@@ -236,11 +241,7 @@ def run_comparison(
             energies,
             mnp_response="material",
         )
-        kernel = SpheroidGreenInteraction.from_params(
-            params,
-            orientation=orientation,
-            n_max=n_max,
-        )
+        kernel = SpheroidGreenInteraction.from_params(params, n_max=n_max)
         full = kernel.response_from_material(params.material, energies)
         bright = full.truncate(1)
         beta = qd_linear_polarizability_from_params(params, energies)
@@ -399,13 +400,11 @@ def run_comparison(
             convergence_rows.append(row)
 
         target_A = target_full.A_au3
+        directional_semiaxis_nm = c_nm if qd_position == "tip" else a_nm
         for gap_nm in gaps_nm:
-            separation_nm = c_nm + qd_radius_nm + gap_nm
+            separation_nm = directional_semiaxis_nm + qd_radius_nm + gap_nm
             gap_params = replace(params, R_au=float(nm_to_au(separation_nm)))
-            gap_geometry = ProlateSpheroidGeometry.from_params(
-                gap_params,
-                orientation=orientation,
-            )
+            gap_geometry = ProlateSpheroidGeometry.from_params(gap_params)
             gap_kernel = SpheroidGreenInteraction(gap_geometry, n_max=n_max)
             gap_full = gap_kernel.response_from_epsilon(target_epsilon)
             gap_bright = gap_full.truncate(1)
@@ -422,7 +421,8 @@ def run_comparison(
                 _apply_convergence_policy(
                     convergence_policy,
                     f"The spheroidal Green series is not converged for "
-                    f"orientation={orientation!r}, surface_gap_nm={gap_nm:g}: "
+                    f"orientation={orientation!r}, qd_position={qd_position!r}, "
+                    f"surface_gap_nm={gap_nm:g}: "
                     f"relative N/2-to-N change={gap_half_order_change:.6g}, "
                     f"tail-block mass={gap_tail_block_mass:.6g}, tolerance="
                     f"{convergence_rtol:.6g}, n_max={n_max}.",
@@ -449,6 +449,8 @@ def run_comparison(
                 )
                 row = {
                     "orientation": orientation,
+                    "qd_position": qd_position,
+                    "field_polarization": params.field_polarization,
                     "model": name,
                     "energy_eV": float(target_energy_eV),
                     "surface_gap_nm": float(gap_nm),
@@ -512,6 +514,15 @@ def run_comparison(
                     ),
                     "retained_spheroidal_orders": [1, n_max],
                     "retained_order_semantics": "all integer n in the inclusive range",
+                    "retained_azimuthal_orders": [
+                        int(np.min(kernel.azimuthal_orders)),
+                        int(np.max(kernel.azimuthal_orders)),
+                    ],
+                    "retained_azimuthal_semantics": (
+                        "single order m for an axial QD; every m of parity "
+                        "matching the QD dipole for an equatorial QD"
+                    ),
+                    "retained_mode_count": int(kernel.mode_count),
                     "uniform_laser_drive_orders": [1],
                     "point_qd_reaction_orders": [1, n_max],
                     "B": _complex_metadata(target_full.B),
@@ -793,6 +804,15 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", default="results/spheroid_green_comparison")
     parser.add_argument("--orientations", nargs="+", choices=("long", "trans"), default=("long", "trans"))
+    parser.add_argument(
+        "--qd-position",
+        choices=("tip", "equatorial"),
+        default="tip",
+        help=(
+            "QD centre: tip is (0,0,c+h) on the long axis, equatorial is "
+            "(a+h,0,0) beside the particle. Independent of the polarization."
+        ),
+    )
     parser.add_argument("--energy-min-ev", type=float, default=1.8)
     parser.add_argument("--energy-max-ev", type=float, default=2.3)
     parser.add_argument("--energy-points", type=int, default=1001)
@@ -846,6 +866,7 @@ def main() -> None:
     run_dir = run_comparison(
         output_dir=args.output_dir,
         orientations=tuple(args.orientations),
+        qd_position=args.qd_position,
         energy_window_eV=(args.energy_min_ev, args.energy_max_ev),
         energy_points=args.energy_points,
         target_energy_eV=args.target_energy_ev,

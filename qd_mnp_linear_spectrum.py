@@ -31,7 +31,9 @@ from qd_mnp_rational_fit import (
     au_to_nm,
     quasistatic_dipole_cross_section_estimates_cm2,
     eV_to_au,
+    orientation_from_field_polarization,
     params_to_physical_dict,
+    resolve_field_polarization,
 )
 from qd_mnp_params import make_params_with_overrides
 
@@ -253,13 +255,17 @@ def compute_spectrum(
     gamma_dephasing_mev: float | None = None,
     gamma2_coherence_mev: float | None = None,
     eps_qd: float | None = None,
-    orientation: str = "long",
+    orientation: str | None = None,
+    qd_position: str = "tip",
+    field_polarization: str | None = None,
     qd_dipole_convention: str = "effective_external",
 ) -> list[dict[str, float | str | bool]]:
     if points < 2:
         raise ValueError("points must be at least 2.")
     if not (np.isfinite(energy_min_ev) and np.isfinite(energy_max_ev) and 0.0 < energy_min_ev < energy_max_ev):
         raise ValueError("Energy bounds must be finite, positive and strictly increasing.")
+    field_polarization = resolve_field_polarization(orientation, field_polarization)
+    orientation = orientation_from_field_polarization(field_polarization)
     params = make_params_with_overrides(
         c_nm=c_nm,
         a_nm=a_nm,
@@ -274,7 +280,8 @@ def compute_spectrum(
         gamma2_coherence_mev=gamma2_coherence_mev,
         eps_qd=eps_qd,
         qd_dipole_convention=qd_dipole_convention,
-        orientation=orientation,
+        qd_position=qd_position,
+        field_polarization=field_polarization,
     )
     energy_step_ev = float((energy_max_ev - energy_min_ev) / (points - 1))
     gamma2_energy_ev = float(au_to_eV(params.Gamma_au))
@@ -447,9 +454,11 @@ def compute_spectrum(
                 "schema_version": SCHEMA_VERSION,
                 "model_profile": "quasistatic_ellipsoid_tls",
                 "orientation": orientation,
+                "qd_position": params.qd_position,
+                "field_polarization": params.field_polarization,
                 "G": float(params.G),
                 "R_nm": float(au_to_nm(params.R_au)),
-                "surface_gap_nm": float(au_to_nm(params.axial_surface_gap_au)),
+                "surface_gap_nm": float(au_to_nm(params.surface_gap_au)),
                 "eps_qd": float(params.eps_qd),
                 "qd_local_field_factor": float(params.qd_local_field_factor),
                 "qd_dipole_convention": params.qd_dipole_convention,
@@ -724,7 +733,30 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--G", dest="g_factor", type=float, default=None)
     parser.add_argument("--eps-m", type=float, default=None)
     parser.add_argument("--eps-qd", type=float, default=None)
-    parser.add_argument("--orientation", choices=["long", "trans"], default="long")
+    parser.add_argument(
+        "--qd-position",
+        choices=["tip", "equatorial"],
+        default="tip",
+        help=(
+            "QD centre: tip is (0,0,c+h) on the long axis, equatorial is "
+            "(a+h,0,0) beside the particle."
+        ),
+    )
+    parser.add_argument(
+        "--field-polarization",
+        choices=["longitudinal", "transverse"],
+        default=None,
+        help=(
+            "Incident polarization e_L: longitudinal is e_z along the long MNP "
+            "axis, transverse is e_x. Independent of --qd-position."
+        ),
+    )
+    parser.add_argument(
+        "--orientation",
+        choices=["long", "trans"],
+        default=None,
+        help="Legacy alias of --field-polarization.",
+    )
     parser.add_argument(
         "--qd-dipole-convention",
         choices=["bare_internal", "effective_external"],
@@ -783,6 +815,8 @@ def main() -> None:
         eps_m=args.eps_m,
         eps_qd=args.eps_qd,
         orientation=args.orientation,
+        qd_position=args.qd_position,
+        field_polarization=args.field_polarization,
         qd_dipole_convention=args.qd_dipole_convention,
         d_debye=args.d_debye,
         omega0_ev=args.omega0_ev,

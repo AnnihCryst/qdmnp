@@ -34,7 +34,9 @@ from qd_mnp_rational_fit import (
     eV_to_au,
     field_si_to_au,
     fs_to_au,
+    orientation_from_field_polarization,
     params_to_physical_dict,
+    resolve_field_polarization,
     response_tail_ratio,
     timestamped_run_dir,
     write_json,
@@ -223,7 +225,9 @@ def compute_sweep(
     gamma2_coherence_mev: float | None = None,
     gamma_dephasing_mev: float | None = None,
     eps_qd: float | None = None,
-    orientation: str = "long",
+    orientation: str | None = None,
+    qd_position: str = "tip",
+    field_polarization: str | None = None,
     qd_dipole_convention: str = "effective_external",
     spectral_window_policy: str = "raise",
     max_spectral_leakage: float = 1.0e-3,
@@ -245,6 +249,8 @@ def compute_sweep(
     if not np.isfinite(max_spectral_leakage) or not 0.0 <= max_spectral_leakage < 1.0:
         raise ValueError("max_spectral_leakage must be finite and lie in [0, 1).")
 
+    field_polarization = resolve_field_polarization(orientation, field_polarization)
+    orientation = orientation_from_field_polarization(field_polarization)
     params = make_params_with_overrides(
         c_nm=c_nm,
         a_nm=a_nm,
@@ -259,7 +265,8 @@ def compute_sweep(
         gamma_dephasing_mev=gamma_dephasing_mev,
         eps_qd=eps_qd,
         qd_dipole_convention=qd_dipole_convention,
-        orientation=orientation,
+        qd_position=qd_position,
+        field_polarization=field_polarization,
     )
     model = HybridQDPlasmonModel(
         params,
@@ -771,10 +778,7 @@ def save_artifact_run(
         "script": "qd_mnp_pulse_absorption_sweep.py",
         "created_at": datetime.now().isoformat(timespec="seconds"),
         "run_dir": str(run_dir),
-        "physical": params_to_physical_dict(
-            params,
-            orientation=args.orientation,
-        ),
+        "physical": params_to_physical_dict(params),
         "fit": {
             "n_modes": int(args.n_modes),
             "fit_window_ev": [float(args.fit_min_ev), float(args.fit_max_ev)],
@@ -1243,7 +1247,30 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--G", dest="g_factor", type=float, default=None)
     parser.add_argument("--eps-m", type=float, default=None)
     parser.add_argument("--eps-qd", type=float, default=None)
-    parser.add_argument("--orientation", choices=["long", "trans"], default="long")
+    parser.add_argument(
+        "--qd-position",
+        choices=["tip", "equatorial"],
+        default="tip",
+        help=(
+            "QD centre: tip is (0,0,c+h) on the long axis, equatorial is "
+            "(a+h,0,0) beside the particle."
+        ),
+    )
+    parser.add_argument(
+        "--field-polarization",
+        choices=["longitudinal", "transverse"],
+        default=None,
+        help=(
+            "Incident polarization e_L: longitudinal is e_z along the long "
+            "MNP axis, transverse is e_x. Independent of --qd-position."
+        ),
+    )
+    parser.add_argument(
+        "--orientation",
+        choices=["long", "trans"],
+        default=None,
+        help="Legacy alias of --field-polarization.",
+    )
     parser.add_argument(
         "--qd-dipole-convention",
         choices=["bare_internal", "effective_external"],
@@ -1348,6 +1375,8 @@ def main() -> None:
         eps_m=args.eps_m,
         eps_qd=args.eps_qd,
         orientation=args.orientation,
+        qd_position=args.qd_position,
+        field_polarization=args.field_polarization,
         qd_dipole_convention=args.qd_dipole_convention,
         spectral_window_policy=args.spectral_window_policy,
         max_spectral_leakage=args.max_spectral_leakage,

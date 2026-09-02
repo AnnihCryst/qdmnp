@@ -24,9 +24,12 @@ from qd_mnp_rational_fit import (
     eV_to_au,
     fs_to_au,
     make_params_with_overrides,
+    orientation_from_field_polarization,
     params_to_physical_dict,
+    resolve_field_polarization,
     response_tail_ratio,
     timestamped_run_dir,
+    validate_qd_position,
 )
 from qd_mnp_spheroid_green import (
     LegacyDipoleInteraction,
@@ -119,7 +122,9 @@ def _legacy_tail_ratio(
 def run_pulse_comparison(
     *,
     output_dir: str | Path = "results/spheroid_pulse_comparison",
-    orientation: str = "long",
+    orientation: str | None = None,
+    qd_position: str = "tip",
+    field_polarization: str | None = None,
     spatial_order_max: int = 80,
     material_fit_modes: int = 9,
     pulse_energy_eV: float = 2.042,
@@ -161,8 +166,9 @@ def run_pulse_comparison(
 ) -> Path:
     """Propagate the same pulse through the old and new model APIs."""
 
-    if orientation not in {"long", "trans"}:
-        raise ValueError("orientation must be 'long' or 'trans'.")
+    field_polarization = resolve_field_polarization(orientation, field_polarization)
+    orientation = orientation_from_field_polarization(field_polarization)
+    validate_qd_position(qd_position)
     if spatial_order_max < 1:
         raise ValueError("spatial_order_max must be at least 1.")
     if material_fit_modes < 1:
@@ -223,7 +229,8 @@ def run_pulse_comparison(
         gamma_population_mev=gamma_population_meV,
         gamma2_coherence_mev=gamma2_coherence_meV,
         qd_dipole_convention=qd_dipole_convention,
-        orientation=orientation,
+        qd_position=qd_position,
+        field_polarization=field_polarization,
     )
     legacy_model = HybridQDPlasmonModel(
         params,
@@ -234,7 +241,6 @@ def run_pulse_comparison(
     )
     kernel = SpheroidGreenInteraction.from_params(
         params,
-        orientation=orientation,
         n_max=spatial_order_max,
     )
     full_model = FullQSSpheroidPulseModel(
@@ -765,7 +771,30 @@ def _plot_pulse_comparison(
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", default="results/spheroid_pulse_comparison")
-    parser.add_argument("--orientation", choices=("long", "trans"), default="long")
+    parser.add_argument(
+        "--orientation",
+        choices=("long", "trans"),
+        default=None,
+        help="Legacy alias of --field-polarization.",
+    )
+    parser.add_argument(
+        "--field-polarization",
+        choices=("longitudinal", "transverse"),
+        default=None,
+        help=(
+            "Incident polarization e_L: longitudinal is e_z along the long "
+            "MNP axis, transverse is e_x. Independent of --qd-position."
+        ),
+    )
+    parser.add_argument(
+        "--qd-position",
+        choices=("tip", "equatorial"),
+        default="tip",
+        help=(
+            "QD centre: tip is (0,0,c+h) on the long axis, equatorial is "
+            "(a+h,0,0) beside the particle. Independent of the polarization."
+        ),
+    )
     parser.add_argument("--spatial-order-max", type=int, default=80)
     parser.add_argument("--material-fit-modes", type=int, default=9)
     parser.add_argument("--pulse-energy-ev", type=float, default=2.042)
@@ -854,6 +883,8 @@ def main() -> None:
     run_dir = run_pulse_comparison(
         output_dir=args.output_dir,
         orientation=args.orientation,
+        qd_position=args.qd_position,
+        field_polarization=args.field_polarization,
         spatial_order_max=args.spatial_order_max,
         material_fit_modes=args.material_fit_modes,
         pulse_energy_eV=args.pulse_energy_ev,

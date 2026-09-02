@@ -90,15 +90,20 @@ class NativeOrientationTests(unittest.TestCase):
         self.assertEqual(make_default_params("long").G, 2.0)
         self.assertEqual(make_default_params("trans").G, -1.0)
 
-    def test_model_rejects_orientation_and_g_conflict_before_fitting(self) -> None:
+    def test_model_rejects_orientation_and_polarization_conflict(self) -> None:
         longitudinal_params = make_default_params("long")
-        with self.assertRaisesRegex(ValueError, "orientation.*requires G"):
+        with self.assertRaisesRegex(ValueError, "orientation.*contradicts"):
             HybridQDPlasmonModel(
                 longitudinal_params,
                 orientation="trans",
                 n_modes=1,
                 verbose=False,
             )
+
+    def test_model_rejects_g_that_contradicts_the_geometry(self) -> None:
+        inconsistent = replace(make_default_params("long"), G=-1.0)
+        with self.assertRaisesRegex(ValueError, "G must equal the geometric value"):
+            HybridQDPlasmonModel(inconsistent, n_modes=1, verbose=False)
 
     def test_stability_override_cannot_mix_orientation_and_g(self) -> None:
         model = HybridQDPlasmonModel(

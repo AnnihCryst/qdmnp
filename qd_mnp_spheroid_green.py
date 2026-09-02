@@ -44,11 +44,16 @@ from scipy.special import gammaln, hyp2f1, legendre_p_all, lqn
 
 from qd_mnp_rational_fit import (
     DipoleOrientation,
+    FieldPolarization,
     HybridQDPlasmonModel,
     HybridSystemParams,
     MaterialDispersion,
+    QDPosition,
     eV_to_au,
-    orientation_factor,
+    geometric_coupling_factor,
+    orientation_from_field_polarization,
+    resolve_field_polarization,
+    validate_qd_position,
 )
 
 
@@ -64,21 +69,40 @@ def _readonly_array(value: np.ndarray, *, dtype=None) -> np.ndarray:
 
 @dataclass(frozen=True)
 class ProlateSpheroidGeometry:
-    """Geometry of one external point QD on a prolate/spherical particle axis.
+    """Geometry of one external point QD beside a prolate/spherical particle.
 
     ``SpheroidGreenInteraction`` treats ``c_au == a_au`` with the exact
     spherical multipole limit.  Values with ``c_au > a_au`` use prolate
     spheroidal coordinates; oblate particles remain outside this API.
+
+    ``qd_position`` selects the QD centre and ``field_polarization`` selects the
+    incident polarization; the two are independent.  ``R_au`` is always the
+    centre-to-centre distance measured along the QD direction, so a tip QD sits
+    at ``(0, 0, R_au)`` and an equatorial QD at ``(R_au, 0, 0)``.
+    ``orientation`` is the legacy alias of ``field_polarization``.
     """
 
     a_au: float
     c_au: float
     R_au: float
     eps_m: float
-    orientation: DipoleOrientation = "long"
+    orientation: DipoleOrientation | None = None
     qd_radius_au: float = 0.0
+    qd_position: QDPosition = "tip"
+    field_polarization: FieldPolarization | None = None
 
     def __post_init__(self) -> None:
+        polarization = resolve_field_polarization(
+            self.orientation,
+            self.field_polarization,
+        )
+        object.__setattr__(self, "field_polarization", polarization)
+        object.__setattr__(
+            self,
+            "orientation",
+            orientation_from_field_polarization(polarization),
+        )
+        validate_qd_position(self.qd_position)
         values = np.asarray(
             [
                 self.a_au,
@@ -102,28 +126,70 @@ class ProlateSpheroidGeometry:
             raise ValueError("The lossless host permittivity eps_m must be positive.")
         if self.qd_radius_au < 0.0:
             raise ValueError("qd_radius_au must be non-negative.")
-        if self.R_au <= self.c_au + self.qd_radius_au:
+        if self.R_au <= self.directional_semiaxis_au + self.qd_radius_au:
+            semiaxis = "c_au" if self.qd_position == "tip" else "a_au"
             raise ValueError(
                 "The QD must lie strictly outside the spheroid: require "
-                "R_au > c_au + qd_radius_au."
+                f"R_au > {semiaxis} + qd_radius_au for "
+                f"qd_position={self.qd_position!r}."
             )
-        orientation_factor(self.orientation)
 
     @classmethod
     def from_params(
         cls,
         params: HybridSystemParams,
         *,
-        orientation: DipoleOrientation,
+        orientation: DipoleOrientation | None = None,
+        qd_position: QDPosition | None = None,
+        field_polarization: FieldPolarization | None = None,
     ) -> "ProlateSpheroidGeometry":
+        """Mirror the geometry already carried by ``params``.
+
+        The optional arguments only let a caller spell the same choice out; a
+        value that contradicts ``params`` is rejected.
+        """
+        polarization = resolve_field_polarization(
+            orientation,
+            field_polarization,
+            default=params.field_polarization,
+        )
+        if polarization != params.field_polarization:
+            raise ValueError(
+                f"field_polarization={polarization!r} contradicts the "
+                f"parameters' {params.field_polarization!r}."
+            )
+        position = params.qd_position if qd_position is None else qd_position
+        if position != params.qd_position:
+            raise ValueError(
+                f"qd_position={position!r} contradicts the parameters' "
+                f"{params.qd_position!r}."
+            )
         return cls(
             a_au=float(params.a_au),
             c_au=float(params.c_au),
             R_au=float(params.R_au),
             eps_m=float(params.eps_m),
-            orientation=orientation,
             qd_radius_au=float(params.qd_radius_au),
+            qd_position=position,
+            field_polarization=polarization,
         )
+
+    @property
+    def directional_semiaxis_au(self) -> float:
+        """MNP surface radius along the QD direction: c at the tip, a at the equator."""
+        return float(self.c_au if self.qd_position == "tip" else self.a_au)
+
+    @property
+    def qd_position_vector_au(self) -> np.ndarray:
+        """QD centre r_D in the frame whose z axis is the long MNP axis."""
+        if self.qd_position == "tip":
+            return np.asarray([0.0, 0.0, self.R_au], dtype=float)
+        return np.asarray([self.R_au, 0.0, 0.0], dtype=float)
+
+    @property
+    def geometric_coupling_factor(self) -> float:
+        """Point-dipole tensor factor G of this position/polarization pair."""
+        return geometric_coupling_factor(self.qd_position, self.field_polarization)
 
     @property
     def focal_length_au(self) -> float:
@@ -138,18 +204,39 @@ class ProlateSpheroidGeometry:
 
     @property
     def xi_qd(self) -> float:
+        """Radial spheroidal coordinate of the QD centre.
+
+        A tip QD lies on the axis, where ``z = f*xi*eta`` with ``eta=1`` gives
+        ``xi = R/f``.  An equatorial QD lies in ``z = 0``, where
+        ``x = f*sqrt(xi**2-1)`` gives ``xi = sqrt(1+(R/f)**2)``.
+        """
         if self.c_au == self.a_au:
             return float("inf")
-        return float(self.R_au / self.focal_length_au)
+        focal = self.focal_length_au
+        if self.qd_position == "tip":
+            return float(self.R_au / focal)
+        return float(np.hypot(1.0, self.R_au / focal))
+
+    @property
+    def eta_qd(self) -> float:
+        """Angular QD coordinate: 1 on the long axis, 0 in the equatorial plane."""
+        return 1.0 if self.qd_position == "tip" else 0.0
 
     @property
     def surface_gap_au(self) -> float:
-        return float(self.R_au - self.c_au - self.qd_radius_au)
+        return float(self.R_au - self.directional_semiaxis_au - self.qd_radius_au)
 
 
 @dataclass(frozen=True)
 class QuasistaticInteractionResponse:
-    """Frequency-domain A/B/K response in the project's atomic-unit convention."""
+    """Frequency-domain A/B/K response in the project's atomic-unit convention.
+
+    Modes are labelled by a spatial degree ``n`` and an azimuthal order ``m``.
+    A QD on the symmetry axis excites one order only, so ``degrees`` is then the
+    contiguous sequence 1..n_max.  An equatorial QD excites every ``m`` with the
+    parity its dipole selects, and ``degrees`` repeats each ``n`` accordingly.
+    Modes are always ordered by ``(n, m)``, so index 0 is the bright mode.
+    """
 
     model: InteractionModel
     orientation: DipoleOrientation
@@ -164,6 +251,8 @@ class QuasistaticInteractionResponse:
     depolarization_by_degree: np.ndarray
     geometric_factor_by_degree: np.ndarray
     log_abs_geometric_factor_by_degree: np.ndarray | None = None
+    azimuthal_orders: np.ndarray | None = None
+    qd_position: QDPosition = "tip"
 
     def __post_init__(self) -> None:
         A = _readonly_array(self.A_au3, dtype=complex)
@@ -198,6 +287,14 @@ class QuasistaticInteractionResponse:
             )
         if degrees.ndim != 1 or degrees.size < 1:
             raise ValueError("degrees must be a non-empty one-dimensional array.")
+        validate_qd_position(self.qd_position)
+        if self.azimuthal_orders is None:
+            # A QD on the symmetry axis couples to a single azimuthal order:
+            # m=0 for an axial dipole and m=1 for a transverse one.
+            single_order = 0 if self.orientation == "long" else 1
+            orders = np.full(degrees.size, single_order, dtype=int)
+        else:
+            orders = _readonly_array(self.azimuthal_orders, dtype=int)
         expected_mode_shape = (degrees.size,) + A.shape
         if K_by_degree.shape != expected_mode_shape:
             raise ValueError("K_by_degree has an inconsistent mode/frequency shape.")
@@ -211,8 +308,18 @@ class QuasistaticInteractionResponse:
             == degrees.shape
         ):
             raise ValueError("Mode geometry arrays must have one value per degree.")
-        if not np.array_equal(degrees, np.arange(1, degrees.size + 1)):
-            raise ValueError("Spatial degrees must be the contiguous sequence 1..n_max.")
+        if orders.shape != degrees.shape:
+            raise ValueError("azimuthal_orders must have one value per mode.")
+        if degrees[0] != 1 or np.any(np.diff(degrees) < 0) or np.any(np.diff(degrees) > 1):
+            raise ValueError(
+                "Spatial degrees must start at 1 and increase by at most one, "
+                "so that every degree up to n_max is represented."
+            )
+        if np.any(orders < 0) or np.any(orders > degrees):
+            raise ValueError("Azimuthal orders must satisfy 0 <= m <= n.")
+        mode_labels = np.stack([degrees, orders], axis=1)
+        if np.any(np.all(mode_labels[1:] <= mode_labels[:-1], axis=1)):
+            raise ValueError("Modes must be strictly ordered by (degree, order).")
         finite_arrays = (
             A,
             B,
@@ -249,6 +356,8 @@ class QuasistaticInteractionResponse:
         )
         object.__setattr__(self, "depolarization_by_degree", depolarization)
         object.__setattr__(self, "geometric_factor_by_degree", geometric)
+        orders.setflags(write=False)
+        object.__setattr__(self, "azimuthal_orders", orders)
         object.__setattr__(
             self,
             "log_abs_geometric_factor_by_degree",
@@ -259,6 +368,10 @@ class QuasistaticInteractionResponse:
     @property
     def n_max(self) -> int:
         return int(self.degrees[-1])
+
+    @property
+    def mode_count(self) -> int:
+        return int(self.degrees.size)
 
     @property
     def K_bright_au_minus3(self) -> np.ndarray:
@@ -285,7 +398,11 @@ class QuasistaticInteractionResponse:
             # converged.
             coarse = np.zeros_like(fine)
         else:
-            coarse_index = self.n_max // 2 - 1
+            # Compare against every mode up to half the retained spatial
+            # degree, which is the mode count itself for a single-order family.
+            coarse_index = int(
+                np.searchsorted(self.degrees, self.n_max // 2, side="right")
+            ) - 1
             coarse = cumulative[coarse_index]
         global_scale = max(float(np.max(np.abs(fine))), np.finfo(float).tiny)
         return np.abs(fine - coarse) / np.maximum(
@@ -301,11 +418,11 @@ class QuasistaticInteractionResponse:
         """Conservative absolute modal mass in the final spatial-order block."""
 
         if block_size is None:
-            block_size = min(self.n_max, max(4, self.n_max // 8))
+            block_size = min(self.mode_count, max(4, self.mode_count // 8))
         if not isinstance(block_size, (int, np.integer)) or not (
-            1 <= block_size <= self.n_max
+            1 <= block_size <= self.mode_count
         ):
-            raise ValueError("block_size must be an integer in [1, n_max].")
+            raise ValueError("block_size must be an integer in [1, mode_count].")
         if not np.isfinite(floor_scale) or floor_scale <= 0.0:
             raise ValueError("floor_scale must be finite and positive.")
         absolute_modal_sum = np.sum(np.abs(self.K_by_degree_au_minus3), axis=0)
@@ -330,7 +447,9 @@ class QuasistaticInteractionResponse:
         ):
             raise ValueError(f"n_max must lie in [1, {self.n_max}].")
         n_max = int(n_max)
-        mode_slice = slice(0, n_max)
+        # Truncation is by spatial degree, which keeps every azimuthal order of
+        # the retained degrees together.
+        mode_slice = self.degrees <= n_max
         if self.model == "legacy":
             model: InteractionModel = "legacy"
         else:
@@ -356,6 +475,8 @@ class QuasistaticInteractionResponse:
             log_abs_geometric_factor_by_degree=(
                 self.log_abs_geometric_factor_by_degree[mode_slice]
             ),
+            azimuthal_orders=self.azimuthal_orders[mode_slice],
+            qd_position=self.qd_position,
         )
 
 
@@ -521,6 +642,221 @@ def _log_legendre_q_and_derivative(
     return selected_Q, selected_Q_prime
 
 
+@dataclass(frozen=True)
+class _AssociatedLegendreLogTable:
+    """Log magnitudes of P_n^m, Q_n^m and their xi-derivatives for xi>1.
+
+    Hobson's convention is used throughout, ``F_n^m(x)=(x**2-1)**(m/2)*d^m
+    F_n/dx^m``, without the Condon--Shortley phase.  For ``x>1`` this makes
+    ``P_n^m`` and ``P_n^m'`` positive, while ``Q_n^m`` has sign ``(-1)**m`` and
+    ``Q_n^m'`` has sign ``(-1)**(m+1)``.  Only magnitudes are stored; the
+    kernel reintroduces the signs analytically, where they cancel against the
+    ``(-1)**m`` of the expansion coefficient.
+
+    Entries with ``m > n`` are NaN.  Row ``i`` holds degree ``n = i+1``.
+    """
+
+    x: float
+    n_max: int
+    log_P: np.ndarray
+    log_P_prime: np.ndarray
+    log_abs_Q: np.ndarray
+    log_abs_Q_prime: np.ndarray
+
+
+def _associated_legendre_log_table(
+    n_max: int,
+    x: float,
+) -> _AssociatedLegendreLogTable:
+    """Build the (n, m) log table by cancellation-free positive recurrences.
+
+    The ``m=0`` column reuses the hardened axial routines above.  Higher orders
+    follow
+
+    * ``P``: the closed form ``P_m^m=(2m-1)!!*(x**2-1)**(m/2)`` plus the usual
+      degree recurrence written for the ratio ``P_n^m/P_{n-1}^m``;
+    * ``Q``: the order recurrence
+      ``q_n^{m+2}=2(m+1)x/s*q_n^{m+1}+(n-m)(n+m+1)*q_n^m`` for the positive
+      magnitudes ``q_n^m=(-1)**m*Q_n^m``, whose terms are all positive, seeded
+      by ``q_n^0=Q_n`` and ``q_n^1=s*|Q_n'|`` with ``s=sqrt(x**2-1)``.
+
+    Both derivatives use ``(x**2-1)*F_n^m'=m*x*F_n^m+s*F_n^{m+1}``, which is
+    free of cancellation for ``P`` term by term and, for ``Q``, reduces via the
+    order recurrence to ``m*x+s*(n-m+1)(n+m)/rho_m`` with ``rho_m`` the
+    positive ratio ``q_n^m/q_n^{m-1}``.
+    """
+
+    if (
+        isinstance(n_max, (bool, np.bool_))
+        or not isinstance(n_max, (int, np.integer))
+        or n_max < 1
+    ):
+        raise ValueError("n_max must be an integer >= 1.")
+    n_max = int(n_max)
+    x = float(x)
+    if not np.isfinite(x) or x <= 1.0:
+        raise ValueError("The prolate radial coordinate must satisfy x > 1.")
+
+    log_x_minus_one = float(np.log(x - 1.0))
+    log_x_plus_one = float(np.log(x + 1.0))
+    log_x2_minus_one = log_x_minus_one + log_x_plus_one
+    half_log_x2_minus_one = 0.5 * log_x2_minus_one
+    sqrt_x2_minus_one = float(np.sqrt((x - 1.0) * (x + 1.0)))
+
+    shape = (n_max, n_max + 1)
+    log_P = np.full(shape, np.nan, dtype=float)
+    log_P_prime = np.full(shape, np.nan, dtype=float)
+    log_abs_Q = np.full(shape, np.nan, dtype=float)
+    log_abs_Q_prime = np.full(shape, np.nan, dtype=float)
+
+    axial_log_P, axial_log_P_prime = _log_legendre_p_and_derivative(n_max, x)
+    axial_log_Q, axial_log_minus_Q_prime = _log_legendre_q_and_derivative(n_max, x)
+    log_P[:, 0] = axial_log_P
+    log_P_prime[:, 0] = axial_log_P_prime
+    log_abs_Q[:, 0] = axial_log_Q
+    log_abs_Q_prime[:, 0] = axial_log_minus_Q_prime
+    if n_max >= 1:
+        log_abs_Q[:, 1] = half_log_x2_minus_one + axial_log_minus_Q_prime
+
+    orders = np.arange(1, n_max + 1, dtype=float)
+    log_double_factorial = (
+        gammaln(2.0 * orders + 1.0)
+        - orders * np.log(2.0)
+        - gammaln(orders + 1.0)
+    )
+    for m in range(1, n_max + 1):
+        log_P[m - 1, m] = (
+            log_double_factorial[m - 1] + m * half_log_x2_minus_one
+        )
+        ratio = 0.0
+        for n in range(m + 1, n_max + 1):
+            if n == m + 1:
+                ratio = (2.0 * m + 1.0) * x
+            else:
+                ratio = (
+                    (2.0 * n - 1.0) * x - (n + m - 1.0) / ratio
+                ) / (n - m)
+            if not np.isfinite(ratio) or ratio <= 0.0:
+                raise FloatingPointError(
+                    "Positive associated-Legendre-P ratio recurrence failed at "
+                    f"n={n}, m={m}, x={x!r}."
+                )
+            log_P[n - 1, m] = log_P[n - 2, m] + np.log(ratio)
+
+    for m in range(1, n_max + 1):
+        degrees = np.arange(m, n_max + 1, dtype=float)
+        if m < n_max:
+            with np.errstate(over="ignore"):
+                order_ratio = np.exp(
+                    half_log_x2_minus_one
+                    + log_P[m:, m + 1]
+                    - log_P[m:, m]
+                )
+            bracket = np.empty(degrees.size, dtype=float)
+            # The diagonal has P_n^{n+1}=0, so only m*x survives there.
+            bracket[0] = m * x
+            bracket[1:] = m * x + order_ratio
+        else:
+            bracket = np.asarray([m * x], dtype=float)
+        if np.any(~np.isfinite(bracket)) or np.any(bracket <= 0.0):
+            raise FloatingPointError(
+                f"Associated-Legendre-P derivative bracket failed at m={m}."
+            )
+        log_P_prime[m - 1 :, m] = (
+            log_P[m - 1 :, m] + np.log(bracket) - log_x2_minus_one
+        )
+
+    for n in range(1, n_max + 1):
+        rho = np.empty(n + 2, dtype=float)
+        rho[0] = np.nan
+        rho[1] = float(np.exp(log_abs_Q[n - 1, 1] - log_abs_Q[n - 1, 0]))
+        for k in range(1, n):
+            rho[k + 1] = (
+                2.0 * k * x / sqrt_x2_minus_one
+                + (n - k + 1.0) * (n + k) / rho[k]
+            )
+            if not np.isfinite(rho[k + 1]) or rho[k + 1] <= 0.0:
+                raise FloatingPointError(
+                    "Positive associated-Legendre-Q order recurrence failed at "
+                    f"n={n}, m={k + 1}, x={x!r}."
+                )
+            log_abs_Q[n - 1, k + 1] = log_abs_Q[n - 1, k] + np.log(rho[k + 1])
+        for m in range(1, n + 1):
+            bracket = (
+                m * x
+                + sqrt_x2_minus_one * (n - m + 1.0) * (n + m) / rho[m]
+            )
+            if not np.isfinite(bracket) or bracket <= 0.0:
+                raise FloatingPointError(
+                    "Associated-Legendre-Q derivative bracket failed at "
+                    f"n={n}, m={m}."
+                )
+            log_abs_Q_prime[n - 1, m] = (
+                log_abs_Q[n - 1, m] + np.log(bracket) - log_x2_minus_one
+            )
+
+    upper = np.triu(np.ones(shape, dtype=bool), k=2)
+    tables = (log_P, log_P_prime, log_abs_Q, log_abs_Q_prime)
+    for table in tables:
+        if np.any(~np.isfinite(table[~upper])):
+            raise FloatingPointError(
+                "The associated-Legendre log table contains non-finite entries."
+            )
+        table.setflags(write=False)
+    return _AssociatedLegendreLogTable(
+        x=x,
+        n_max=n_max,
+        log_P=log_P,
+        log_P_prime=log_P_prime,
+        log_abs_Q=log_abs_Q,
+        log_abs_Q_prime=log_abs_Q_prime,
+    )
+
+
+def _log_abs_ferrers_at_zero(
+    degrees: np.ndarray,
+    orders: np.ndarray,
+) -> np.ndarray:
+    """log|P_n^m(0)| for the equatorial plane; requires n-m even.
+
+    ``P_n^m(0)=2**m*Gamma((n+m+1)/2)/(sqrt(pi)*Gamma((n-m)/2+1))`` up to the
+    sign that squares away in every reaction weight.
+    """
+
+    n = np.asarray(degrees, dtype=float)
+    m = np.asarray(orders, dtype=float)
+    if np.any((n - m) % 2 != 0):
+        raise ValueError("P_n^m(0) vanishes unless n-m is even.")
+    return (
+        m * np.log(2.0)
+        + gammaln(0.5 * (n + m + 1.0))
+        - 0.5 * np.log(np.pi)
+        - gammaln(0.5 * (n - m) + 1.0)
+    )
+
+
+def _log_abs_ferrers_derivative_at_zero(
+    degrees: np.ndarray,
+    orders: np.ndarray,
+) -> np.ndarray:
+    """log|dP_n^m/d(eta)| at eta=0; requires n-m odd.
+
+    Differentiating ``P_n^m(eta)=(1-eta**2)**(m/2)*d^m P_n/d(eta)^m`` at zero
+    leaves ``P_n^{m+1}(0)``, so the closed form above applies with m -> m+1.
+    """
+
+    n = np.asarray(degrees, dtype=float)
+    m = np.asarray(orders, dtype=float)
+    if np.any((n - m) % 2 != 1):
+        raise ValueError("dP_n^m/d(eta) vanishes at eta=0 unless n-m is odd.")
+    return (
+        (m + 1.0) * np.log(2.0)
+        + gammaln(0.5 * (n + m) + 1.0)
+        - 0.5 * np.log(np.pi)
+        - gammaln(0.5 * (n - m + 1.0))
+    )
+
+
 def _exp_representable(log_values: np.ndarray, *, quantity: str) -> np.ndarray:
     """Exponentiate a physical nonnegative quantity, allowing true underflow."""
 
@@ -556,12 +892,24 @@ class SpheroidGreenInteraction:
             )
         self.geometry = geometry
         self.n_max = int(n_max)
-        self.degrees = np.arange(1, self.n_max + 1, dtype=int)
         self.is_spherical = bool(self.geometry.c_au == self.geometry.a_au)
+        # ``degrees``/``azimuthal_orders`` carry one entry per retained mode.
+        # An axial QD, and every spherical particle, needs a single order per
+        # degree; an equatorial QD on a spheroid needs the full (n, m) family.
+        self.degrees = np.arange(1, self.n_max + 1, dtype=int)
+        self.azimuthal_orders = np.full(
+            self.n_max,
+            0 if self.geometry.field_polarization == "longitudinal" else 1,
+            dtype=int,
+        )
         if self.is_spherical:
             self._initialize_spherical_limit()
+        elif self.geometry.qd_position == "equatorial":
+            self._initialize_equatorial_prolate()
         else:
             self._initialize_prolate_scaled()
+        self.degrees.setflags(write=False)
+        self.azimuthal_orders.setflags(write=False)
 
         if (
             np.any(~np.isfinite(self.depolarization_by_degree))
@@ -575,7 +923,14 @@ class SpheroidGreenInteraction:
             raise FloatingPointError("Invalid spheroidal modal geometry coefficients.")
 
     def _initialize_spherical_limit(self) -> None:
-        """Exact dielectric-sphere multipoles, avoiding the singular f -> 0 basis."""
+        """Exact dielectric-sphere multipoles, avoiding the singular f -> 0 basis.
+
+        A sphere has no distinguished axis, so only the angle between the QD
+        dipole and the QD radius vector matters: the tip/equatorial choice
+        enters solely through ``G``.  Every azimuthal order of one degree also
+        shares ``L_n = n/(2n+1)``, so the azimuthal sum is carried exactly by a
+        single mode per degree.
+        """
 
         degree = self.degrees.astype(float)
         a = self.geometry.a_au
@@ -588,13 +943,16 @@ class SpheroidGreenInteraction:
             - np.log(eps_m)
             - np.log(2.0 * degree + 1.0)
         )
-        if self.geometry.orientation == "long":
+        coupling_factor = self.geometry.geometric_coupling_factor
+        if coupling_factor > 0.0:
+            # QD dipole along the radius vector.
             log_weight = (
                 common_log_weight
                 + np.log(degree)
                 + 2.0 * np.log(degree + 1.0)
             )
         else:
+            # QD dipole tangent to the sphere.
             log_weight = (
                 common_log_weight
                 + 2.0 * np.log(degree)
@@ -605,9 +963,7 @@ class SpheroidGreenInteraction:
             log_weight,
             quantity="Spherical reaction weight",
         )
-        self.bright_source_coupling_au_minus3 = orientation_factor(
-            self.geometry.orientation
-        ) / (eps_m * R**3)
+        self.bright_source_coupling_au_minus3 = coupling_factor / (eps_m * R**3)
         # The unscaled spheroidal g_nm diverges as f -> 0 and has no finite
         # spherical value.  It is diagnostic only; A/B/K use the finite weights
         # above.  Zero and -inf explicitly mark the different normalization.
@@ -636,7 +992,7 @@ class SpheroidGreenInteraction:
         log_Q_derivative_ratio = log_minus_Q_prime - log_Q
         degree = self.degrees.astype(float)
 
-        if self.geometry.orientation == "long":
+        if self.geometry.field_polarization == "longitudinal":
             log_denominator = np.logaddexp(
                 log_P_derivative_ratio,
                 log_Q_derivative_ratio,
@@ -692,7 +1048,7 @@ class SpheroidGreenInteraction:
             - np.log(self.geometry.eps_m)
             - 3.0 * np.log(f)
         )
-        if self.geometry.orientation == "trans":
+        if self.geometry.field_polarization == "transverse":
             common_log_weight = common_log_weight - np.log(2.0)
         self.reaction_weight_by_degree_au_minus3 = _exp_representable(
             common_log_weight,
@@ -704,7 +1060,7 @@ class SpheroidGreenInteraction:
             - np.log(self.geometry.eps_m)
             - 3.0 * np.log(f)
         )
-        if self.geometry.orientation == "long":
+        if self.geometry.field_polarization == "longitudinal":
             log_bright_coupling += np.log(3.0)
             bright_sign = 1.0
         else:
@@ -716,6 +1072,148 @@ class SpheroidGreenInteraction:
                 quantity="Bright source coupling",
             )
         )
+
+    def _initialize_equatorial_prolate(self) -> None:
+        """Full (n, m) spheroidal reaction kernel for a QD at (a+h, 0, 0).
+
+        At ``eta_D=0`` the QD is off the symmetry axis, so every azimuthal
+        order contributes.  Writing the scattered potential of a unit source as
+
+        ``Phi_sc = sum_nm c_nm*u_nm(r)*u_nm(r_D)``,
+        ``u_nm = Q_n^m(xi)*P_n^m(eta)*cos(m*phi)``,
+        ``c_nm = A_nm*chi_nm*g_nm/(eps_m*f)``,
+
+        with ``A_nm=(-1)**m*(2-delta_m0)*(2n+1)*((n-m)!/(n+m)!)**2`` the
+        coefficient of the prolate expansion of ``1/|r-r'|``, the reaction
+        field projected on the QD dipole is
+        ``K = -sum_nm c_nm*(e_d.grad u_nm(r_D))**2``.  The sign of ``A_nm``
+        cancels against the sign of ``Q_n^m``, leaving weights that are
+        manifestly non-negative.
+
+        The equatorial point has ``e_x = e_xi`` and ``e_z = e_eta``, so a
+        transverse (radial) QD dipole differentiates ``Q_n^m`` and keeps
+        ``P_n^m(0)``, which is non-zero for even ``n-m``, whereas a
+        longitudinal (tangential) dipole keeps ``Q_n^m`` and differentiates
+        ``P_n^m``, which is non-zero for odd ``n-m``.
+        """
+
+        geometry = self.geometry
+        xi0 = geometry.xi_surface
+        xi_d = geometry.xi_qd
+        focal = geometry.focal_length_au
+        surface = _associated_legendre_log_table(self.n_max, xi0)
+        qd = _associated_legendre_log_table(self.n_max, xi_d)
+        radial = geometry.field_polarization == "transverse"
+        required_parity = 0 if radial else 1
+
+        degrees_list: list[int] = []
+        orders_list: list[int] = []
+        for degree in range(1, self.n_max + 1):
+            for order in range(0, degree + 1):
+                if (degree - order) % 2 == required_parity:
+                    degrees_list.append(degree)
+                    orders_list.append(order)
+        degrees = np.asarray(degrees_list, dtype=int)
+        orders = np.asarray(orders_list, dtype=int)
+        rows = degrees - 1
+        degree_float = degrees.astype(float)
+        order_float = orders.astype(float)
+
+        log_P = surface.log_P[rows, orders]
+        log_P_derivative_ratio = surface.log_P_prime[rows, orders] - log_P
+        log_abs_Q = surface.log_abs_Q[rows, orders]
+        log_Q_derivative_ratio = surface.log_abs_Q_prime[rows, orders] - log_abs_Q
+        log_denominator = np.logaddexp(
+            log_P_derivative_ratio,
+            log_Q_derivative_ratio,
+        )
+        log_L = log_P_derivative_ratio - log_denominator
+        log_abs_geometric = log_L + log_P - log_abs_Q
+
+        log_half_xi_factor = 0.5 * np.log((xi_d - 1.0) * (xi_d + 1.0))
+        if radial:
+            log_abs_directional_derivative = (
+                log_half_xi_factor
+                - np.log(focal)
+                - np.log(xi_d)
+                + qd.log_abs_Q_prime[rows, orders]
+                + _log_abs_ferrers_at_zero(degrees, orders)
+            )
+        else:
+            log_abs_directional_derivative = (
+                -np.log(focal)
+                - np.log(xi_d)
+                + qd.log_abs_Q[rows, orders]
+                + _log_abs_ferrers_derivative_at_zero(degrees, orders)
+            )
+
+        log_abs_expansion_coefficient = (
+            np.where(orders == 0, 0.0, np.log(2.0))
+            + np.log(2.0 * degree_float + 1.0)
+            + 2.0
+            * (
+                gammaln(degree_float - order_float + 1.0)
+                - gammaln(degree_float + order_float + 1.0)
+            )
+        )
+
+        self.degrees = degrees
+        self.azimuthal_orders = orders
+        self.depolarization_by_degree = np.exp(log_L)
+        self.log_abs_geometric_factor_by_degree = np.asarray(
+            log_abs_geometric,
+            dtype=float,
+        )
+        # Q_n^m carries the sign (-1)**m for xi>1, so g_nm=-L*P_n^m/Q_n^m has
+        # the sign (-1)**(m+1).
+        with np.errstate(over="ignore", under="ignore"):
+            self.geometric_factor_by_degree = np.where(
+                orders % 2 == 0,
+                -1.0,
+                1.0,
+            ) * np.exp(log_abs_geometric)
+
+        self.reaction_weight_by_degree_au_minus3 = _exp_representable(
+            log_abs_expansion_coefficient
+            + log_abs_geometric
+            + 2.0 * log_abs_directional_derivative
+            - np.log(geometry.eps_m)
+            - np.log(focal),
+            quantity="Equatorial spheroidal reaction weight",
+        )
+
+        # The bright channel is the n=1 harmonic of the incident polarization:
+        # m=0 for a longitudinal field and m=1 for a transverse one.  Both have
+        # |P_1^m(0)| = |dP_1^0/d(eta)(0)| = 1.
+        log_common_bright = (
+            -np.log(geometry.eps_m)
+            - 3.0 * np.log(focal)
+            - np.log(xi_d)
+        )
+        if geometry.field_polarization == "longitudinal":
+            log_bright_coupling = (
+                np.log(3.0) + qd.log_abs_Q[0, 0] + log_common_bright
+            )
+            bright_sign = -1.0
+        else:
+            log_bright_coupling = (
+                np.log(1.5)
+                + log_half_xi_factor
+                + qd.log_abs_Q_prime[0, 1]
+                + log_common_bright
+            )
+            bright_sign = 1.0
+        self.bright_source_coupling_au_minus3 = bright_sign * float(
+            _exp_representable(
+                np.asarray(log_bright_coupling),
+                quantity="Bright source coupling",
+            )
+        )
+
+    @property
+    def mode_count(self) -> int:
+        """Number of retained (n, m) modes, which is n_max for an axial QD."""
+        return int(self.degrees.size)
 
     @property
     def asymptotic_order_ratio(self) -> float:
@@ -734,11 +1232,18 @@ class SpheroidGreenInteraction:
         cls,
         params: HybridSystemParams,
         *,
-        orientation: DipoleOrientation,
+        orientation: DipoleOrientation | None = None,
+        qd_position: QDPosition | None = None,
+        field_polarization: FieldPolarization | None = None,
         n_max: int = 80,
     ) -> "SpheroidGreenInteraction":
         return cls(
-            ProlateSpheroidGeometry.from_params(params, orientation=orientation),
+            ProlateSpheroidGeometry.from_params(
+                params,
+                orientation=orientation,
+                qd_position=qd_position,
+                field_polarization=field_polarization,
+            ),
             n_max=n_max,
         )
 
@@ -776,7 +1281,7 @@ class SpheroidGreenInteraction:
         K_flat = np.sum(K_by_degree_flat, axis=0)
 
         frequency_shape = original_shape
-        mode_shape = (self.n_max,) + frequency_shape
+        mode_shape = (self.mode_count,) + frequency_shape
         return QuasistaticInteractionResponse(
             model="spheroid_n1" if self.n_max == 1 else "spheroid_full",
             orientation=self.geometry.orientation,
@@ -795,6 +1300,8 @@ class SpheroidGreenInteraction:
             log_abs_geometric_factor_by_degree=(
                 self.log_abs_geometric_factor_by_degree
             ),
+            azimuthal_orders=self.azimuthal_orders,
+            qd_position=self.geometry.qd_position,
         )
 
     def response_from_material(
@@ -840,10 +1347,7 @@ class LegacyDipoleInteraction:
         else:
             raise ValueError("mnp_response must be 'material' or 'fit'.")
         A = self.model.C * np.asarray(alpha_dimensionless, dtype=complex)
-        geometry = ProlateSpheroidGeometry.from_params(
-            self.model.params,
-            orientation=self.model.orientation,
-        )
+        geometry = ProlateSpheroidGeometry.from_params(self.model.params)
         return legacy_dipole_response_from_A(A, geometry)
 
 
@@ -860,7 +1364,7 @@ def legacy_dipole_response_from_A(
         )
     if np.any(~np.isfinite(A)):
         raise ValueError("A_au3 must contain only finite values.")
-    J = orientation_factor(geometry.orientation) / (
+    J = geometry.geometric_coupling_factor / (
         geometry.eps_m * geometry.R_au**3
     )
     B = A * J
@@ -889,7 +1393,11 @@ def legacy_dipole_response_from_A(
             / eccentricity**3
         )
     depolarization = np.asarray(
-        [L_long if geometry.orientation == "long" else 0.5 * (1.0 - L_long)],
+        [
+            L_long
+            if geometry.field_polarization == "longitudinal"
+            else 0.5 * (1.0 - L_long)
+        ],
         dtype=float,
     )
     # A central point dipole has no spheroidal-harmonic normalization g_nm.
@@ -911,6 +1419,11 @@ def legacy_dipole_response_from_A(
         depolarization_by_degree=depolarization,
         geometric_factor_by_degree=geometric,
         log_abs_geometric_factor_by_degree=np.full(1, -np.inf, dtype=float),
+        azimuthal_orders=np.asarray(
+            [0 if geometry.field_polarization == "longitudinal" else 1],
+            dtype=int,
+        ),
+        qd_position=geometry.qd_position,
     )
 
 

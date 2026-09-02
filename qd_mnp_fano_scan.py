@@ -32,7 +32,9 @@ from qd_mnp_rational_fit import (
     eV_to_au,
     homogeneous_radiative_decay_rate_au,
     nm_to_au,
+    orientation_from_field_polarization,
     params_to_physical_dict,
+    resolve_field_polarization,
 )
 
 
@@ -68,7 +70,9 @@ def scan_candidates(
     c_nm: float | None = None,
     a_nm: float | None = None,
     gamma_population_mev: float | None = None,
-    orientation: str = "long",
+    orientation: str | None = None,
+    qd_position: str = "tip",
+    field_polarization: str | None = None,
     n_modes: int = 9,
 ) -> list[dict[str, float | str | bool]]:
     """Return stable Fano-like suppression candidates for physical parameters.
@@ -130,8 +134,8 @@ def scan_candidates(
         raise ValueError("R bounds must be finite, positive and ordered.")
     if r_spacing not in {"linear", "log"}:
         raise ValueError("r_spacing must be 'linear' or 'log'.")
-    if orientation not in {"long", "trans"}:
-        raise ValueError("orientation must be 'long' or 'trans'.")
+    field_polarization = resolve_field_polarization(orientation, field_polarization)
+    orientation = orientation_from_field_polarization(field_polarization)
 
     # The material fit is independent of R.  Construct at the weakest scanned
     # coupling, then evaluate a candidate-specific full Jacobian below.
@@ -147,13 +151,17 @@ def scan_candidates(
         omega0_ev=target_ev,
         gamma_population_mev=gamma_population_mev,
         gamma2_coherence_mev=float(gamma2_values[0]),
-        orientation=orientation,
+        qd_position=qd_position,
+        field_polarization=field_polarization,
     )
-    contact_distance_nm = float(au_to_nm(params.c_au + params.qd_radius_au))
+    contact_distance_nm = float(
+        au_to_nm(params.mnp_directional_semiaxis_au + params.qd_radius_au)
+    )
     if r_min_nm <= contact_distance_nm:
+        semiaxis = "c" if params.qd_position == "tip" else "a"
         raise ValueError(
             "Every scanned separation must preserve a positive surface gap: "
-            f"R_min={r_min_nm:g} nm, c+r_QD={contact_distance_nm:g} nm."
+            f"R_min={r_min_nm:g} nm, {semiaxis}+r_QD={contact_distance_nm:g} nm."
         )
 
     gamma1_population_mev = float(au_to_eV(params.gamma_au) * 1000.0)
@@ -800,7 +808,30 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--r-max-nm", type=float, default=40.0)
     parser.add_argument("--r-points", type=int, default=61)
     parser.add_argument("--r-spacing", choices=["linear", "log"], default="linear")
-    parser.add_argument("--orientation", choices=["long", "trans"], default="long")
+    parser.add_argument(
+        "--qd-position",
+        choices=["tip", "equatorial"],
+        default="tip",
+        help=(
+            "QD centre: tip is (0,0,c+h) on the long axis, equatorial is "
+            "(a+h,0,0) beside the particle."
+        ),
+    )
+    parser.add_argument(
+        "--field-polarization",
+        choices=["longitudinal", "transverse"],
+        default=None,
+        help=(
+            "Incident polarization e_L: longitudinal is e_z along the long "
+            "MNP axis, transverse is e_x. Independent of --qd-position."
+        ),
+    )
+    parser.add_argument(
+        "--orientation",
+        choices=["long", "trans"],
+        default=None,
+        help="Legacy alias of --field-polarization.",
+    )
     parser.add_argument("--n-modes", type=int, default=9)
     parser.add_argument("--fit-min-ev", type=float, default=0.8)
     parser.add_argument("--fit-max-ev", type=float, default=3.0)
@@ -863,6 +894,8 @@ def main() -> None:
         a_nm=args.a_nm,
         gamma_population_mev=args.gamma_population_mev,
         orientation=args.orientation,
+        qd_position=args.qd_position,
+        field_polarization=args.field_polarization,
         n_modes=args.n_modes,
     )
     write_csv(rows, args.csv)

@@ -247,7 +247,12 @@ class FullQSSpheroidPulseModel:
         self.kernel = spheroid_kernel
         self.params: HybridSystemParams = bright_model.params
         self.orientation = bright_model.orientation
-        self.n_spatial_modes = spheroid_kernel.n_max
+        self.qd_position = self.params.qd_position
+        self.field_polarization = self.params.field_polarization
+        # One state block per retained (n, m) mode.  An axial QD keeps a single
+        # azimuthal order, so this equals n_max there; an equatorial QD keeps
+        # every order of the correct parity.
+        self.n_spatial_modes = spheroid_kernel.mode_count
         self.n_material_modes = bright_model.n_modes
         self.fit = bright_model.fit
         self.fit_window_eV = bright_model.fit_window_eV
@@ -266,7 +271,8 @@ class FullQSSpheroidPulseModel:
                 "material-fit window: max half-order relative change="
                 f"{spatial.max_half_order_relative_change:.6g}, max tail-block "
                 f"relative mass={spatial.max_tail_block_relative_mass:.6g}, "
-                f"tolerance={spatial.tolerance:.6g}, n_max={self.n_spatial_modes}."
+                f"tolerance={spatial.tolerance:.6g}, n_max={self.kernel.n_max}, "
+                f"modes={self.n_spatial_modes}."
             )
             if spatial_convergence_policy == "raise":
                 raise RuntimeError(message)
@@ -361,8 +367,15 @@ class FullQSSpheroidPulseModel:
                 "The bright model and spheroid kernel use different parameters: "
                 + ", ".join(mismatched)
             )
-        if geometry.orientation != self.orientation:
-            raise ValueError("The bright model and spheroid kernel orientations differ.")
+        if geometry.field_polarization != self.params.field_polarization:
+            raise ValueError(
+                "The bright model and spheroid kernel use different incident "
+                "polarizations."
+            )
+        if geometry.qd_position != self.params.qd_position:
+            raise ValueError(
+                "The bright model and spheroid kernel use different QD positions."
+            )
         if not np.isclose(
             self.kernel.depolarization_by_degree[0],
             self.bright_model.L,
@@ -1031,12 +1044,14 @@ class FullQSSpheroidPulseModel:
             * modal
         )
         return QuasistaticInteractionResponse(
-            model="spheroid_n1" if self.n_spatial_modes == 1 else "spheroid_full",
+            model="spheroid_n1" if self.kernel.n_max == 1 else "spheroid_full",
             orientation=self.orientation,
             A_au3=A,
             B=B,
             K_au_minus3=np.sum(K_by_degree, axis=0),
             degrees=self.kernel.degrees,
+            azimuthal_orders=self.kernel.azimuthal_orders,
+            qd_position=self.qd_position,
             K_by_degree_au_minus3=K_by_degree,
             modal_susceptibility_by_degree=modal,
             reaction_weight_by_degree_au_minus3=self.reaction_weights_au_minus3,
@@ -1532,7 +1547,7 @@ class FullQSSpheroidPulseModel:
             response_tail_window_fraction=float(response_tail_window_fraction),
             work_nonnegative_within_tolerance=work_nonnegative,
             work_passivity_tolerance_au=work_tolerance,
-            spatial_order_max=self.n_spatial_modes,
+            spatial_order_max=self.kernel.n_max,
             material_poles_per_spatial_order=self.n_material_modes,
             spectral_abscissa_au=self.coupled_stability.spectral_abscissa_au,
             spectral_abscissa_available=(
