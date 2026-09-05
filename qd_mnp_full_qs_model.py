@@ -1177,7 +1177,12 @@ class FullQSSpheroidPulseModel:
                 np.finfo(float).tiny,
             )
 
-            def certified_sparse_poles(which: str) -> np.ndarray:
+            def certified_sparse_poles(
+                which: str,
+                *,
+                allow_dense_lr_fallback: bool = False,
+            ) -> tuple[np.ndarray, bool]:
+                used_dense_fallback = False
                 try:
                     values, vectors = eigs(
                         matrix,
@@ -1189,11 +1194,31 @@ class FullQSSpheroidPulseModel:
                         maxiter=max(10_000, 40 * size),
                     )
                 except ArpackNoConvergence as exc:
-                    raise RuntimeError(
-                        "Sparse stability eigensolver did not fully converge for "
-                        f"which={which!r}; a partial ARPACK spectrum cannot certify "
-                        "coupled stability."
-                    ) from exc
+                    if not (
+                        allow_dense_lr_fallback and which == "LR" and size <= 512
+                    ):
+                        raise RuntimeError(
+                            "Sparse stability eigensolver did not fully converge for "
+                            f"which={which!r}; a partial ARPACK spectrum cannot certify "
+                            "coupled stability."
+                        ) from exc
+                    # LR can stagnate on the nearly degenerate passive Lorentz
+                    # cluster even when LM converges.  This branch deliberately
+                    # discards every partial ARPACK Ritz value and replaces it
+                    # with a complete dense eigensystem.  The matrix is bounded
+                    # to at most 512 here, and the selected rightmost pairs pass
+                    # the same residual certificate as sparse eigenpairs below.
+                    try:
+                        dense_values, dense_vectors = np.linalg.eig(matrix.toarray())
+                    except np.linalg.LinAlgError as dense_exc:
+                        raise RuntimeError(
+                            "Both sparse LR and complete dense stability "
+                            "eigensolvers failed to converge."
+                        ) from dense_exc
+                    rightmost_indices = np.argsort(dense_values.real)[-requested:]
+                    values = dense_values[rightmost_indices]
+                    vectors = dense_vectors[:, rightmost_indices]
+                    used_dense_fallback = True
                 values = np.asarray(values, dtype=complex)
                 vectors = np.asarray(vectors, dtype=complex)
                 if (
@@ -1203,7 +1228,7 @@ class FullQSSpheroidPulseModel:
                     or np.any(~np.isfinite(vectors))
                 ):
                     raise RuntimeError(
-                        "Sparse stability eigensolver returned an invalid eigensystem."
+                        "Stability eigensolver returned an invalid eigensystem."
                     )
                 residual = matrix @ vectors - vectors * values[None, :]
                 vector_norm = np.linalg.norm(vectors, axis=0)
@@ -1213,16 +1238,23 @@ class FullQSSpheroidPulseModel:
                 )
                 if float(np.max(relative_residual)) > 1.0e-7:
                     raise RuntimeError(
-                        "Sparse stability eigensystem failed its residual "
+                        "Stability eigensystem failed its residual "
                         f"certification for which={which!r}: max relative residual="
                         f"{float(np.max(relative_residual)):.6e}."
                     )
-                return values
+                return values, used_dense_fallback
 
-            largest_magnitude_poles = certified_sparse_poles("LM")
+            largest_magnitude_poles, _ = certified_sparse_poles("LM")
             if size <= 512:
-                rightmost_poles = certified_sparse_poles("LR")
-                eigensolver = "sparse_LR_LM_certified"
+                rightmost_poles, used_dense_lr_fallback = certified_sparse_poles(
+                    "LR",
+                    allow_dense_lr_fallback=True,
+                )
+                eigensolver = (
+                    "sparse_LM_certified+dense_full_LR_fallback_certified"
+                    if used_dense_lr_fallback
+                    else "sparse_LR_LM_certified"
+                )
                 spectral_abscissa_available = True
                 spectral_abscissa_is_bound = False
             else:

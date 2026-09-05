@@ -5,7 +5,7 @@ import unittest
 from unittest.mock import patch
 
 import numpy as np
-from scipy.sparse.linalg import ArpackNoConvergence
+from scipy.sparse.linalg import ArpackNoConvergence, eigs as scipy_sparse_eigs
 
 from qd_mnp_full_qs_model import (
     FullQSSpheroidPulseModel,
@@ -490,6 +490,56 @@ class FullQSTransferRealizationTests(unittest.TestCase):
                     spatial_convergence_policy="ignore",
                     modal_audit_points=201,
                 )
+
+    def test_lr_arpack_failure_uses_complete_certified_dense_fallback(self) -> None:
+        params = make_default_params("trans")
+        bright = HybridQDPlasmonModel(
+            params,
+            orientation="trans",
+            n_modes=9,
+            radiative_consistency_policy="ignore",
+            verbose=False,
+        )
+        calls: list[str] = []
+
+        def fail_only_lr(*args, **kwargs):
+            which = str(kwargs.get("which"))
+            calls.append(which)
+            if which == "LR":
+                size = int(args[0].shape[0])
+                raise ArpackNoConvergence(
+                    "deliberate LR-only failure",
+                    np.empty(0, dtype=complex),
+                    np.empty((size, 0), dtype=complex),
+                )
+            return scipy_sparse_eigs(*args, **kwargs)
+
+        with patch("qd_mnp_full_qs_model.eigs", side_effect=fail_only_lr):
+            model = FullQSSpheroidPulseModel(
+                bright,
+                SpheroidGreenInteraction.from_params(
+                    params,
+                    orientation="trans",
+                    n_max=18,
+                ),
+                spatial_convergence_policy="ignore",
+                modal_audit_points=201,
+            )
+
+        diagnostics = model.coupled_stability
+        dense_poles = np.linalg.eigvals(
+            model.linearized_ground_state_matrix().toarray()
+        )
+        self.assertEqual(calls, ["LM", "LR"])
+        self.assertTrue(diagnostics.stable)
+        self.assertTrue(diagnostics.spectral_abscissa_available)
+        self.assertTrue(diagnostics.decay_rate_estimate_is_exact)
+        self.assertIn("dense_full_LR_fallback_certified", diagnostics.eigensolver)
+        self.assertAlmostEqual(
+            diagnostics.spectral_abscissa_au,
+            float(np.max(dense_poles.real)),
+            places=12,
+        )
 
 
 class EquatorialFullQSTimeDomainTests(unittest.TestCase):

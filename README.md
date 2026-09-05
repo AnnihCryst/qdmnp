@@ -1622,7 +1622,167 @@ uv sync
 .\.venv\Scripts\python.exe -m unittest discover -v
 ```
 
-## Сохранение результатов и schema v3
+## Минимальный набор импульсных графиков для статьи
+
+Все шесть специализированных программ собраны в каталоге
+[`article_observables`](article_observables/README.md); его локальный README
+кратко связывает каждую пару файлов с исследуемой физической зависимостью и
+явно фиксирует границы full-QS-only workflow.
+
+Три зависимости отвечают на разные физические вопросы и не заменяют друг
+друга:
+
+- `P_exc(F)` показывает, усиливает или подавляет МНЧ возбуждение экситона,
+  насколько меняется требуемый флюенс и какая комбинация положения КТ и
+  поляризации выгоднее. Расчёт включает изолированную КТ и пять неэквивалентных
+  каналов осесимметричного сфероида.
+- `sigma_QS,work(E*; F)`, её разность с bare-MNP и сохранённая величина
+  `W_inc/F` показывают, сопровождается ли изменение населённости измеримым
+  изменением оптической работы поля. `k Im(alpha_eff)/epsilon_0` и `W_inc/F` —
+  разные наблюдаемые; ни одну из них в данной локальной QS-модели нельзя без
+  дополнительного энергетического разложения называть чистым поглощением
+  металла.
+- `rho_ee(t)` показывает механизм результата во времени: локальное усиление
+  поля, Rabi-like осцилляции и остаточную населённость после импульса. Для
+  минимального рисунка достаточно изолированной КТ, `axis_long` и
+  контрастного `side_long`.
+
+Во всех трёх случаях тяжёлый расчёт и оформление рисунка разделены:
+
+```text
+calculate_*.py  ->  самодостаточный *.npz  ->  plot_*.py  ->  *.png
+```
+
+NPZ содержит фактически использованные входные параметры, константы,
+материальные данные и fit, рассчитанные зависимости и диагностики. Поэтому
+стиль, пределы осей и производные от уже сохранённых массивов величины можно
+менять без повторного интегрирования ОДУ. Существующий NPZ перезаписывается
+только с явным `--overwrite`.
+
+Расчёт набора с параметрами точности для статьи и последующее построение. Для
+сравнения числа материальных полюсов два расчёта `P_exc(F)` должны отличаться
+только `--material-fit-modes`: геометрия, импульс, сетка флюенса, момент чтения
+населённости и все численные допуски обязаны совпадать. Два параметра `*fit-quality-policy=warn`
+для `N=1` не меняют уравнений или допусков, а лишь позволяют сохранить намеренно
+не прошедшую эти допуски контрольную аппроксимацию вместе с её ошибками.
+Название preset `publication` означает численное разрешение, а не доказанное
+происхождение параметров КТ. Перед запуском нужно задать `$articleDDebye`,
+`$articleGamma1MeV` и `$articleGamma2MeV` по эксперименту или цитируемому
+источнику, а `$articleDipoleConvention` выбрать как `effective_external` или
+`bare_internal` в соответствии с определением цитируемого дипольного момента;
+одни и те же значения передаются во все сравниваемые расчёты.
+Так же до запуска фиксируют геометрию `$articleCnm`, `$articleAnm`,
+`$articleQdRadiusNm`, `$articleGapNm` и диэлектрические параметры
+`$articleEpsM`, `$articleEpsQD`: значения по умолчанию задают лишь пример
+теоретического сценария и не считаются автоматически параметрами эксперимента.
+Сначала полезно выполнить оба расчёта без `--post-fs`, взять большее из
+автоматически найденных времён чтения, убедиться по сохранённому decay-gate, что
+релаксация населённости ещё пренебрежимо мала, и задать его как
+`$articleReadTimeFs` при окончательном одинаковом прогоне `N=9` и `N=1`.
+
+```powershell
+.\.venv\Scripts\python.exe -m article_observables.qd_mnp_calculate_excitation_fluence --preset publication --material-fit-modes 9 --max-modal-relative-error 0.08 --pulse-energy-ev 2.042 --pulse-tau-fs 20 --pulse-tau-kind fwhm_intensity --c-nm $articleCnm --a-nm $articleAnm --qd-radius-nm $articleQdRadiusNm --gap-nm $articleGapNm --eps-m $articleEpsM --eps-qd $articleEpsQD --d-debye $articleDDebye --qd-dipole-convention $articleDipoleConvention --gamma-population-mev $articleGamma1MeV --gamma2-coherence-mev $articleGamma2MeV --post-fs $articleReadTimeFs --output results/article/excitation_fluence_N9.npz
+.\.venv\Scripts\python.exe -m article_observables.qd_mnp_calculate_excitation_fluence --preset publication --material-fit-modes 1 --max-modal-relative-error 0.08 --bright-fit-quality-policy warn --fit-quality-policy warn --pulse-energy-ev 2.042 --pulse-tau-fs 20 --pulse-tau-kind fwhm_intensity --c-nm $articleCnm --a-nm $articleAnm --qd-radius-nm $articleQdRadiusNm --gap-nm $articleGapNm --eps-m $articleEpsM --eps-qd $articleEpsQD --d-debye $articleDDebye --qd-dipole-convention $articleDipoleConvention --gamma-population-mev $articleGamma1MeV --gamma2-coherence-mev $articleGamma2MeV --post-fs $articleReadTimeFs --output results/article/excitation_fluence_N1.npz
+.\.venv\Scripts\python.exe -m article_observables.qd_mnp_plot_excitation_fluence results/article/excitation_fluence_N9.npz --target-population 0.5 --ratio-panel --output results/article/excitation_fluence_geometries_N9.png
+# axis_long и side_long ниже заменить на фактически выбранные лучший и контрастный каналы
+.\.venv\Scripts\python.exe -m article_observables.qd_mnp_plot_excitation_fluence results/article/excitation_fluence_N9.npz results/article/excitation_fluence_N1.npz --allow-approximate-material-fit --channel bare_qd --channel axis_long --channel side_long --target-population 0.5 --ratio-panel --output results/article/excitation_fluence_N9_vs_N1.png
+
+# Эти же два выбранных hybrid-канала передать в work-loss расчёт
+.\.venv\Scripts\python.exe -m article_observables.qd_mnp_calculate_work_loss_fluence --channel axis_long --channel side_long --max-modal-relative-error 0.08 --carrier-energy-ev 2.042 --pulse-tau-fs 20 --pulse-tau-kind fwhm_intensity --c-nm $articleCnm --a-nm $articleAnm --qd-radius-nm $articleQdRadiusNm --gap-nm $articleGapNm --eps-m $articleEpsM --eps-qd $articleEpsQD --d-debye $articleDDebye --qd-dipole-convention $articleDipoleConvention --gamma-population-mev $articleGamma1MeV --gamma2-coherence-mev $articleGamma2MeV --output results/article/work_loss_fluence.npz
+.\.venv\Scripts\python.exe -m article_observables.qd_mnp_plot_work_loss_fluence results/article/work_loss_fluence.npz --output results/article/work_loss_fluence.png
+```
+
+Здесь допуск `--max-modal-relative-error 0.08` передан явно и одинаково во
+все article-runner'ы; глобальный допуск модели `0.06` не изменён. Для
+эталонной геометрии в канале `side_trans_radial` максимум ошибки отдельной
+внутренней susceptibility равен `0.07173` и достигается на верхней границе
+широкого fit-окна `3.0 eV`. Это не эффект деления на почти нулевой отклик:
+соответствующий модуль exact susceptibility равен `4.076`. Ошибка
+физически входящей в обратное поле взвешенной суммы `K` на той же сетке не
+превышает `0.04342`, а при рабочей энергии `2.042 eV` равна примерно
+`0.00281`. Таким образом, `0.08` — явно задокументированное ограничение
+точности внутренней модальной реализации на всём окне, а не отключение
+проверки; фактические ошибки каждого запуска сохраняются в NPZ. При иной
+геометрии или энергии этот допуск следует проверить заново, а не переносить
+автоматически.
+
+Выводимый `F_req` является интерполяционной оценкой первого пересечения в
+координате `sqrt(F)`. Если целевая населённость уже превышена в первой точке,
+plotter сообщает только верхнюю границу `F_req <= F_min`; если она не достигнута,
+порог по сохранённому диапазону не определяется.
+
+После графика `P_exc(F)` выбирают один физически содержательный флюенс
+(например, порог заданной населённости или область наибольшего контраста) и
+два канала: лучший и контрастный. Только затем рассчитывают временные кривые.
+В примере ниже численное значение `$selectedFluence` нужно заменить значением,
+фактически выбранным из артефакта `P_exc(F)`; энергия, длительность, определение
+длительности и зазор передаются явно теми же, что и в расчёте `P_exc(F)`:
+
+```powershell
+$selectedFluence = 1.0e-7  # заменить выбранным по P_exc(F) значением, J/cm^2
+$selectedChannels = @("axis_long", "side_long")  # оптимальный и контрастный каналы
+.\.venv\Scripts\python.exe -m article_observables.qd_mnp_calculate_population_dynamics --channels $selectedChannels --fluence-j-cm2 $selectedFluence --max-modal-relative-error 0.08 --pulse-energy-ev 2.042 --pulse-tau-fs 20 --pulse-tau-kind fwhm_intensity --c-nm $articleCnm --a-nm $articleAnm --qd-radius-nm $articleQdRadiusNm --gap-nm $articleGapNm --eps-m $articleEpsM --eps-qd $articleEpsQD --d-debye $articleDDebye --qd-dipole-convention $articleDipoleConvention --gamma-population-mev $articleGamma1MeV --gamma2-coherence-mev $articleGamma2MeV --post-fs $articleReadTimeFs --output results/article/population_dynamics.npz
+.\.venv\Scripts\python.exe -m article_observables.qd_mnp_plot_population_dynamics results/article/population_dynamics.npz --x-min-fs -100 --x-max-fs 500 --output results/article/population_dynamics.png
+```
+
+Быстрый прогон предназначен только для проверки цепочки и оформления:
+
+```powershell
+.\.venv\Scripts\python.exe -m article_observables.qd_mnp_calculate_excitation_fluence --preset quick --output results/quick/excitation_fluence.npz
+.\.venv\Scripts\python.exe -m article_observables.qd_mnp_plot_excitation_fluence results/quick/excitation_fluence.npz --allow-unconverged --output results/quick/excitation_fluence.png
+```
+
+`quick` намеренно ослабляет часть критериев и уменьшает пространственный ряд;
+его результаты нельзя использовать как количественные данные статьи. В режиме
+для статьи расчётные скрипты и загрузчики графиков проверяют не только успешное
+завершение ОДУ и конечность состояния. В число строгих сертификатов входят
+физические границы матрицы плотности, спектральное покрытие импульса,
+сходимость хвоста отклика, допустимая потеря населённости к моменту чтения,
+пассивность работы, качество материальной рациональной аппроксимации,
+пространственная и модальная сходимость, устойчивость и качество редукции
+модели. Для `P_exc(F)` дополнительно проверяются разрешение сетки по площади
+импульса и ошибка между соседними точками; для `W_inc/F` — независимость
+результата от временного окна и точность спектральной квадратуры bare-MNP.
+Поэтому `solve_ivp.success=True` само по себе не является сертификатом
+пригодности данных для статьи.
+
+Для эталонной геометрии `c=15 nm`, `a=7 nm`, `r_QD=2 nm`, `gap=1 nm` при
+`n_max=80` максимальное изменение full-QS ядра относительно `n_max=40` равно
+примерно `1.03e-5` (наиболее медленный канал `side_long`), тогда как масса
+последнего блока мод уже `2.4e-10`. Поэтому рабочий строгий допуск
+`--spatial-convergence-rtol 2e-5` согласован с фактически доступной сходимостью,
+а прежний `1e-8` ложно запрещал боковую конфигурацию. При изменении геометрии
+этот сертификат пересчитывается и может потребовать иной дистанции, порядка или
+явного исследования сходимости; сам по себе положительный зазор его не заменяет.
+
+Даже прошедший все численные gates артефакт не доказывает физическое
+происхождение `d`, `gamma1` и `gamma2`. В этой электростатической модели они
+фиксированы: она не вычисляет зависящие от расстояния Purcell-, безызлучательный
+или charge-transfer вклад в релаксацию. Поэтому выводы о когерентном возбуждении
+и локальном поле допустимы в рамках заданных скоростей, а количественные выводы
+об изменении времени жизни, квантового выхода или полного уширения требуют
+отдельной модели распада.
+
+По умолчанию plotter отказывается строить рисунок, если обязательный
+сертификат отсутствует или не пройден. `--allow-unconverged` снимает этот
+барьер только для диагностического рисунка и не делает данные сошедшимися.
+Отдельный `--allow-approximate-material-fit` нужен для намеренно грубого
+артефакта `N=1`; вместе с ошибкой исходного fit он разрешает обусловленное ею
+непрохождение downstream modal-accuracy, но не ослабляет проверки пассивности,
+пространственной сходимости, устойчивости, ОДУ, хвоста и сетки флюенса.
+
+Здесь «осцилляторы» — полюса причинной рациональной аппроксимации дисперсии
+поляризуемости золота, а не пространственные сфероидальные моды. `N=1` не
+следует автоматически отождествлять с осциллятором Shah: это отдельная грубая
+аппроксимация, и её сохранённые ошибки fit должны быть показаны или обсуждены.
+
+Каждый из трёх новых расчётных скриптов записывает собственную независимую NPZ
+schema version 1: `qd_mnp_excitation_fluence`,
+`qd_mnp.full_qs_work_loss_fluence` или `qd_mnp_population_dynamics`. Эти файлы
+читаются соответствующими `qd_mnp_plot_*.py` напрямую и не являются schema v3
+из описанного ниже прежнего `run-dir` workflow.
+
+## Отдельный run-dir workflow и schema v3
 
 Долгие расчёты сохраняют результаты в `run-dir`. Если путь не задан,
 создаётся каталог с временной меткой:
