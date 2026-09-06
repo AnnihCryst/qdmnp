@@ -1,6 +1,6 @@
 # Зависимости для теоретической статьи
 
-В этом каталоге находятся три независимые пары программ:
+В этом каталоге находятся восемь пар программ:
 
 ```text
 расчётный скрипт -> самодостаточный NPZ -> скрипт построения -> рисунок
@@ -82,7 +82,148 @@ P_{\mathrm{exc}}(\mathcal F)=\rho_{ee}(t_{\mathrm{read}};\mathcal F).
 - `side_trans_radial` — КТ сбоку, поперечное поле радиально;
 - `side_trans_tangential` — КТ сбоку, поперечное поле тангенциально.
 
-## Что именно сравнивают эти программы
+## 4. Практические метрики DD/FQS как функции зазора
+
+Пять новых пар программ отвечают непосредственно на вопросы об усилении,
+пороговой интенсивности, сдвиге, эффективном уширении, положении КТ и
+направлении электрического поля:
+
+| Зависимость | Расчёт | Построение | Физический вопрос |
+|---|---|---|---|
+| `G_exc(g)` | `qd_mnp_calculate_excitation_gain_gap.py` | `qd_mnp_plot_excitation_gain_gap.py` | Усиливает или подавляет МНЧ резонансное возбуждение КТ? |
+| `(E_res(g)-E_res,0)/Gamma0` | `qd_mnp_calculate_resonance_shift_gap.py` | `qd_mnp_plot_resonance_shift_gap.py` | Насколько смещается максимум возбуждения? |
+| `Gamma_eff(g)/Gamma0` | `qd_mnp_calculate_spectral_width_gap.py` | `qd_mnp_plot_spectral_width_gap.py` | Насколько меняется рабочее спектральное окно возбуждения? |
+| `F_eta(g)/F_eta,0` | `qd_mnp_calculate_threshold_fluence_gap.py` | `qd_mnp_plot_threshold_fluence_gap.py` | Во сколько раз меняется требуемый флюенс и, при одинаковом импульсе, пиковая интенсивность? |
+| `delta_spec(g)` и `delta_F(g)` | `qd_mnp_calculate_model_discrepancy_gap.py` | `qd_mnp_plot_model_discrepancy_gap.py` | Начиная с какого расстояния DD воспроизводит FQS с заданной точностью? |
+
+Здесь `g` — расстояние поверхность–поверхность, а не расстояние между
+центрами. Для вершины `R=c+r_QD+g`, для боковой поверхности
+`R=a+r_QD+g`.
+
+### Определения метрик
+
+Для общего QD-селективного спектра `S(E,g)` сохраняются
+
+\[
+G_{\rm exc}^{\rm opt}(g)=
+\frac{\max_E S(E,g)}{\max_E S_0(E)},
+\qquad
+G_{\rm exc}^{*}(g)=\frac{S(E_*,g)}{S_0(E_*)}.
+\]
+
+`S` можно вычислять двумя способами:
+
+- `--spectral-observable linear_qd_response` — быстрый слабополевой
+  монохроматический показатель `|p_QD/E_inc|^2`;
+- `--spectral-observable weak_pulse_excitation` — более дорогой операционный
+  короткоимпульсный спектр `rho_ee(t_read)/F` при малом флюенсе.
+
+Резонансом считается пик, отслеживаемый около энергии изолированной КТ в
+заранее фиксированном окне. `Gamma0` — FWHM изолированной КТ, извлечённая тем
+же алгоритмом. `Gamma_eff` — ширина связной области на половине prominence
+выбранного максимума. Если обнаружен сравнимый второй пик, ширина получает
+статус `split_or_ambiguous` и не выдаётся как одно число. Для импульсного
+спектра это операционная ширина возбуждения, включающая спектральную ширину
+импульса и power broadening, а не рассчитанное изменение времени жизни КТ.
+
+Порог определяется по первой возрастающей ветви до первого максимума Раби:
+
+\[
+\mathcal F_\eta=\inf\{\mathcal F:\rho_{ee}(t_{\rm read})\ge\eta\}.
+\]
+
+Основная сохраняемая величина `F_eta/F_eta,0` меньше единицы при выигрыше.
+Одновременно сохраняется обратная эффективность `F_eta,0/F_eta`, абсолютный
+порог, соответствующая пиковая интенсивность и ошибка DD относительно FQS
+
+\[
+D_{\mathcal F}=\frac{\mathcal F_{\eta,DD}-
+\mathcal F_{\eta,FQS}}{\mathcal F_{\eta,FQS}}.
+\]
+
+Левое/правое цензурирование и недостижение порога на первой Rabi-ветви
+сохраняются отдельными статусами; из таких точек отношение порогов не
+формируется.
+
+Спектральное расхождение вычисляется на общей сетке, без индивидуальной
+нормировки кривых:
+
+\[
+\delta_{\rm spec}(g)=
+\left[
+\frac{\int_W [S_{DD}(E,g)-S_{FQS}(E,g)]^2\,dE}
+     {\int_W S_{FQS}^2(E,g)\,dE}
+\right]^{1/2}.
+\]
+
+Граница применимости DD — первый зазор, после которого допуск выполняется во
+всех последующих, более далёких, точках, а не первое случайное пересечение.
+
+### Математические ядра и одинаковость сценария
+
+Новые расчёты не копируют уравнения взаимодействия. Они вызывают действующие
+API проекта:
+
+- DD во времени — `HybridQDPlasmonModel.solve`;
+- DD в частотной области — `LegacyDipoleInteraction.frequency_response`;
+- FQS во времени — `FullQSSpheroidPulseModel.solve`;
+- FQS в частотной области — аналитические axial/equatorial spheroidal Green
+  kernels и `solve_linear_hybrid_response`.
+
+Для DD и FQS одинаковы геометрия, материал золота, параметры КТ, импульс,
+энергетическая/флюенсная сетка и момент чтения. В частотном режиме обе ветви
+используют одну и ту же прямую табличную дисперсию материала, поэтому
+`delta_spec` изолирует пространственное приближение. В импульсном режиме обе
+ветви используют одну и ту же причинную Lorentz/ADE-аппроксимацию материала.
+
+Направление распространения луча и волновой вектор не вводятся. Обозначения
+`long`, `trans`, `radial`, `tangential` относятся только к направлению вектора
+электрического поля относительно оси и локальной поверхности сфероида.
+
+### Повторное использование тяжёлого спектрального расчёта
+
+Первый из четырёх спектральных расчётов сохраняет весь массив
+`S(model,channel,gap,energy)`, комплексные `A/B/K`-отклики, исходный материал,
+геометрию, параметры и диагностики. Остальные метрики можно получить из него
+без повторного решения моделей.
+
+При выборе `weak_pulse_excitation` дополнительно сохраняются фактический общий
+интервал интегрирования, амплитуды и пиковые интенсивности обоих проверочных
+флюенсов, коэффициенты причинной Lorentz/ADE-аппроксимации и сертификаты FQS.
+
+Пример:
+
+```powershell
+.\.venv\Scripts\python.exe -m article_observables.qd_mnp_calculate_excitation_gain_gap --preset publication --gamma2-coherence-mev $articleGamma2MeV --d-debye $articleDDebye --output results/article/excitation_gain_gap.npz
+
+.\.venv\Scripts\python.exe -m article_observables.qd_mnp_calculate_resonance_shift_gap --source-artifact results/article/excitation_gain_gap.npz --output results/article/resonance_shift_gap.npz
+.\.venv\Scripts\python.exe -m article_observables.qd_mnp_calculate_spectral_width_gap --source-artifact results/article/excitation_gain_gap.npz --output results/article/spectral_width_gap.npz
+.\.venv\Scripts\python.exe -m article_observables.qd_mnp_calculate_model_discrepancy_gap --source-artifact results/article/excitation_gain_gap.npz --output results/article/model_discrepancy_gap.npz
+
+.\.venv\Scripts\python.exe -m article_observables.qd_mnp_plot_excitation_gain_gap results/article/excitation_gain_gap.npz --output results/article/excitation_gain_gap.png
+.\.venv\Scripts\python.exe -m article_observables.qd_mnp_plot_resonance_shift_gap results/article/resonance_shift_gap.npz --output results/article/resonance_shift_gap.png
+.\.venv\Scripts\python.exe -m article_observables.qd_mnp_plot_spectral_width_gap results/article/spectral_width_gap.npz --output results/article/spectral_width_gap.png
+.\.venv\Scripts\python.exe -m article_observables.qd_mnp_plot_model_discrepancy_gap results/article/model_discrepancy_gap.npz --dd-tolerance 0.1 --output results/article/model_discrepancy_gap.png
+```
+
+Нелинейный порог требует собственного расчёта:
+
+```powershell
+.\.venv\Scripts\python.exe -m article_observables.qd_mnp_calculate_threshold_fluence_gap --preset publication --gamma2-coherence-mev $articleGamma2MeV --d-debye $articleDDebye --target-population 0.5 --output results/article/threshold_fluence_gap.npz
+.\.venv\Scripts\python.exe -m article_observables.qd_mnp_plot_threshold_fluence_gap results/article/threshold_fluence_gap.npz --output results/article/threshold_fluence_gap.png
+
+# Не решая ОДУ повторно, выделить и построить delta_F из порогового артефакта
+.\.venv\Scripts\python.exe -m article_observables.qd_mnp_calculate_model_discrepancy_gap --source-artifact results/article/threshold_fluence_gap.npz --output results/article/threshold_model_discrepancy_gap.npz
+.\.venv\Scripts\python.exe -m article_observables.qd_mnp_plot_model_discrepancy_gap results/article/threshold_model_discrepancy_gap.npz --dd-tolerance 0.1 --output results/article/threshold_model_discrepancy_gap.png
+```
+
+Plotter может без ОДУ изменить окно спектральной особенности, фиксированную
+энергию/тип gain, целевую населённость (с интерполяцией по сохранённой сетке)
+и допуск DD. Производственный расчёт должен явно задавать экспериментально
+обоснованные `d`, `gamma1`, `Gamma2`; значения по умолчанию не являются
+автоматически параметрами конкретной коллоидной КТ.
+
+## Что именно сравнивают старые три пары программ
 
 Все три расчётных скрипта используют для связанной системы только полный
 аналитический локально-квазистатический отклик сфероида
@@ -94,16 +235,16 @@ P_{\mathrm{exc}}(\mathcal F)=\rho_{ee}(t_{\mathrm{read}};\mathcal F).
 `spatial_order_max`; даже `spatial_order_max=1` не тождественен legacy-модели
 точечного диполя МНЧ при конечном расстоянии.
 
-Следовательно, этот каталог исследует `P_exc(F)`, оптическую работу и
-`rho_ee(t)` внутри full-QS модели. Прямое сравнение
+Следовательно, старые три пары исследуют `P_exc(F)`, оптическую работу и
+`rho_ee(t)` внутри full-QS модели. Прямое сравнение в них самих
 
 \[
 X_{\mathrm{dipole-dipole}}\quad\text{и}\quad X_{\mathrm{full-QS}}
 \]
 
-при одинаковых параметрах пока не реализовано в этих шести программах. Для
-проверки области применимости дипольного приближения требуется отдельная
-зависимость расхождения двух моделей от зазора КТ–МНЧ.
+при одинаковых параметрах не реализовано. Эту задачу выполняют новые пять пар
+из раздела 4, прежде всего `model_discrepancy_gap` и сохранённая в пороговом
+артефакте `absolute_threshold_discrepancy_dd_vs_fqs`.
 
 Запускать программы следует из корня репозитория, например:
 
