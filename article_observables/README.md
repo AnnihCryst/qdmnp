@@ -1,6 +1,6 @@
 # Зависимости для теоретической статьи
 
-В этом каталоге находятся восемь пар программ:
+В этом каталоге находятся одиннадцать пар программ:
 
 ```text
 расчётный скрипт -> самодостаточный NPZ -> скрипт построения -> рисунок
@@ -216,6 +216,64 @@ API проекта:
 .\.venv\Scripts\python.exe -m article_observables.qd_mnp_calculate_model_discrepancy_gap --source-artifact results/article/threshold_fluence_gap.npz --output results/article/threshold_model_discrepancy_gap.npz
 .\.venv\Scripts\python.exe -m article_observables.qd_mnp_plot_model_discrepancy_gap results/article/threshold_model_discrepancy_gap.npz --dd-tolerance 0.1 --output results/article/threshold_model_discrepancy_gap.png
 ```
+
+## 5. Один осциллятор и многоосцилляторная дисперсия золота
+
+Три специальные пары отделяют ошибку описания частотной дисперсии материала
+от ошибки пространственной DD-модели:
+
+| Зависимость | Расчёт | Построение | Что сравнивается |
+|---|---|---|---|
+| `alpha(E)` и `1/alpha(E)` | `qd_mnp_calculate_material_dispersion_comparison.py` | `qd_mnp_plot_material_dispersion_comparison.py` | Прямая табличная поляризуемость сфероида, её `N=1` и `N>=2` причинные лоренцевы аппроксимации |
+| `S(E)=abs(p_QD/E_inc)^2` | `qd_mnp_calculate_excitation_spectrum_material_comparison.py` | `qd_mnp_plot_excitation_spectrum_material_comparison.py` | Последствия трёх представлений материала для слабополевого возбуждения КТ при одном и том же полном QS-ядре |
+| `P_exc(F)=rho_ee(t_read;F)` | `qd_mnp_calculate_excitation_fluence_material_comparison.py` | `qd_mnp_plot_excitation_fluence_material_comparison.py` | Нелинейная импульсная динамика для `N=1` и производственной многоосцилляторной реализации при полностью одинаковом сценарии |
+
+В первых двух расчётах ветвь `direct` использует интерполированные табличные
+оптические константы золота непосредственно в локально-квазистатической модели.
+Она является эталоном аппроксимации внутри этой модели, но не абсолютной
+экспериментальной истиной. Временной `direct`-ветви в третьем расчёте нет:
+произвольная табличная функция сама по себе не задаёт конечную причинную систему
+ODE/ADE. Поэтому нелинейный график сравнивает `N=1` с `N=9`, а качество `N=9`
+предварительно проверяется двумя частотными графиками относительно `direct`.
+
+Используемые «осцилляторы» — материальные полюса
+
+\[
+\alpha_{\rm fit}(\omega)=\alpha_\infty+
+\sum_{s=1}^{N}\frac{f_s}{\omega_s^2-\omega^2-i\gamma_s\omega},
+\]
+
+а не пространственные сфероидальные моды. Число пространственных членов
+фиксируется отдельно (`spatial_order_max`) и одинаково для сравниваемых ветвей.
+Проектная ветвь `N=1` не отождествляется автоматически с эффективным ярким
+осциллятором Shah: здесь это намеренно грубая однополюсная аппроксимация той же
+табличной дисперсии золота.
+
+Быстрый сквозной пример:
+
+```powershell
+# 1. Ошибка материальной аппроксимации и положение/ширина LSPR
+.\.venv\Scripts\python.exe -m article_observables.qd_mnp_calculate_material_dispersion_comparison --output results/quick/material_dispersion_comparison.npz
+.\.venv\Scripts\python.exe -m article_observables.qd_mnp_plot_material_dispersion_comparison results/quick/material_dispersion_comparison.npz --output results/quick/material_dispersion_comparison.png
+
+# 2. Слабополевой спектр КТ при одном полном QS-пространственном ядре
+.\.venv\Scripts\python.exe -m article_observables.qd_mnp_calculate_excitation_spectrum_material_comparison --preset quick --output results/quick/excitation_spectrum_material_comparison.npz
+.\.venv\Scripts\python.exe -m article_observables.qd_mnp_plot_excitation_spectrum_material_comparison --input results/quick/excitation_spectrum_material_comparison.npz --output results/quick/excitation_spectrum_material_comparison.png --allow-unconverged
+
+# 3. Нелинейная населённость при одинаковых импульсе, сетке и t_read
+.\.venv\Scripts\python.exe -m article_observables.qd_mnp_calculate_excitation_fluence_material_comparison --preset quick --output results/quick/excitation_fluence_material_comparison.npz
+.\.venv\Scripts\python.exe -m article_observables.qd_mnp_plot_excitation_fluence_material_comparison results/quick/excitation_fluence_material_comparison.npz --allow-unconverged --output results/quick/excitation_fluence_material_comparison.png
+```
+
+`quick` проверяет только работоспособность цепочки и закономерно может не пройти
+пространственный, спектральный или флюенсный сертификат. Режимы построения
+`--allow-unconverged` разрешают такой рисунок только с водяным знаком. Для
+данных статьи следует использовать `--preset publication`, задать одни и те же
+экспериментально обоснованные параметры КТ/МНЧ и не ослаблять производственные
+gates. Все три NPZ сохраняют исходную таблицу материала, фактически
+использованные входы и константы, коэффициенты полюсов, абсолютные кривые,
+остатки относительно `direct` там, где он определён, производные метрики и
+диагностические сертификаты. Plotter-ы читают только эти NPZ.
 
 Plotter может без ОДУ изменить окно спектральной особенности, фиксированную
 энергию/тип gain, целевую населённость (с интерполяцией по сохранённой сетке)

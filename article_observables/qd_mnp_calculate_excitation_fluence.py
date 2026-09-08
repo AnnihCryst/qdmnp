@@ -1204,7 +1204,9 @@ def write_excitation_artifact(
     return output
 
 
-def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+def build_argument_parser() -> argparse.ArgumentParser:
+    """Build the CLI parser so comparison orchestrators can reuse it exactly."""
+
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, default=Path("results/excitation_fluence.npz"))
     parser.add_argument("--overwrite", action="store_true")
@@ -1281,7 +1283,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--fluence-grid-convergence-policy", choices=POLICIES)
     parser.add_argument("--spatial-convergence-policy", choices=POLICIES)
     parser.add_argument("--reduction-policy", choices=POLICIES, default="raise")
-    return parser.parse_args(argv)
+    return parser
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    return build_argument_parser().parse_args(argv)
 
 
 def main(argv: list[str] | None = None) -> Path:
