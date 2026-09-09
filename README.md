@@ -1702,6 +1702,11 @@ NPZ содержит фактически использованные вход�
 # Эти же два выбранных hybrid-канала передать в work-loss расчёт
 .\.venv\Scripts\python.exe -m article_observables.qd_mnp_calculate_work_loss_fluence --channel axis_long --channel side_long --max-modal-relative-error 0.08 --carrier-energy-ev 2.042 --pulse-tau-fs 20 --pulse-tau-kind fwhm_intensity --c-nm $articleCnm --a-nm $articleAnm --qd-radius-nm $articleQdRadiusNm --gap-nm $articleGapNm --eps-m $articleEpsM --eps-qd $articleEpsQD --d-debye $articleDDebye --qd-dipole-convention $articleDipoleConvention --gamma-population-mev $articleGamma1MeV --gamma2-coherence-mev $articleGamma2MeV --output results/article/work_loss_fluence.npz
 .\.venv\Scripts\python.exe -m article_observables.qd_mnp_plot_work_loss_fluence results/article/work_loss_fluence.npz --output results/article/work_loss_fluence.png
+
+# После выбора F_linear, F_eta и F_nonlinear по P_exc(F): Shah-подобные
+# спектры одного широкополосного импульса. axis_long заменить выбранным каналом.
+.\.venv\Scripts\python.exe -m article_observables.qd_mnp_calculate_work_loss_spectrum_material_comparison --preset publication --channel axis_long --fluence-j-cm2 $articleFlinear $articleFeta $articleFnonlinear --fluence-label linear threshold nonlinear --selection-source-artifact results/article/excitation_fluence_N9.npz --carrier-energy-ev 2.042 --pulse-tau-fs 20 --pulse-tau-kind fwhm_intensity --c-nm $articleCnm --a-nm $articleAnm --qd-radius-nm $articleQdRadiusNm --gap-nm $articleGapNm --eps-m $articleEpsM --eps-qd $articleEpsQD --d-debye $articleDDebye --qd-dipole-convention $articleDipoleConvention --gamma-population-mev $articleGamma1MeV --gamma2-coherence-mev $articleGamma2MeV --max-modal-relative-error 0.08 --output results/article/work_loss_spectrum_material_comparison.npz
+.\.venv\Scripts\python.exe -m article_observables.qd_mnp_plot_work_loss_spectrum_material_comparison results/article/work_loss_spectrum_material_comparison.npz --channel axis_long --output results/article/work_loss_spectrum_material_comparison.png
 ```
 
 Здесь допуск `--max-modal-relative-error 0.08` передан явно и одинаково во
@@ -1791,20 +1796,23 @@ $selectedChannels = @("axis_long", "side_long")  # оптимальный и к�
 ### Специальные скрипты `direct` / `N=1` / `N=9`
 
 Для требования показать количественную важность корректной дисперсии добавлены
-три отдельные пары `calculate -> NPZ -> plot`:
+четыре отдельные пары `calculate -> NPZ -> plot`:
 
 | Физическая зависимость | Расчётный модуль | Модуль построения |
 |---|---|---|
 | Поляризуемость сфероида `alpha(E)` и `1/alpha(E)` | `qd_mnp_calculate_material_dispersion_comparison` | `qd_mnp_plot_material_dispersion_comparison` |
 | Слабополевой спектр КТ `S(E)=abs(p_QD/E_inc)^2` | `qd_mnp_calculate_excitation_spectrum_material_comparison` | `qd_mnp_plot_excitation_spectrum_material_comparison` |
 | Нелинейная населённость `P_exc(F)` | `qd_mnp_calculate_excitation_fluence_material_comparison` | `qd_mnp_plot_excitation_fluence_material_comparison` |
+| Shah-подобное `sigma_QS,work(E;F_j)`, N1/N9 | `qd_mnp_calculate_work_loss_spectrum_material_comparison` | `qd_mnp_plot_work_loss_spectrum_material_comparison` |
 
 Первые две пары сравнивают прямую табличную material-ветвь с `N=1` и `N=9`
-в одной и той же локально-QS геометрии. Третья сравнивает `N=1` и `N=9` во
+в одной и той же локально-QS геометрии. Третья и четвёртая сравнивают `N=1` и `N=9` во
 времени: прямую табличную зависимость нельзя интегрировать как конечную
 причинную ADE-систему без отдельной реализации. Объединённый флюенсный runner
 автоматически проверяет одинаковость геометрии, импульса, сетки и времени
-чтения обеих ветвей.
+чтения обеих ветвей. Спектральный runner выполняет одно интегрирование на
+выбранный флюенс и восстанавливает зависимость от энергии преобразованием
+Фурье только внутри сертифицированной полосы падающего импульса.
 
 ```powershell
 .\.venv\Scripts\python.exe -m article_observables.qd_mnp_calculate_material_dispersion_comparison --c-nm $articleCnm --a-nm $articleAnm --eps-m $articleEpsM --output results/article/material_dispersion_comparison.npz
@@ -1815,6 +1823,9 @@ $selectedChannels = @("axis_long", "side_long")  # оптимальный и к�
 
 .\.venv\Scripts\python.exe -m article_observables.qd_mnp_calculate_excitation_fluence_material_comparison --preset publication --target-population 0.5 --pulse-energy-ev 2.042 --pulse-tau-fs 20 --pulse-tau-kind fwhm_intensity --c-nm $articleCnm --a-nm $articleAnm --qd-radius-nm $articleQdRadiusNm --gap-nm $articleGapNm --eps-m $articleEpsM --eps-qd $articleEpsQD --d-debye $articleDDebye --qd-dipole-convention $articleDipoleConvention --gamma-population-mev $articleGamma1MeV --gamma2-coherence-mev $articleGamma2MeV --output results/article/excitation_fluence_material_comparison.npz
 .\.venv\Scripts\python.exe -m article_observables.qd_mnp_plot_excitation_fluence_material_comparison results/article/excitation_fluence_material_comparison.npz --output results/article/excitation_fluence_material_comparison.png
+
+.\.venv\Scripts\python.exe -m article_observables.qd_mnp_calculate_work_loss_spectrum_material_comparison --preset publication --channel axis_long --fluence-j-cm2 $articleFlinear $articleFeta $articleFnonlinear --fluence-label linear threshold nonlinear --selection-source-artifact results/article/excitation_fluence_N9.npz --carrier-energy-ev 2.042 --pulse-tau-fs 20 --c-nm $articleCnm --a-nm $articleAnm --qd-radius-nm $articleQdRadiusNm --gap-nm $articleGapNm --eps-m $articleEpsM --eps-qd $articleEpsQD --d-debye $articleDDebye --qd-dipole-convention $articleDipoleConvention --gamma-population-mev $articleGamma1MeV --gamma2-coherence-mev $articleGamma2MeV --output results/article/work_loss_spectrum_material_comparison.npz
+.\.venv\Scripts\python.exe -m article_observables.qd_mnp_plot_work_loss_spectrum_material_comparison results/article/work_loss_spectrum_material_comparison.npz --channel axis_long --output results/article/work_loss_spectrum_material_comparison.png
 ```
 
 Перед публикационным запуском в спектральный и флюенсный runners нужно передать
@@ -1822,7 +1833,9 @@ $selectedChannels = @("axis_long", "side_long")  # оптимальный и к�
 среды. Направление распространения света не вводится; сравнивается только
 направление электрического поля. Подробные определения метрик, диагностические
 ограничения и быстрые команды приведены в
-[`article_observables/README.md`](article_observables/README.md).
+[`article_observables/README.md`](article_observables/README.md), а минимальная
+причинно связанная последовательность рисунков и каркас раздела результатов —
+в [`article_observables/ARTICLE_RESULTS_PLAN.md`](article_observables/ARTICLE_RESULTS_PLAN.md).
 
 Каждый из трёх исходных full-QS-only расчётных скриптов записывает собственную
 независимую NPZ schema version 1: `qd_mnp_excitation_fluence`,
