@@ -360,6 +360,30 @@ def load_population_artifact(
         stability = model.get("coupled_stability", {})
         reduction = model.get("dark_reduction", {})
         material = model.get("material_fit", {})
+        if channel_id.startswith("dd_"):
+            # DD has no spatial series or dark-mode reduction to certify.
+            # It must point to the paired FQS channel with the identical fit,
+            # and retain its own coupled-ground-state stability certificate.
+            source_id = model.get("same_material_fit_as")
+            paired = model_by_channel.get(source_id, {})
+            try:
+                dd_ok = bool(
+                    source_id == channel_id[3:]
+                    and source_id in hybrid_channel_ids
+                    and model.get("implementation") == "HybridQDPlasmonModel"
+                    and model.get("spatial_model") == "central_point_dipole"
+                    and material == paired.get("material_fit")
+                    and stability.get("stable") is True
+                    and np.isfinite(float(stability["spectral_abscissa_au"]))
+                    and np.isfinite(float(stability["tolerance_au"]))
+                    and float(stability["tolerance_au"]) >= 0
+                    and float(stability["spectral_abscissa_au"]) <= float(stability["tolerance_au"])
+                )
+            except (TypeError, ValueError, KeyError):
+                dd_ok = False
+            stability_certificate = bool(stability_certificate and dd_ok)
+            material_passivity_certificate = bool(material_passivity_certificate and dd_ok)
+            continue
         try:
             spatial_tolerance = float(spatial["tolerance"])
             spatial_half_order = float(

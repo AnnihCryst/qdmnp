@@ -889,7 +889,9 @@ def _channel_metadata(bundle: ChannelModel, carrier_energy_eV: float) -> dict[st
         "resolved_R_nm": bundle.resolved_R_nm,
         "resolved_physical_parameters": physical,
         "material_fit": {
-            "alpha_inf_au3": float(fit.alpha_inf),
+            "alpha_inf_dimensionless": float(fit.alpha_inf),
+            "alpha_inf_au3": float(fit.alpha_inf),  # Legacy spelling; dimensionless.
+            "alpha_inf_units": "1; alpha_inf_au3 is a legacy misleading key",
             "strengths_au2": [float(value) for value in fit.strengths_au2],
             "omega_modes_au": [float(value) for value in fit.omega_modes_au],
             "gamma_modes_au": [float(value) for value in fit.gamma_modes_au],
@@ -1863,7 +1865,8 @@ def calculate_work_loss_fluence(
             "material_energy_eV": "eV",
             "material_n": "dimensionless",
             "material_k": "dimensionless",
-            "material_fit_alpha_inf_au3": "atomic polarizability",
+            "material_fit_alpha_inf_dimensionless": "1",
+            "material_fit_alpha_inf_au3": "1 (legacy misleading key; use material_fit_alpha_inf_dimensionless)",
             "material_fit_strengths_au2": "atomic frequency^2 times polarizability",
             "material_fit_omega_modes_au": "atomic angular frequency",
             "material_fit_omega_modes_eV": "eV",
@@ -1978,6 +1981,7 @@ def calculate_work_loss_fluence(
             material_energy_eV=np.asarray(first_params.material.energy_eV),
             material_n=np.asarray(first_params.material.n),
             material_k=np.asarray(first_params.material.k),
+            material_fit_alpha_inf_dimensionless=fit_alpha_inf,
             material_fit_alpha_inf_au3=fit_alpha_inf,
             material_fit_strengths_au2=fit_strengths,
             material_fit_omega_modes_au=fit_omega,

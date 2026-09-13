@@ -31,6 +31,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 import numpy as np
 
+from article_observables.qd_mnp_spectral_features import extract_feature, sampling_diagnostics
 from article_observables.qd_mnp_calculate_excitation_fluence import (
     HYBRID_CHANNELS,
     ChannelSpec,
@@ -70,7 +71,7 @@ from qd_mnp_spheroid_green import (
 
 
 SCHEMA_NAME = "qd_mnp.material_excitation_spectrum_comparison"
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 MATERIAL_MODEL_IDS = np.asarray(["direct", "one", "multi"], dtype="U16")
 FIT_MODEL_IDS = np.asarray(["one", "multi"], dtype="U16")
 CHANNEL_BY_ID = {channel.channel_id: channel for channel in HYBRID_CHANNELS}
@@ -84,6 +85,7 @@ PUBLICATION_PRESET = {
     "modal_audit_points": 2001,
     "spatial_convergence_policy": "raise",
     "energy_resolution_policy": "raise",
+    "observable_fit_policy": "raise",
 }
 
 QUICK_PRESET = {
@@ -95,6 +97,7 @@ QUICK_PRESET = {
     "modal_audit_points": 301,
     "spatial_convergence_policy": "warn",
     "energy_resolution_policy": "warn",
+    "observable_fit_policy": "warn",
 }
 
 
@@ -150,6 +153,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--feature-half-window-ev", type=float, default=0.12)
     parser.add_argument("--max-energy-step-over-isolated-fwhm", type=float, default=0.05)
     parser.add_argument("--energy-resolution-policy", choices=POLICIES)
+    parser.add_argument("--max-spectral-coarsening-change", type=float, default=0.05)
+    parser.add_argument("--max-spectral-window-change", type=float, default=0.05)
+    parser.add_argument("--observable-fit-policy", choices=POLICIES)
+    parser.add_argument("--max-observable-spectrum-nrms", type=float, default=0.05)
+    parser.add_argument("--max-observable-shift-over-isolated-fwhm", type=float, default=0.1)
+    parser.add_argument("--max-observable-width-relative-error", type=float, default=0.1)
+    parser.add_argument("--max-observable-gain-relative-error", type=float, default=0.1)
 
     parser.add_argument("--spatial-order-max", type=int)
     parser.add_argument("--multi-fit-modes", type=int)
@@ -190,6 +200,12 @@ def _validate_args(args: argparse.Namespace) -> None:
         "omega0_ev",
         "feature_half_window_ev",
         "max_energy_step_over_isolated_fwhm",
+        "max_spectral_coarsening_change",
+        "max_spectral_window_change",
+        "max_observable_spectrum_nrms",
+        "max_observable_shift_over_isolated_fwhm",
+        "max_observable_width_relative_error",
+        "max_observable_gain_relative_error",
         "max_bright_fit_normalized_rms",
         "max_bright_fit_pointwise_relative_error",
         "max_modal_normalized_rms",
@@ -356,18 +372,6 @@ def _normalized_error(candidate: np.ndarray, reference: np.ndarray) -> tuple[flo
     return nrms, maximum
 
 
-def _crossing(
-    x0: float,
-    y0: float,
-    x1: float,
-    y1: float,
-    level: float,
-) -> float:
-    if y1 == y0:
-        return float(0.5 * (x0 + x1))
-    return float(x0 + (level - y0) * (x1 - x0) / (y1 - y0))
-
-
 def extract_fwhm_feature(
     energy_eV: np.ndarray,
     spectrum: np.ndarray,
@@ -375,97 +379,12 @@ def extract_fwhm_feature(
     center_eV: float,
     half_window_eV: float,
 ) -> dict[str, float | int | str]:
-    """Extract the strongest local QD feature and its operational FWHM."""
-
-    energy = np.asarray(energy_eV, dtype=float)
-    values = np.asarray(spectrum, dtype=float)
-    if energy.ndim != 1 or values.shape != energy.shape or energy.size < 5:
-        raise ValueError("Feature extraction needs matching 1-D arrays of length >= 5.")
-    if np.any(~np.isfinite(energy)) or np.any(np.diff(energy) <= 0.0):
-        raise ValueError("energy_eV must be finite and strictly increasing.")
-    if np.any(~np.isfinite(values)) or np.any(values < 0.0):
-        return {
-            "energy_eV": np.nan,
-            "height": np.nan,
-            "fwhm_eV": np.nan,
-            "left_eV": np.nan,
-            "right_eV": np.nan,
-            "status": "invalid_spectrum",
-            "competing_peak_count": 0,
-        }
-    selected = np.flatnonzero(np.abs(energy - float(center_eV)) <= half_window_eV)
-    if selected.size < 5:
-        return {
-            "energy_eV": np.nan,
-            "height": np.nan,
-            "fwhm_eV": np.nan,
-            "left_eV": np.nan,
-            "right_eV": np.nan,
-            "status": "window_too_small",
-            "competing_peak_count": 0,
-        }
-    lo, hi = int(selected[0]), int(selected[-1])
-    local = values[lo : hi + 1]
-    local_peak = int(np.argmax(local))
-    peak_index = lo + local_peak
-    peak = float(values[peak_index])
-    if local_peak == 0 or local_peak == local.size - 1 or peak <= 0.0:
-        return {
-            "energy_eV": float(energy[peak_index]),
-            "height": peak,
-            "fwhm_eV": np.nan,
-            "left_eV": np.nan,
-            "right_eV": np.nan,
-            "status": "edge_or_zero_peak",
-            "competing_peak_count": 0,
-        }
-
-    local_maxima = np.flatnonzero(
-        (local[1:-1] > local[:-2]) & (local[1:-1] >= local[2:])
-    ) + 1
-    competing = int(
-        np.count_nonzero(local[local_maxima] >= 0.5 * peak)
-        - int(local_peak in local_maxima)
-    )
-    half = 0.5 * peak
-    left_candidates = np.flatnonzero(values[lo:peak_index] <= half)
-    right_candidates = np.flatnonzero(values[peak_index + 1 : hi + 1] <= half)
-    if left_candidates.size == 0 or right_candidates.size == 0:
-        status = "both_half_crossings_missing"
-        if left_candidates.size > 0:
-            status = "right_half_crossing_missing"
-        elif right_candidates.size > 0:
-            status = "left_half_crossing_missing"
-        return {
-            "energy_eV": float(energy[peak_index]),
-            "height": peak,
-            "fwhm_eV": np.nan,
-            "left_eV": np.nan,
-            "right_eV": np.nan,
-            "status": status,
-            "competing_peak_count": max(competing, 0),
-        }
-    left_low = lo + int(left_candidates[-1])
-    right_high = peak_index + 1 + int(right_candidates[0])
-    left = _crossing(
-        energy[left_low], values[left_low], energy[left_low + 1], values[left_low + 1], half
-    )
-    right = _crossing(
-        energy[right_high - 1],
-        values[right_high - 1],
-        energy[right_high],
-        values[right_high],
-        half,
-    )
-    return {
-        "energy_eV": float(energy[peak_index]),
-        "height": peak,
-        "fwhm_eV": float(right - left),
-        "left_eV": left,
-        "right_eV": right,
-        "status": "split_or_ambiguous" if competing > 0 else "ok",
-        "competing_peak_count": max(competing, 0),
-    }
+    """Compatibility mapping of the shared half-prominence feature extractor."""
+    feature = asdict(extract_feature(
+        energy_eV, spectrum, center_eV=center_eV, half_window_eV=half_window_eV,
+    ))
+    feature["fwhm_eV"] = feature.pop("width_eV")
+    return feature
 
 
 def _kernel_mode_arrays(kernel: Any, spec: ChannelSpec) -> dict[str, np.ndarray]:
@@ -672,6 +591,12 @@ def calculate_payload(
     half_left = np.full(feature_shape, np.nan)
     half_right = np.full(feature_shape, np.nan)
     feature_status = np.full(feature_shape, "not_evaluated", dtype="U40")
+    peak_prominence = np.full(feature_shape, np.nan)
+    sampling_ratio = np.full(feature_shape, np.inf)
+    sampling_change = np.full(feature_shape, np.inf)
+    sampling_accepted = np.zeros(feature_shape, dtype=bool)
+    window_change = np.full(feature_shape, np.inf)
+    window_accepted = np.zeros(feature_shape, dtype=bool)
     competing_count = np.zeros(feature_shape, dtype=np.int64)
     for index in np.ndindex(feature_shape):
         feature = extract_fwhm_feature(
@@ -687,6 +612,19 @@ def calculate_payload(
         half_right[index] = feature["right_eV"]
         feature_status[index] = feature["status"]
         competing_count[index] = feature["competing_peak_count"]
+        peak_prominence[index] = feature["prominence"]
+        check = sampling_diagnostics(
+            energy, spectrum[index], center_eV=args.feature_center_ev,
+            half_window_eV=args.feature_half_window_ev,
+            max_step_over_width=args.max_energy_step_over_isolated_fwhm,
+            max_coarsening_change=args.max_spectral_coarsening_change,
+            max_window_change=args.max_spectral_window_change,
+        )
+        sampling_ratio[index] = check["step_over_component_width"]
+        sampling_change[index] = check["coarsening_relative_change"]
+        sampling_accepted[index] = check["accepted"]
+        window_change[index] = check["window_relative_change"]
+        window_accepted[index] = check["window_accepted"]
 
     isolated_feature = extract_fwhm_feature(
         energy,
@@ -711,12 +649,54 @@ def calculate_payload(
         if np.isfinite(isolated_fwhm) and isolated_fwhm > 0.0
         else np.inf
     )
-    if energy_step_over_fwhm > args.max_energy_step_over_isolated_fwhm:
+    isolated_sampling = sampling_diagnostics(
+        energy, isolated_spectrum, center_eV=args.feature_center_ev,
+        half_window_eV=args.feature_half_window_ev,
+        max_step_over_width=args.max_energy_step_over_isolated_fwhm,
+        max_coarsening_change=args.max_spectral_coarsening_change,
+        max_window_change=args.max_spectral_window_change,
+    )
+    resolution_accepted = bool(isolated_sampling["accepted"] and np.all(sampling_accepted))
+    if not resolution_accepted:
         _apply_policy(
             args.energy_resolution_policy,
-            "The spectral grid is too coarse relative to the isolated-QD FWHM: "
-            f"dE/Gamma0={energy_step_over_fwhm:.6g}, limit="
-            f"{args.max_energy_step_over_isolated_fwhm:.6g}.",
+            "The isolated or hybrid feature failed sampling/coarsening checks: "
+            f"max dE/component_width={max(energy_step_over_fwhm, float(np.max(sampling_ratio))):.6g}, "
+            f"limit={args.max_energy_step_over_isolated_fwhm:.6g}. "
+            "Refine the grid or expand clipped windows; inspect per-curve certificates.",
+        )
+
+    # Accuracy of A or K alone need not control a nearly singular coupled
+    # denominator.  Certify the final observable against direct FQS as well.
+    observable_shift_error = np.abs(peak_energy - peak_energy[0:1]) / isolated_fwhm
+    observable_width_error = np.abs(fwhm / fwhm[0:1] - 1.0)
+    observable_gain_error = np.abs(excitation_gain / excitation_gain[0:1] - 1.0)
+    windowed_spectrum = spectrum[..., feature_mask]
+    observable_spectrum_error = np.sqrt(np.mean(
+        (windowed_spectrum - windowed_spectrum[0:1]) ** 2, axis=-1,
+    )) / np.maximum(np.sqrt(np.mean(windowed_spectrum[0] ** 2, axis=-1)), np.finfo(float).tiny)
+    unique_pair = (feature_status == "ok") & (feature_status[0:1] == "ok")
+    split_pair = (feature_status == "split_or_ambiguous") & (
+        feature_status[0:1] == "split_or_ambiguous"
+    ) & (competing_count == competing_count[0:1])
+    observable_shift_error = np.where(unique_pair, observable_shift_error, np.nan)
+    observable_width_error = np.where(unique_pair, observable_width_error, np.nan)
+    feature_accuracy = split_pair | (
+        unique_pair
+        & (observable_shift_error <= args.max_observable_shift_over_isolated_fwhm)
+        & (observable_width_error <= args.max_observable_width_relative_error)
+    )
+    observable_fit_accepted = (
+        feature_accuracy
+        & (observable_gain_error <= args.max_observable_gain_relative_error)
+        & (observable_spectrum_error <= args.max_observable_spectrum_nrms)
+    )
+    if not np.all(observable_fit_accepted[2]):
+        _apply_policy(
+            args.observable_fit_policy,
+            "Multi-mode FQS failed final-observable agreement with direct FQS. "
+            "Inspect spectrum, shift, width and gain errors; increase fit accuracy "
+            "and verify energy resolution before using this model for ranking.",
         )
 
     # Rectangular fit-coefficient tables use an explicit mask; zero padding is
@@ -919,24 +899,44 @@ def calculate_payload(
         "isolated_fwhm_eV": np.asarray(isolated_feature["fwhm_eV"]),
         "isolated_half_max_left_eV": np.asarray(isolated_feature["left_eV"]),
         "isolated_half_max_right_eV": np.asarray(isolated_feature["right_eV"]),
+        "isolated_half_prominence_left_eV": np.asarray(isolated_feature["left_eV"]),
+        "isolated_half_prominence_right_eV": np.asarray(isolated_feature["right_eV"]),
         "isolated_feature_status": np.asarray(isolated_feature["status"], dtype="U40"),
         "isolated_competing_peak_count": np.asarray(
             isolated_feature["competing_peak_count"], dtype=np.int64
         ),
         "peak_energy_eV": peak_energy,
         "peak_height_au6": peak_height,
+        "peak_prominence_au6": peak_prominence,
         "fwhm_eV": fwhm,
         "half_max_left_eV": half_left,
         "half_max_right_eV": half_right,
+        "half_prominence_left_eV": half_left,
+        "half_prominence_right_eV": half_right,
         "feature_status": feature_status,
         "competing_peak_count": competing_count,
         "excitation_gain_optimized": excitation_gain,
         "excitation_gain_at_own_peak": gain_at_own_peak,
-        "resonance_shift_vs_direct_eV": peak_energy - peak_energy[0:1],
+        "resonance_shift_vs_direct_eV": np.where(unique_pair, peak_energy - peak_energy[0:1], np.nan),
         "fwhm_difference_vs_direct_eV": fwhm - fwhm[0:1],
         "gain_difference_vs_direct": excitation_gain - excitation_gain[0:1],
         "energy_step_eV": np.asarray(energy_step),
         "energy_step_over_isolated_fwhm": np.asarray(energy_step_over_fwhm),
+        "energy_step_over_component_width": sampling_ratio,
+        "spectral_coarsening_relative_change": sampling_change,
+        "spectral_sampling_accepted": sampling_accepted,
+        "spectral_window_relative_change": window_change,
+        "spectral_window_accepted": window_accepted,
+        "isolated_spectral_window_relative_change": np.asarray(isolated_sampling["window_relative_change"]),
+        "isolated_spectral_window_accepted": np.asarray(isolated_sampling["window_accepted"]),
+        "isolated_spectral_sampling_accepted": np.asarray(isolated_sampling["accepted"]),
+        "isolated_spectral_coarsening_relative_change": np.asarray(isolated_sampling["coarsening_relative_change"]),
+        "energy_resolution_accepted": np.asarray(resolution_accepted),
+        "observable_spectrum_nrms_error_vs_direct": observable_spectrum_error,
+        "observable_shift_error_over_isolated_fwhm": observable_shift_error,
+        "observable_width_relative_error_vs_direct": observable_width_error,
+        "observable_gain_relative_error_vs_direct": observable_gain_error,
+        "observable_fit_accepted": observable_fit_accepted,
         "fit_mode_count": np.asarray(
             [[1] * n_channel, [args.multi_fit_modes] * n_channel], dtype=np.int64
         ),
@@ -1085,11 +1085,30 @@ def calculate_payload(
         "feature_definition": {
             "window_center_eV": float(args.feature_center_ev),
             "window_half_width_eV": float(args.feature_half_window_ev),
-            "resonance": "strongest sampled point inside the fixed feature window",
-            "fwhm": "linear-interpolated crossings at half the absolute peak height",
+            "resonance": "peak nearest QD energy among peaks with at least 10% of maximum prominence in fixed window",
+            "fwhm": "connected half-prominence width; clipped or ambiguous widths and bounds are NaN",
+            "legacy_half_max_array_names": "compatibility aliases of half_prominence arrays, not absolute half-height",
             "gain_optimized": "window maximum divided by isolated-QD window maximum",
             "gain_at_own_peak": "hybrid peak divided by isolated spectrum at the same energy",
-            "ambiguous_status": "a second local maximum reaches at least half the selected peak",
+            "ambiguous_status": "another peak has at least half the selected prominence",
+        },
+        "energy_resolution_gate": {
+            "max_step_over_each_component_width": float(args.max_energy_step_over_isolated_fwhm),
+            "max_coarsening_relative_change": float(args.max_spectral_coarsening_change),
+            "max_window_relative_change": float(args.max_spectral_window_change),
+            "window_check": "width/prominence/position of every credible component in 100% versus 75% of the available tracking window",
+            "coarsening_check": "two interleaved every-other-point subgrids; peak, height and width stability",
+            "accepted": resolution_accepted,
+            "limitations": "sampling evidence does not exclude arbitrary unobserved subgrid poles",
+        },
+        "final_observable_fit_gate": {
+            "policy": args.observable_fit_policy,
+            "gated_model": "multi; one is recorded for comparison without requiring accuracy",
+            "max_spectrum_nrms_in_feature_window": args.max_observable_spectrum_nrms,
+            "max_shift_over_isolated_fwhm": args.max_observable_shift_over_isolated_fwhm,
+            "max_width_relative_error": args.max_observable_width_relative_error,
+            "max_gain_relative_error": args.max_observable_gain_relative_error,
+            "split_rule": "same component count plus spectrum and gain agreement; no aggregate shift/width claim",
         },
         "units": {
             "energy": "eV",
@@ -1123,6 +1142,7 @@ def calculate_payload(
                     generator,
                     Path(__file__),
                     PROJECT_ROOT / "article_observables" / "qd_mnp_material_modes_artifact.py",
+                    PROJECT_ROOT / "article_observables" / "qd_mnp_spectral_features.py",
                     PROJECT_ROOT / "qd_mnp_rational_fit.py",
                     PROJECT_ROOT / "qd_mnp_full_qs_model.py",
                     PROJECT_ROOT / "qd_mnp_spheroid_green.py",

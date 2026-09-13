@@ -28,6 +28,7 @@ from article_observables.qd_mnp_material_modes_artifact import (
 
 
 SCHEMA_NAME = "qd_mnp.material_excitation_spectrum_comparison"
+SCHEMA_VERSION = 2
 REQUIRED_ARRAYS = (
     "material_model_id",
     "channel_id",
@@ -39,6 +40,12 @@ REQUIRED_ARRAYS = (
     "peak_energy_eV",
     "feature_status",
     "energy_step_over_isolated_fwhm",
+    "energy_resolution_accepted",
+    "spectral_sampling_accepted",
+    "isolated_spectral_sampling_accepted",
+    "spectral_window_accepted",
+    "isolated_spectral_window_accepted",
+    "observable_fit_accepted",
     "fit_passive_on_fit_window",
     "fit_passive_for_all_positive_frequencies",
     "bright_stability_stable",
@@ -153,6 +160,19 @@ def _diagnostic_failures(
         and float(ratio) <= resolution_limit
     ):
         failures.append("spectral-grid resolution")
+    for key in ("energy_resolution_accepted", "isolated_spectral_sampling_accepted", "isolated_spectral_window_accepted"):
+        values = np.asarray(payload[key])
+        if values.shape != () or values.dtype.kind != "b" or not bool(values):
+            failures.append(key)
+    values = np.asarray(payload["spectral_sampling_accepted"])
+    if values.shape != (3, channel_count) or values.dtype.kind != "b" or not np.all(values):
+        failures.append("spectral_sampling_accepted")
+    values = np.asarray(payload["spectral_window_accepted"])
+    if values.shape != (3, channel_count) or values.dtype.kind != "b" or not np.all(values):
+        failures.append("spectral_window_accepted")
+    values = np.asarray(payload["observable_fit_accepted"])
+    if values.shape != (3, channel_count) or values.dtype.kind != "b" or not np.all(values[2]):
+        failures.append("multi-mode final-observable accuracy")
     return list(dict.fromkeys(failures))
 
 
@@ -181,6 +201,7 @@ def plot_artifact(
     payload, metadata = load_npz_artifact(
         input_path,
         schema_name=SCHEMA_NAME,
+        schema_version=SCHEMA_VERSION,
         required_arrays=REQUIRED_ARRAYS,
     )
     _validate_payload(payload)

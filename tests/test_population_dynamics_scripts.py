@@ -26,6 +26,32 @@ from article_observables.qd_mnp_plot_population_dynamics import (
 
 
 class PopulationDynamicsScriptTests(unittest.TestCase):
+    def test_optional_dd_uses_same_pulse_fit_and_spherical_dipole_limit(self) -> None:
+        with TemporaryDirectory() as directory:
+            artifact = Path(directory) / "dd_fqs.npz"
+            args = parse_calculation_args([
+                "--output", str(artifact), "--include-dd", "--channels", "axis_long",
+                "--c-nm", "7", "--a-nm", "7", "--gap-nm", "20",
+                "--spatial-order-max", "1", "--fluence-j-cm2", "1e-5",
+                "--pulse-tau-fs", "10", "--post-fs", "100",
+                "--rtol", "1e-8", "--atol", "1e-10",
+                "--radiative-consistency-policy", "ignore",
+                "--spatial-convergence-policy", "ignore", "--fit-quality-policy", "ignore",
+                "--spectral-window-policy", "ignore", "--response-tail-policy", "ignore",
+            ])
+            calculate_population_dynamics(args)
+            data = load_population_artifact(artifact, allow_unconverged=True)
+            self.assertEqual(list(data["channel_ids"]), ["bare_qd", "axis_long", "dd_axis_long"])
+            self.assertGreater(float(np.max(data["rho22"][1])), 0.01)
+            np.testing.assert_allclose(data["rho22"][1], data["rho22"][2], atol=2e-5, rtol=2e-5)
+            metadata = data["metadata"]
+            models = metadata["model_by_channel"]
+            self.assertEqual(models["axis_long"]["material_fit"], models["dd_axis_long"]["material_fit"])
+            diagnostic = metadata["diagnostics_by_channel"]["dd_axis_long"]
+            self.assertTrue(np.isfinite(diagnostic["response_tail_ratio"]))
+            self.assertIn("qd_source_spectral_leakage", diagnostic)
+            self.assertNotIn("spatial_convergence", models["dd_axis_long"])
+
     def test_tip_and_side_use_the_same_surface_gap(self) -> None:
         common = dict(c_nm=15.0, a_nm=7.0, qd_radius_nm=2.0, gap_nm=1.5)
         tip = _surface_gap_separation_nm(CHANNELS["axis_long"], **common)

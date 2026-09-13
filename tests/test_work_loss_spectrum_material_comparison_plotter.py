@@ -85,6 +85,8 @@ class WorkLossSpectrumPlotterTests(unittest.TestCase):
             "sigma_qs_work_cm2": sigma,
             "bare_mnp_sigma_qs_work_cm2": bare,
             "delta_sigma_qs_work_cm2": delta,
+            "sigma_half_window_cm2": sigma.copy(),
+            "delta_window_converged": np.ones(solve_shape, dtype=bool),
             "spectrum_support_mask": support,
             "solver_success": np.ones(solve_shape, dtype=bool),
             "t_final_reached": np.ones(solve_shape, dtype=bool),
@@ -106,7 +108,11 @@ class WorkLossSpectrumPlotterTests(unittest.TestCase):
     def _metadata() -> dict[str, object]:
         return {
             "schema_name": SCHEMA_NAME,
-            "schema_version": 1,
+            "schema_version": 2,
+            "quality_gates": {
+                "max_delta_window_relative_change": 1e-3,
+                "max_delta_window_absolute_change_cm2": 0.0,
+            },
             "multi_fit_mode_count": 9,
             "observable": (
                 "operational local-QS work-loss estimate; not separately "
@@ -203,6 +209,15 @@ class WorkLossSpectrumPlotterTests(unittest.TestCase):
             artifact = Path(directory) / "bad_bool.npz"
             self._write(artifact, modifier=corrupt)
             with self.assertRaisesRegex(ValueError, "exact NumPy boolean dtype"):
+                load_work_loss_spectrum_artifact(artifact)
+
+    def test_delta_certificate_is_recomputed_from_saved_windows(self) -> None:
+        def corrupt(payload: dict[str, np.ndarray]) -> None:
+            payload["sigma_half_window_cm2"][1, 0, 1, 50] += 1e-10
+        with tempfile.TemporaryDirectory() as directory:
+            artifact = Path(directory) / "false_delta_certificate.npz"
+            self._write(artifact, modifier=corrupt)
+            with self.assertRaisesRegex(ValueError, "delta_window_converged disagrees"):
                 load_work_loss_spectrum_artifact(artifact)
 
     def test_nonfinite_sample_inside_supported_band_is_rejected(self) -> None:

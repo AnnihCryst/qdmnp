@@ -162,6 +162,7 @@ def load_npz_artifact(
     path: str | Path,
     *,
     schema_name: str,
+    schema_version: int = SCHEMA_VERSION,
     required_arrays: Iterable[str] = (),
 ) -> tuple[dict[str, np.ndarray], dict[str, Any]]:
     """Load and strictly validate a material-comparison artifact."""
@@ -191,10 +192,10 @@ def load_npz_artifact(
             f"Expected schema_name={schema_name!r}, got "
             f"{metadata.get('schema_name')!r}."
         )
-    if int(metadata.get("schema_version", -1)) != SCHEMA_VERSION:
+    if int(metadata.get("schema_version", -1)) != schema_version:
         raise ValueError(
             f"Unsupported schema version {metadata.get('schema_version')!r}; "
-            f"expected {SCHEMA_VERSION}."
+            f"expected {schema_version}. Recalculate artifacts missing the required certificates."
         )
     declared_keys = metadata.get("array_keys")
     if declared_keys != actual_keys:

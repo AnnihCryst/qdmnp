@@ -40,14 +40,22 @@ import numpy as np
 import scipy
 from scipy.constants import epsilon_0 as EPSILON_0_SI
 from scipy.optimize import brentq
-from scipy.signal import find_peaks, peak_prominences, peak_widths
 
+from article_observables.qd_mnp_spectral_features import (
+    FeatureResult, extract_feature, sampling_diagnostics,
+)
 from article_observables.qd_mnp_calculate_excitation_fluence import (
     HYBRID_CHANNELS,
     ChannelSpec,
     _solve_bare_qd,
     fluence_grid_resolution_diagnostics,
 )
+from article_observables.qd_mnp_threshold_metrics import (
+    resolved_threshold_mask,
+    threshold_from_curve,
+)
+from qd_mnp_spheroid_pulse_comparison import _legacy_tail_ratio
+from article_observables.qd_mnp_dd_pulse import solve_dd_with_resolution
 from qd_mnp_full_qs_model import (
     FullQSSpheroidPulseModel,
     build_positive_dark_reduction,
@@ -75,6 +83,7 @@ from qd_mnp_rational_fit import (
     fs_to_au,
     make_params_with_overrides,
     params_to_physical_dict,
+    sampled_positive_frequency_spectral_fraction,
 )
 from qd_mnp_spheroid_equatorial import EquatorialSpheroidGreenInteraction
 from qd_mnp_spheroid_green import (
@@ -110,17 +119,6 @@ class BuiltChannel:
     fqs_model: FullQSSpheroidPulseModel | None
     reduction: Any | None
 
-
-@dataclass(frozen=True)
-class FeatureResult:
-    energy_eV: float
-    height: float
-    prominence: float
-    width_eV: float
-    left_eV: float
-    right_eV: float
-    status: str
-    competing_peak_count: int
 
 
 def _json_ready(value: Any) -> Any:
@@ -172,6 +170,10 @@ def _git_provenance() -> dict[str, Any]:
 def _source_hashes(extra_paths: Iterable[Path] = ()) -> dict[str, str]:
     paths = [
         Path(__file__).resolve(),
+        PROJECT_ROOT / "article_observables" / "qd_mnp_spectral_features.py",
+        PROJECT_ROOT / "article_observables" / "qd_mnp_threshold_metrics.py",
+        PROJECT_ROOT / "article_observables" / "qd_mnp_dd_pulse.py",
+        PROJECT_ROOT / "qd_mnp_spheroid_pulse_comparison.py",
         PROJECT_ROOT / "qd_mnp_rational_fit.py",
         PROJECT_ROOT / "qd_mnp_full_qs_model.py",
         PROJECT_ROOT / "qd_mnp_spheroid_green.py",
@@ -425,137 +427,6 @@ def _build_channel(
     return BuiltChannel(spec, float(gap_nm), params, dd_model, kernel, fqs_model, reduction)
 
 
-def extract_feature(
-    energy_eV: np.ndarray,
-    spectrum: np.ndarray,
-    *,
-    center_eV: float,
-    half_window_eV: float,
-    competing_prominence_fraction: float = 0.5,
-) -> FeatureResult:
-    """Track the peak nearest the QD energy and measure half-prominence width."""
-
-    energy = np.asarray(energy_eV, dtype=float)
-    values = np.asarray(spectrum, dtype=float)
-    if energy.ndim != 1 or values.shape != energy.shape or energy.size < 5:
-        raise ValueError("Feature extraction needs matching 1-D arrays with at least five points.")
-    if np.any(~np.isfinite(energy)) or np.any(np.diff(energy) <= 0.0):
-        raise ValueError("energy_eV must be finite and strictly increasing.")
-    if np.any(~np.isfinite(values)):
-        return FeatureResult(np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, "nonfinite", 0)
-    mask = np.abs(energy - float(center_eV)) <= float(half_window_eV)
-    indices = np.flatnonzero(mask)
-    if indices.size < 5:
-        return FeatureResult(np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, "window_too_small", 0)
-    lo, hi = int(indices[0]), int(indices[-1])
-    local = values[lo : hi + 1]
-    peaks, _ = find_peaks(local)
-    if peaks.size == 0:
-        return FeatureResult(np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, "no_peak", 0)
-    global_peaks = peaks + lo
-    prominences = peak_prominences(local, peaks)[0]
-    # A tiny numerical ripple closest to E_X must not replace the actual QD
-    # feature.  Track the nearest peak among features whose prominence is at
-    # least 10% of the strongest resolved prominence in the fixed window.
-    credible = np.flatnonzero(prominences >= 0.1 * float(np.max(prominences)))
-    distances = np.abs(energy[global_peaks[credible]] - float(center_eV))
-    nearest = credible[
-        np.flatnonzero(
-            np.isclose(distances, np.min(distances), rtol=0.0, atol=1.0e-15)
-        )
-    ]
-    if nearest.size > 1:
-        selected_local_index = int(
-            nearest[np.argmax(values[global_peaks[nearest]])]
-        )
-    else:
-        selected_local_index = int(nearest[0])
-    selected_local_peak = int(peaks[selected_local_index])
-    selected_global_peak = int(global_peaks[selected_local_index])
-
-    selected_prominence = float(prominences[selected_local_index])
-    if not np.isfinite(selected_prominence) or selected_prominence <= 0.0:
-        return FeatureResult(
-            float(energy[selected_global_peak]),
-            float(values[selected_global_peak]),
-            selected_prominence,
-            np.nan,
-            np.nan,
-            np.nan,
-            "zero_prominence",
-            0,
-        )
-    competing = int(
-        np.count_nonzero(
-            np.delete(prominences, selected_local_index)
-            >= competing_prominence_fraction * selected_prominence
-        )
-    )
-    selected_prominence_data = peak_prominences(
-        local, np.asarray([selected_local_peak])
-    )
-    width_samples, _, left_ips, right_ips = peak_widths(
-        local,
-        np.asarray([selected_local_peak]),
-        rel_height=0.5,
-        prominence_data=(
-            np.asarray([selected_prominence]),
-            np.asarray([selected_prominence_data[1][0]]),
-            np.asarray([selected_prominence_data[2][0]]),
-        ),
-    )
-    del width_samples
-    sample_axis = np.arange(local.size, dtype=float)
-    left = float(np.interp(float(left_ips[0]), sample_axis, energy[lo : hi + 1]))
-    right = float(np.interp(float(right_ips[0]), sample_axis, energy[lo : hi + 1]))
-    status = "split_or_ambiguous" if competing else "ok"
-    width = np.nan if competing else right - left
-    return FeatureResult(
-        float(energy[selected_global_peak]),
-        float(values[selected_global_peak]),
-        selected_prominence,
-        float(width),
-        left,
-        right,
-        status,
-        competing,
-    )
-
-
-def threshold_from_curve(
-    fluence_j_cm2: np.ndarray,
-    population: np.ndarray,
-    target: float,
-) -> tuple[float, str, tuple[int, int] | None]:
-    """Return the first upward crossing before the first resolved Rabi maximum."""
-
-    fluence = np.asarray(fluence_j_cm2, dtype=float)
-    values = np.asarray(population, dtype=float)
-    if fluence.ndim != 1 or values.shape != fluence.shape or fluence.size < 3:
-        raise ValueError("Threshold extraction needs matching 1-D arrays with >=3 points.")
-    if np.any(~np.isfinite(fluence)) or np.any(fluence <= 0.0) or np.any(np.diff(fluence) <= 0.0):
-        raise ValueError("Fluence must be finite, positive and strictly increasing.")
-    if not np.isfinite(target) or not 0.0 < target < 1.0:
-        raise ValueError("target must lie in (0, 1).")
-    if np.any(~np.isfinite(values)):
-        return np.nan, "nonfinite", None
-    if values[0] >= target:
-        return float(fluence[0]), "left_censored", None
-
-    differences = np.diff(values)
-    peak_candidates = np.flatnonzero((differences[:-1] > 0.0) & (differences[1:] <= 0.0)) + 1
-    last = int(peak_candidates[0]) if peak_candidates.size else values.size - 1
-    for upper in range(1, last + 1):
-        if values[upper - 1] < target <= values[upper]:
-            x0, x1 = np.sqrt(fluence[[upper - 1, upper]])
-            y0, y1 = values[[upper - 1, upper]]
-            x = x0 + (target - y0) * (x1 - x0) / (y1 - y0)
-            return float(x * x), "resolved", (upper - 1, upper)
-    if peak_candidates.size:
-        return np.nan, "not_reached_first_lobe", None
-    return np.nan, "right_censored", None
-
-
 def dd_validity_distance(
     gap_nm: np.ndarray,
     discrepancy: np.ndarray,
@@ -622,8 +493,8 @@ def _solve_population(
     args: argparse.Namespace,
 ) -> tuple[float, dict[str, Any]]:
     if kind == "dd":
-        result = bundle.dd_model.solve(
-            pulse,
+        result = solve_dd_with_resolution(
+            bundle.dd_model, pulse, points_per_fastest_cycle=args.points_per_fastest_cycle,
             method=args.method,
             rtol=args.rtol,
             atol=args.atol,
@@ -635,6 +506,36 @@ def _solve_population(
         )
         rho = 0.5 * (result.y[2 * bundle.dd_model.n_modes] + 1.0)
         diagnostics = result.diagnostics
+        # Legacy diagnostics do not contain a tail certificate.  In
+        # particular, vanishing total dipole can conceal cancelling dipoles
+        # or a remaining Q coherence quadrature.
+        tail_ratio = float(_legacy_tail_ratio(
+            bundle.dd_model, result, tail_fraction=args.tail_window_fraction
+        ))
+        tail_converged = bool(np.isfinite(tail_ratio) and tail_ratio <= args.tail_ratio_tolerance)
+        certificate = asdict(diagnostics)
+        certificate.update(
+            response_tail_ratio=tail_ratio,
+            response_tail_converged=tail_converged,
+            response_tail_tolerance=float(args.tail_ratio_tolerance),
+            response_tail_window_fraction=float(args.tail_window_fraction),
+        )
+        # The DD core audits the pulse, total metal drive and metal dipole.
+        # Also retain the QD source and reaction field, matching FQS output.
+        for name, signal in (
+            ("qd_source", result.mu_d_au),
+            ("mnp_field", bundle.dd_model.J * result.mu_p_au),
+        ):
+            fraction = sampled_positive_frequency_spectral_fraction(
+                result.t_au,
+                signal,
+                (args.fit_min_ev, args.fit_max_ev),
+                highest_resolved_omega_au=diagnostics.integration_frequency_ceiling_au,
+            )
+            certificate[f"{name}_spectral_fraction_in_fit_window"] = float(fraction)
+            certificate[f"{name}_spectral_leakage"] = float(1.0 - fraction)
+            if 1.0 - fraction > args.max_spectral_leakage:
+                _apply_policy(args.spectral_window_policy, f"DD {name} spectral leakage={1.0 - fraction:.6g} exceeds {args.max_spectral_leakage:.6g}.")
     else:
         if bundle.fqs_model is None:
             raise RuntimeError("FQS time model was not built.")
@@ -656,8 +557,9 @@ def _solve_population(
         )
         rho = result.rho22
         diagnostics = result.diagnostics
-    tail_converged = bool(getattr(diagnostics, "response_tail_converged", True))
-    tail_ratio = float(getattr(diagnostics, "response_tail_ratio", np.nan))
+        certificate = asdict(diagnostics)
+        tail_converged = bool(diagnostics.response_tail_converged)
+        tail_ratio = float(diagnostics.response_tail_ratio)
     if not tail_converged:
         _apply_policy(
             args.tail_policy,
@@ -670,6 +572,7 @@ def _solve_population(
         "nfev": int(getattr(diagnostics, "nfev", -1)),
         "population_min": float(np.min(rho)),
         "population_max": float(np.max(rho)),
+        "solver_certificate": certificate,
     }
 
 
@@ -684,6 +587,9 @@ def _solve_bare_population(
     )
     tail_converged = bool(diagnostics["response_tail_converged"])
     tail_ratio = float(diagnostics["response_tail_ratio"])
+    leakage = float(diagnostics["pulse_spectral_leakage"])
+    if leakage > args.max_spectral_leakage:
+        _apply_policy(args.spectral_window_policy, f"Incident-pulse spectral leakage={leakage:.6g} exceeds {args.max_spectral_leakage:.6g}.")
     if not tail_converged:
         _apply_policy(
             args.tail_policy,
@@ -696,6 +602,7 @@ def _solve_bare_population(
         "nfev": int(diagnostics["nfev"]),
         "population_min": float(np.min(rho)),
         "population_max": float(np.max(rho)),
+        "solver_certificate": diagnostics,
     }
 
 
@@ -1019,6 +926,10 @@ def compute_spectral_payload(
         raise ValueError("--max-weak-population must lie in (0, 1).")
     if not np.isfinite(args.max_energy_step_over_gamma0) or args.max_energy_step_over_gamma0 <= 0.0:
         raise ValueError("--max-energy-step-over-gamma0 must be finite and positive.")
+    if not np.isfinite(args.max_spectral_coarsening_change) or args.max_spectral_coarsening_change <= 0.0:
+        raise ValueError("--max-spectral-coarsening-change must be finite and positive.")
+    if not np.isfinite(args.max_spectral_window_change) or args.max_spectral_window_change <= 0.0:
+        raise ValueError("--max-spectral-window-change must be finite and positive.")
     energy = np.linspace(args.energy_min_ev, args.energy_max_ev, args.energy_points)
     if energy.size < 5 or energy[0] >= energy[-1]:
         raise ValueError("The energy grid must contain at least five increasing points.")
@@ -1255,13 +1166,41 @@ def compute_spectral_payload(
     gamma0 = float(np.asarray(derived["isolated_fwhm_eV"]))
     max_step = float(np.max(np.diff(energy)))
     resolution_ratio = max_step / gamma0 if np.isfinite(gamma0) and gamma0 > 0.0 else np.inf
-    resolution_accepted = bool(resolution_ratio <= args.max_energy_step_over_gamma0)
+    sampling_shape = spectra.shape[:-1]
+    sampling_ratio = np.full(sampling_shape, np.inf)
+    sampling_change = np.full(sampling_shape, np.inf)
+    sampling_accepted = np.zeros(sampling_shape, dtype=bool)
+    window_change = np.full(sampling_shape, np.inf)
+    window_accepted = np.zeros(sampling_shape, dtype=bool)
+    sampling_limit = float(getattr(args, "max_spectral_coarsening_change", 0.05))
+    for index in np.ndindex(sampling_shape):
+        check = sampling_diagnostics(
+            energy, spectra[index], center_eV=args.feature_center_ev,
+            half_window_eV=args.feature_half_window_ev,
+            max_step_over_width=args.max_energy_step_over_gamma0,
+            max_coarsening_change=sampling_limit,
+            max_window_change=args.max_spectral_window_change,
+        )
+        sampling_ratio[index] = check["step_over_component_width"]
+        sampling_change[index] = check["coarsening_relative_change"]
+        sampling_accepted[index] = check["accepted"]
+        window_change[index] = check["window_relative_change"]
+        window_accepted[index] = check["window_accepted"]
+    isolated_sampling = sampling_diagnostics(
+        energy, isolated, center_eV=args.feature_center_ev,
+        half_window_eV=args.feature_half_window_ev,
+        max_step_over_width=args.max_energy_step_over_gamma0,
+        max_coarsening_change=sampling_limit,
+        max_window_change=args.max_spectral_window_change,
+    )
+    resolution_accepted = bool(isolated_sampling["accepted"] and np.all(sampling_accepted))
     if not resolution_accepted:
         _apply_policy(
             args.energy_resolution_policy,
-            "The extracted isolated-QD feature is not energy-grid resolved: "
-            f"max dE/Gamma0={resolution_ratio:.6g}, allowed="
-            f"{args.max_energy_step_over_gamma0:.6g}.",
+            "The isolated or hybrid spectral feature failed sampling/coarsening checks: "
+            f"max dE/component_width={max(resolution_ratio, float(np.max(sampling_ratio))):.6g}, "
+            f"allowed={args.max_energy_step_over_gamma0:.6g}; refine the grid or expand "
+            "a clipped feature window. Inspect saved per-curve certificates.",
         )
     validity_gap = np.asarray(
         [
@@ -1365,6 +1304,17 @@ def compute_spectral_payload(
         "isolated_pulse_tail_converged": isolated_tail_converged,
         "isolated_pulse_tail_ratio": isolated_tail_ratio,
         "energy_resolution_ratio_dE_over_gamma0": np.asarray(resolution_ratio),
+        "energy_step_over_component_width": sampling_ratio,
+        "spectral_coarsening_relative_change": sampling_change,
+        "spectral_sampling_accepted": sampling_accepted,
+        "spectral_window_relative_change": window_change,
+        "spectral_window_accepted": window_accepted,
+        "isolated_spectral_window_relative_change": np.asarray(isolated_sampling["window_relative_change"]),
+        "isolated_spectral_window_accepted": np.asarray(isolated_sampling["window_accepted"]),
+        "isolated_spectral_sampling_accepted": np.asarray(isolated_sampling["accepted"]),
+        "isolated_spectral_coarsening_relative_change": np.asarray(
+            isolated_sampling["coarsening_relative_change"]
+        ),
         "energy_resolution_accepted": np.asarray(resolution_accepted),
         "max_relative_A_disagreement_dd_vs_fqs": np.asarray(
             max_relative_a_disagreement
@@ -1456,6 +1406,12 @@ def compute_spectral_payload(
         "reference_physical_parameters": params_to_physical_dict(first.params, first.spec.orientation),
         "energy_resolution_gate": {
             "max_step_over_gamma0": float(args.max_energy_step_over_gamma0),
+            "applies_to": "isolated line and every credible hybrid component width",
+            "max_coarsening_relative_change": sampling_limit,
+            "max_window_relative_change": float(args.max_spectral_window_change),
+            "window_check": "width/prominence/position of every credible component in 100% versus 75% of the available tracking window",
+            "coarsening_check": "two interleaved every-other-point subgrids; peak, height and width stability",
+            "limitations": "sampling evidence does not exclude arbitrary unobserved subgrid poles; refine for final recommendations",
             "accepted": resolution_accepted,
         },
         "dd_tolerance": float(args.dd_tolerance),
@@ -1474,6 +1430,30 @@ def _first_crossing_bracket(
 ) -> tuple[int, int] | None:
     _, status, bracket = threshold_from_curve(fluence, population, target)
     return bracket if status == "resolved" else None
+
+
+def _solver_evaluation_payload(records: list[dict[str, Any]]) -> dict[str, np.ndarray]:
+    """Save certificates for every solve, including threshold refinement.
+
+    Missing diagnostic fields have an explicit availability mask; an absent
+    certificate is never encoded as a passing boolean or a zero leakage.
+    """
+
+    payload: dict[str, np.ndarray] = {}
+    keys = sorted({key for record in records for key in record})
+    for key in keys:
+        available = np.asarray([record.get(key) is not None for record in records])
+        present = [record[key] for record in records if record.get(key) is not None]
+        if all(isinstance(value, (bool, np.bool_)) for value in present):
+            values = np.asarray([record.get(key, False) if record.get(key) is not None else False for record in records], dtype=bool)
+        elif all(isinstance(value, (int, float, np.number)) for value in present):
+            values = np.asarray([record.get(key) if record.get(key) is not None else np.nan for record in records], dtype=float)
+        else:
+            values = np.asarray([str(record[key]) if record.get(key) is not None else "" for record in records])
+        payload[f"evaluation_{key}"] = values
+        if not np.all(available):
+            payload[f"evaluation_{key}__available"] = available
+    return payload
 
 
 def compute_threshold_payload(
@@ -1524,13 +1504,26 @@ def compute_threshold_payload(
     center_distance = np.empty((n_channel, n_gap), dtype=float)
 
     caches: dict[tuple[str, int, float], float] = {}
+    solver_records: list[dict[str, Any]] = []
+
+    def record_solve(kind: str, flat_index: int, target_fluence: float, value: float, diagnostics: dict[str, Any]) -> None:
+        bundle = None if kind == "isolated" else bundles[flat_index]
+        solver_records.append({
+            "model_id": kind,
+            "channel_id": "bare_qd" if bundle is None else bundle.spec.channel_id,
+            "gap_nm": np.nan if bundle is None else float(bundle.gap_nm),
+            "fluence_j_cm2": float(target_fluence),
+            "population": float(value),
+            **{f"diagnostic__{key}": item for key, item in diagnostics["solver_certificate"].items()},
+        })
 
     def evaluate(kind: str, flat_index: int, target_fluence: float) -> float:
         key = (kind, flat_index, float(target_fluence))
         if key in caches:
             return caches[key]
         pulse = _pulse_for_fluence(target_fluence, args.carrier_energy_ev, args)
-        value, _ = _solve_population(kind, bundles[flat_index], pulse, t_span, args)
+        value, diagnostics = _solve_population(kind, bundles[flat_index], pulse, t_span, args)
+        record_solve(kind, flat_index, target_fluence, value, diagnostics)
         caches[key] = value
         return value
 
@@ -1540,9 +1533,10 @@ def compute_threshold_payload(
         key = float(target_fluence)
         if key not in bare_cache:
             pulse = _pulse_for_fluence(key, args.carrier_energy_ev, args)
-            value, _ = _solve_bare_population(
+            value, diagnostics = _solve_bare_population(
                 pulse, reference_params, t_span, args
             )
+            record_solve("isolated", -1, key, value, diagnostics)
             bare_cache[key] = value
         return bare_cache[key]
 
@@ -1552,6 +1546,7 @@ def compute_threshold_payload(
             pulse, reference_params, t_span, args
         )
         bare_cache[float(target_fluence)] = bare_value
+        record_solve("isolated", -1, target_fluence, bare_value, bare_diagnostics)
         isolated[fi] = bare_value
         isolated_tail_converged[fi] = bare_diagnostics["tail_converged"]
         isolated_tail_ratio[fi] = bare_diagnostics["tail_ratio"]
@@ -1561,6 +1556,7 @@ def compute_threshold_payload(
             center_distance[ci, gi] = _resolved_center_distance_nm(bundle.spec, bundle.gap_nm, args)
             for mi, kind in enumerate(("dd", "fqs")):
                 value, diagnostics = _solve_population(kind, bundle, pulse, t_span, args)
+                record_solve(kind, flat_index, target_fluence, value, diagnostics)
                 caches[(kind, flat_index, float(target_fluence))] = value
                 population[mi, ci, gi, fi] = value
                 tail_converged[mi, ci, gi, fi] = diagnostics["tail_converged"]
@@ -1608,8 +1604,8 @@ def compute_threshold_payload(
         threshold_iso = float(root * root)
         status_iso = "resolved_refined"
 
-    resolved_status = np.char.startswith(statuses, "resolved")
-    isolated_resolved = str(status_iso).startswith("resolved")
+    resolved_status = resolved_threshold_mask(statuses)
+    isolated_resolved = bool(resolved_threshold_mask(status_iso))
     threshold_ratio = np.full_like(thresholds, np.nan)
     efficiency = np.full_like(thresholds, np.nan)
     if isolated_resolved and np.isfinite(threshold_iso):
@@ -1637,7 +1633,9 @@ def compute_threshold_payload(
         [dd_validity_distance(gaps, absolute_bias[ci], args.dd_tolerance) for ci in range(n_channel)]
     )
 
-    reference_fluence = threshold_iso if np.isfinite(threshold_iso) else args.reference_fluence_j_cm2
+    reference_fluence = threshold_iso if isolated_resolved and np.isfinite(threshold_iso) else args.reference_fluence_j_cm2
+    if not fluence[0] <= reference_fluence <= fluence[-1]:
+        raise ValueError("Reference fluence lies outside the sampled grid; extend the scan or set --reference-fluence-j-cm2 within its bounds.")
     reference_population = np.empty((n_model, n_channel, n_gap), dtype=float)
     for mi in range(n_model):
         for ci in range(n_channel):
@@ -1696,7 +1694,7 @@ def compute_threshold_payload(
         )
     threshold_intensity = np.full_like(thresholds, np.nan)
     for index in np.ndindex(thresholds.shape):
-        if np.isfinite(thresholds[index]):
+        if resolved_status[index] and np.isfinite(thresholds[index]):
             threshold_intensity[index] = _pulse_for_fluence(
                 float(thresholds[index]), args.carrier_energy_ev, args
             ).peak_intensity_w_cm2(eps_m=args.eps_m)
@@ -1704,7 +1702,7 @@ def compute_threshold_payload(
         _pulse_for_fluence(threshold_iso, args.carrier_energy_ev, args).peak_intensity_w_cm2(
             eps_m=args.eps_m
         )
-        if np.isfinite(threshold_iso)
+        if isolated_resolved and np.isfinite(threshold_iso)
         else np.nan
     )
     first = bundles[0]
@@ -1826,12 +1824,24 @@ def compute_threshold_payload(
         "fqs_modal_fit_accepted": modal_accepted,
         "fqs_coupled_stability_accepted": stability_accepted,
         **_flatten_spatial_data(bundles),
+        **_solver_evaluation_payload(solver_records),
     }
     metadata = {
         "threshold_definition": (
             "first upward crossing of target population before the first resolved Rabi maximum; "
             "interpolation and optional Brent refinement are performed in sqrt(fluence)"
         ),
+        "threshold_censoring": "left_censored is an upper bound; only resolved/resolved_refined values enter ratios and intensities",
+        "solver_certificates": {
+            "prefix": "evaluation_diagnostic__",
+            "scope": "every grid and Brent-refinement solve at the common read time",
+            "coordinates": ["evaluation_model_id", "evaluation_channel_id", "evaluation_gap_nm", "evaluation_fluence_j_cm2"],
+            "missing_fields": "explicit __available masks; absent fields do not certify acceptance",
+            "spectral_window_policy": args.spectral_window_policy,
+            "max_spectral_leakage": float(args.max_spectral_leakage),
+            "effective_dd_work_passivity_policy": "raise (enforced unconditionally by legacy core)",
+            "effective_fqs_work_passivity_policy": args.work_passivity_policy,
+        },
         "primary_ratio_definition": "F_eta(hybrid) / F_eta(isolated QD); values below one are beneficial",
         "efficiency_definition": "F_eta(isolated QD) / F_eta(hybrid); values above one are beneficial",
         "signed_model_bias_definition": "(F_eta_DD-F_eta_FQS)/F_eta_FQS",
@@ -1893,6 +1903,7 @@ def _apply_preset(args: argparse.Namespace, *, threshold: bool) -> argparse.Name
         "spatial_convergence_policy",
         "tail_policy",
         "population_decay_policy",
+        "spectral_window_policy",
     ):
         if hasattr(args, policy_name) and getattr(args, policy_name) is None:
             setattr(args, policy_name, "raise" if publication else "warn")
@@ -1980,7 +1991,7 @@ def _add_pulse_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--tail-ratio-tolerance", type=float, default=1.0e-4)
     parser.add_argument("--tail-window-fraction", type=float, default=0.05)
     parser.add_argument("--max-population-decay-fraction-at-read", type=float, default=1.0e-3)
-    parser.add_argument("--spectral-window-policy", choices=POLICIES, default="warn")
+    parser.add_argument("--spectral-window-policy", choices=POLICIES)
     parser.add_argument("--positivity-policy", choices=POLICIES, default="raise")
     parser.add_argument("--work-passivity-policy", choices=POLICIES, default="raise")
     parser.add_argument("--tail-policy", choices=POLICIES)
@@ -2011,6 +2022,8 @@ def parse_spectral_calculation_args(metric: str, argv: list[str] | None = None) 
     parser.add_argument("--max-weak-population", type=float, default=0.02)
     parser.add_argument("--weak-linearity-policy", choices=POLICIES)
     parser.add_argument("--max-energy-step-over-gamma0", type=float, default=0.05)
+    parser.add_argument("--max-spectral-coarsening-change", type=float, default=0.05)
+    parser.add_argument("--max-spectral-window-change", type=float, default=0.05)
     parser.add_argument("--energy-resolution-policy", choices=POLICIES)
     _add_pulse_arguments(parser)
     return _apply_preset(parser.parse_args(argv), threshold=False)

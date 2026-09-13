@@ -43,12 +43,12 @@ from article_observables.qd_mnp_calculate_work_loss_fluence import (
     pulse_for_fluence,
 )
 from article_observables.qd_mnp_material_modes_artifact import (
-    SCHEMA_VERSION,
     atomic_write_npz,
     canonical_sha256,
     git_provenance,
     source_hashes,
 )
+from article_observables.qd_mnp_work_spectrum_metrics import delta_window_diagnostics
 from qd_mnp_rational_fit import (
     AU_DIPOLE_C_M,
     AU_ENERGY_EV,
@@ -72,6 +72,7 @@ from qd_mnp_rational_fit import (
 
 
 SCHEMA_NAME = "qd_mnp.material_work_loss_spectrum_comparison"
+SCHEMA_VERSION = 2
 BRANCH_IDS = np.asarray(["one", "multi"], dtype="U16")
 POLICIES = ("raise", "warn", "ignore")
 DEFAULT_CHANNELS = ("axis_long",)
@@ -380,7 +381,10 @@ def _solve_with_spectrum_tail_extension(
     max_incident_ft_pointwise_relative_error: float,
     max_spectrum_window_relative_change: float,
     max_energy_window_relative_change: float,
-) -> tuple[Any, float, int, SpectrumWindowAudit]:
+    bare_sigma_cm2: np.ndarray,
+    max_delta_window_relative_change: float,
+    max_delta_window_absolute_change_cm2: float,
+) -> tuple[Any, float, int, SpectrumWindowAudit, dict[str, np.ndarray]]:
     """Solve until both the response tail and full spectrum are converged."""
 
     start_au = -float(pre_sigma) * pulse.sigma_t_au
@@ -421,8 +425,15 @@ def _solve_with_spectrum_tail_extension(
             max_spectrum_window_relative_change=max_spectrum_window_relative_change,
             max_energy_window_relative_change=max_energy_window_relative_change,
         )
+        delta_audit = delta_window_diagnostics(
+            audit.sigma_qs_work_cm2, audit.sigma_half_window_cm2,
+            bare_sigma_cm2, audit.support_mask,
+            relative_tolerance=max_delta_window_relative_change,
+            absolute_tolerance_cm2=max_delta_window_absolute_change_cm2,
+        )
+        delta_converged = bool(delta_audit["delta_window_converged"])
         tail_converged = bool(result.diagnostics.response_tail_converged)
-        if tail_converged and audit.spectrum_window_converged and audit.incident_ft_converged:
+        if tail_converged and audit.spectrum_window_converged and audit.incident_ft_converged and delta_converged:
             break
         if post_fs is not None or extensions >= max_auto_tail_extensions:
             if not tail_converged:
@@ -447,10 +458,18 @@ def _solve_with_spectrum_tail_extension(
                     "energy grid leaves the configured pulse support: max pointwise "
                     f"relative error={audit.incident_ft_max_pointwise_relative_error:.6g}.",
                 )
+            if not delta_converged:
+                _apply_policy(
+                    observable_convergence_policy,
+                    "The hybrid-minus-MNP contrast failed the time-window gate: "
+                    f"absolute change={float(delta_audit['delta_window_max_absolute_change_cm2']):.6g} cm^2, "
+                    f"relative change={float(delta_audit['delta_window_max_normalized_change']):.6g}. "
+                    "Increase --post-fs or allow more automatic tail extensions.",
+                )
             break
         end_au *= 2.0
         extensions += 1
-    return result, float(au_to_fs(end_au)), extensions, audit
+    return result, float(au_to_fs(end_au)), extensions, audit, delta_audit
 
 
 def energy_grid_resolution_diagnostics(
@@ -619,6 +638,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--max-spectrum-window-relative-change", type=float, default=1.0e-3
     )
+    parser.add_argument("--max-delta-window-relative-change", type=float, default=1.0e-3)
+    parser.add_argument("--max-delta-window-absolute-change-cm2", type=float, default=0.0)
     parser.add_argument(
         "--max-energy-window-relative-change", type=float, default=1.0e-3
     )
@@ -674,6 +695,7 @@ def _validate_args(args: argparse.Namespace) -> None:
         "tail_ratio_tolerance",
         "tail_window_fraction",
         "max_spectrum_window_relative_change",
+        "max_delta_window_relative_change",
         "max_energy_window_relative_change",
         "minimum_incident_relative_amplitude",
         "max_incident_ft_pointwise_relative_error",
@@ -683,6 +705,8 @@ def _validate_args(args: argparse.Namespace) -> None:
         value = float(getattr(args, name))
         if not np.isfinite(value) or value <= 0.0:
             raise ValueError(f"--{name.replace('_', '-')} must be finite and positive.")
+    if not np.isfinite(args.max_delta_window_absolute_change_cm2) or args.max_delta_window_absolute_change_cm2 < 0:
+        raise ValueError("--max-delta-window-absolute-change-cm2 must be finite and nonnegative.")
     if not args.energy_min_ev < args.energy_max_ev:
         raise ValueError("Require energy_min_ev < energy_max_ev.")
     if not args.energy_min_ev <= args.carrier_energy_ev <= args.energy_max_ev:
@@ -796,7 +820,8 @@ def _fit_tables(
         "material_fit_omega_modes_eV": au_to_eV(omega),
         "material_fit_gamma_modes_au": gamma,
         "material_fit_gamma_modes_eV": au_to_eV(gamma),
-        "material_fit_alpha_inf_au3": alpha_inf,
+        "material_fit_alpha_inf_dimensionless": alpha_inf,
+        "material_fit_alpha_inf_au3": alpha_inf,  # Legacy key; values are dimensionless.
         "material_fit_normalized_rms_alpha": nrms_alpha,
         "material_fit_normalized_rms_inverse_alpha": nrms_inv,
         "material_fit_max_normalized_alpha_error": max_error,
@@ -1060,7 +1085,7 @@ def calculate_payload(
                         * pulse.sigma_t_au
                     )
 
-                result, effective_post_fs, extensions, audit = (
+                result, effective_post_fs, extensions, audit, delta_audit = (
                     _solve_with_spectrum_tail_extension(
                         bundle.full_model,
                         pulse,
@@ -1097,6 +1122,9 @@ def calculate_payload(
                         max_energy_window_relative_change=(
                             args.max_energy_window_relative_change
                         ),
+                        bare_sigma_cm2=bare_sigma[branch_index, channel_index],
+                        max_delta_window_relative_change=args.max_delta_window_relative_change,
+                        max_delta_window_absolute_change_cm2=args.max_delta_window_absolute_change_cm2,
                     )
                 )
                 complex_spectra["alpha_eff_au3"][branch_index, channel_index, fluence_index] = audit.alpha_eff_au3
@@ -1169,6 +1197,12 @@ def calculate_payload(
 
     sigma = float_spectra["sigma_qs_work_cm2"]
     delta = sigma - bare_sigma[:, :, None, :]
+    delta_window = delta_window_diagnostics(
+        sigma, float_spectra["sigma_half_window_cm2"],
+        bare_sigma[:, :, None, :], support_by_fluence,
+        relative_tolerance=args.max_delta_window_relative_change,
+        absolute_tolerance_cm2=args.max_delta_window_absolute_change_cm2,
+    )
     common_support = np.all(support_by_fluence, axis=0)
     if np.count_nonzero(common_support) < 5:
         raise RuntimeError(
@@ -1205,6 +1239,7 @@ def calculate_payload(
         "isolated_qd_pulse_area_rad": pulse_area,
         "bare_mnp_sigma_qs_work_cm2": bare_sigma,
         "delta_sigma_qs_work_cm2": delta,
+        **delta_window,
         "bare_mnp_sigma_energy_transfer_cm2": bare_energy_sigma,
         "interaction_A_real_au3": interaction_A.real,
         "interaction_A_imag_au3": interaction_A.imag,
@@ -1323,6 +1358,8 @@ def calculate_payload(
             "max_spectrum_window_relative_change": float(
                 args.max_spectrum_window_relative_change
             ),
+            "max_delta_window_relative_change": float(args.max_delta_window_relative_change),
+            "max_delta_window_absolute_change_cm2": float(args.max_delta_window_absolute_change_cm2),
             "max_energy_window_relative_change": float(
                 args.max_energy_window_relative_change
             ),
@@ -1360,6 +1397,8 @@ def calculate_payload(
             "bare_spectrum": "branch x channel x energy",
         },
         "array_units": {
+            "material_fit_alpha_inf_dimensionless": "1",
+            "material_fit_alpha_inf_au3": "1 (legacy misleading key; use material_fit_alpha_inf_dimensionless)",
             "selected_fluence_j_cm2": "J cm^-2",
             "carrier_energy_eV": "eV",
             "energy_eV": "eV",
@@ -1374,6 +1413,10 @@ def calculate_payload(
             "sigma_qs_work_cm2": "cm^2",
             "bare_mnp_sigma_qs_work_cm2": "cm^2",
             "delta_sigma_qs_work_cm2": "cm^2",
+            "delta_sigma_half_window_cm2": "cm^2",
+            "delta_window_max_absolute_change_cm2": "cm^2",
+            "delta_window_scale_cm2": "cm^2",
+            "delta_window_max_normalized_change": "dimensionless",
             "sigma_energy_transfer_cm2": "cm^2",
             "work_from_incident_field_j": "J",
             "post_fs_effective": "fs",
@@ -1392,6 +1435,7 @@ def calculate_payload(
                     generator,
                     PROJECT_ROOT / "article_observables" / "qd_mnp_calculate_work_loss_fluence.py",
                     PROJECT_ROOT / "article_observables" / "qd_mnp_material_modes_artifact.py",
+                    PROJECT_ROOT / "article_observables" / "qd_mnp_work_spectrum_metrics.py",
                     PROJECT_ROOT / "qd_mnp_rational_fit.py",
                     PROJECT_ROOT / "qd_mnp_full_qs_model.py",
                     PROJECT_ROOT / "qd_mnp_spheroid_green.py",

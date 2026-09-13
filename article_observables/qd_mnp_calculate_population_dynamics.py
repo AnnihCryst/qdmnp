@@ -1,7 +1,7 @@
 """Calculate article-ready QD population dynamics and save one NPZ artifact.
 
-This article executable performs the expensive full-quasistatic pulse
-propagation. It does not create figures. The companion
+This article executable performs full-quasistatic pulse propagation and,
+with --include-dd, a same-pulse point-dipole comparison. It does not create figures. The companion
 ``qd_mnp_plot_population_dynamics.py``
 loads only the resulting NPZ file, so figure styling never repeats the physical
 calculation.
@@ -10,7 +10,7 @@ calculation.
 from __future__ import annotations
 
 import argparse
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -57,7 +57,10 @@ from qd_mnp_rational_fit import (
     make_params_with_overrides,
     params_to_physical_dict,
     response_tail_ratio,
+    sampled_positive_frequency_spectral_fraction,
 )
+from qd_mnp_spheroid_pulse_comparison import _legacy_tail_ratio
+from article_observables.qd_mnp_dd_pulse import solve_dd_with_resolution
 from qd_mnp_spheroid_equatorial import EquatorialSpheroidGreenInteraction
 from qd_mnp_spheroid_green import SpheroidGreenInteraction
 
@@ -163,6 +166,8 @@ def _source_file_hashes() -> dict[str, str]:
         PROJECT_ROOT / "qd_mnp_rational_fit.py",
         PROJECT_ROOT / "qd_mnp_spheroid_equatorial.py",
         PROJECT_ROOT / "qd_mnp_spheroid_green.py",
+        PROJECT_ROOT / "qd_mnp_spheroid_pulse_comparison.py",
+        PROJECT_ROOT / "article_observables" / "qd_mnp_dd_pulse.py",
     )
     return {
         path.relative_to(PROJECT_ROOT).as_posix(): hashlib.sha256(
@@ -538,6 +543,45 @@ def _apply_policy(policy: str, message: str) -> None:
         warnings.warn(message, RuntimeWarning, stacklevel=3)
 
 
+def _solve_dd_trace(model, pulse, t_span_au, args):
+    """Use the same bright fit and pulse as FQS, retaining real DD diagnostics."""
+    result = solve_dd_with_resolution(
+        model, pulse, points_per_fastest_cycle=args.points_per_fastest_cycle,
+        t_span_au=t_span_au, method=args.method, rtol=args.rtol, atol=args.atol,
+        spectral_window_policy=args.spectral_window_policy,
+        max_spectral_leakage=args.max_spectral_leakage,
+        positivity_policy=args.positivity_policy, positivity_tol=args.positivity_tolerance,
+    )
+    W, Q, P = result.y[2 * model.n_modes:2 * model.n_modes + 3]
+    mnp_field = model.J * result.mu_p_au
+    diagnostic = asdict(result.diagnostics)
+    ratio = float(_legacy_tail_ratio(model, result, tail_fraction=args.response_tail_window_fraction))
+    diagnostic.update(
+        solver_n_steps=diagnostic["n_steps"], solver_nfev=diagnostic["nfev"],
+        response_tail_ratio=ratio, response_tail_tolerance=args.response_tail_tolerance,
+        response_tail_converged=bool(np.isfinite(ratio) and ratio <= args.response_tail_tolerance),
+        response_tail_window_fraction=args.response_tail_window_fraction,
+        work_from_incident_field_j=float(result.work_from_incident_field_j),
+        sigma_energy_transfer_cm2=float(result.sigma_energy_transfer_cm2),
+    )
+    for name, signal in (("qd_source", result.mu_d_au), ("mnp_field", mnp_field)):
+        fraction = float(sampled_positive_frequency_spectral_fraction(
+            result.t_au, signal, (args.fit_min_ev, args.fit_max_ev),
+            highest_resolved_omega_au=diagnostic["integration_frequency_ceiling_au"],
+        ))
+        diagnostic[f"{name}_spectral_fraction_in_fit_window"] = fraction
+        diagnostic[f"{name}_spectral_leakage"] = 1.0 - fraction
+        if 1.0 - fraction > args.max_spectral_leakage:
+            _apply_policy(args.spectral_window_policy, f"DD {name} leaves the material fit window.")
+    return dict(
+        t_au=result.t_au, W=W, Q=Q, P=P, rho22=0.5 * (W + 1),
+        mu_qd_au=result.mu_d_au, mu_mnp_au=result.mu_p_au,
+        mu_total_au=result.mu_total_au, mnp_field_at_qd_au=mnp_field,
+        effective_qd_field_au=model.params.qd_local_field_factor * (pulse.field(result.t_au) + mnp_field),
+        diagnostics=diagnostic,
+    )
+
+
 def calculate_population_dynamics(args: argparse.Namespace) -> Path:
     output = args.output.resolve()
     if output.suffix.lower() != ".npz":
@@ -589,6 +633,7 @@ def calculate_population_dynamics(args: argparse.Namespace) -> Path:
         built_models[channel_id] = _build_full_qs_model(
             CHANNELS[channel_id], args
         )
+    include_dd = bool(getattr(args, "include_dd", False))
 
     reference_params = built_models[args.channels[0]][0]
     start_au = -args.start_sigma * pulse.sigma_t_au
@@ -601,6 +646,8 @@ def calculate_population_dynamics(args: argparse.Namespace) -> Path:
                 for channel_id in args.channels
             ),
         )
+        if include_dd:
+            end_au = max(end_au, *(item[1].recommended_post_pulse_time_au() for item in built_models.values()))
     else:
         end_au = float(fs_to_au(args.post_fs))
     if end_au <= args.start_sigma * pulse.sigma_t_au:
@@ -625,6 +672,7 @@ def calculate_population_dynamics(args: argparse.Namespace) -> Path:
             positivity_tolerance=args.positivity_tolerance,
         )
         full_results = {}
+        dd_results = {}
         for channel_id in args.channels:
             model = built_models[channel_id][3]
             full_results[channel_id] = model.solve(
@@ -643,12 +691,18 @@ def calculate_population_dynamics(args: argparse.Namespace) -> Path:
                 response_tail_tolerance=args.response_tail_tolerance,
                 response_tail_window_fraction=args.response_tail_window_fraction,
             )
+            if include_dd:
+                dd_results[channel_id] = _solve_dd_trace(
+                    built_models[channel_id][1], pulse, t_span_au, args
+                )
         tail_ratios = {
             "bare_qd": float(bare["diagnostics"]["response_tail_ratio"]),
             **{
                 channel_id: float(result.diagnostics.response_tail_ratio)
                 for channel_id, result in full_results.items()
             },
+            **{f"dd_{name}": float(value["diagnostics"]["response_tail_ratio"])
+               for name, value in dd_results.items()},
         }
         all_tails_converged = all(
             np.isfinite(value) and value <= args.response_tail_tolerance
@@ -692,6 +746,7 @@ def calculate_population_dynamics(args: argparse.Namespace) -> Path:
             for result in full_results.values()
         ),
     ]
+    step_limits.extend(float(value["diagnostics"]["max_step_limit_au"]) for value in dd_results.values())
     required_common_time_points = int(
         np.ceil((end_au - start_au) / min(step_limits)) + 1
     )
@@ -866,6 +921,32 @@ def calculate_population_dynamics(args: argparse.Namespace) -> Path:
             "dark_reduction": _reduction_metadata(reduction, model),
         }
 
+    for source_id, result in dd_results.items():
+        channel_id = f"dd_{source_id}"
+        bright = built_models[source_id][1]
+        channel_ids.append(channel_id)
+        labels.append("DD: " + CHANNELS[source_id].label)
+        labels[1 + args.channels.index(source_id)] = "FQS: " + CHANNELS[source_id].label
+        for name in trace_names:
+            collected[name].append(np.interp(time_au, result["t_au"], result[name]))
+        maximum_index = int(np.argmax(result["rho22"]))
+        native_population_max.append(float(result["rho22"][maximum_index]))
+        native_population_max_time_fs.append(float(au_to_fs(result["t_au"][maximum_index])))
+        diagnostics_by_channel[channel_id] = result["diagnostics"]
+        physical_parameters[channel_id] = params_to_physical_dict(bright.params, CHANNELS[source_id].orientation)
+        stability = bright.linear_stability
+        model_metadata[channel_id] = {
+            "implementation": "HybridQDPlasmonModel",
+            "spatial_model": "central_point_dipole",
+            "same_material_fit_as": source_id,
+            "material_fit": _fit_metadata(bright),
+            "coupled_stability": {
+                "stable": bool(stability.stable),
+                "spectral_abscissa_au": float(stability.spectral_abscissa_au),
+                "tolerance_au": float(stability.tolerance_au),
+            },
+        }
+
     stacked = {
         name: np.stack(values, axis=0) for name, values in collected.items()
     }
@@ -1015,6 +1096,8 @@ def calculate_population_dynamics(args: argparse.Namespace) -> Path:
 
 def parse_args(argv: Iterable[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--include-dd", action="store_true",
+                        help="Add DD trajectories using exactly the FQS bright fit and pulse.")
     parser.add_argument(
         "--output",
         type=Path,

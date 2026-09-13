@@ -19,6 +19,17 @@ from qd_mnp_rational_fit import AU_ENERGY_EV
 
 
 class MaterialDispersionMetricTests(unittest.TestCase):
+    def test_bare_material_fit_accepts_spheroid_larger_than_legacy_distance(self) -> None:
+        args = calc.parse_args(["--c-nm", "20", "--a-nm", "7"])
+        for orientation in ("long", "trans"):
+            model = calc._make_model(
+                orientation=orientation, n_modes=1, args=args,
+                enforce_accuracy_in_model=False,
+            )
+            energy = np.asarray([1.8, 2.1, 2.4])
+            self.assertTrue(np.all(np.isfinite(model.alpha_from_material(energy))))
+            self.assertTrue(np.all(np.isfinite(model.alpha_from_fit(energy))))
+
     def test_common_scale_residual_metrics_match_definition(self) -> None:
         reference = np.asarray([1.0 + 2.0j, 2.0 - 1.0j, -0.5 + 0.2j])
         candidate = reference + np.asarray([0.1j, -0.2, 0.05 + 0.02j])

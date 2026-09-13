@@ -14,6 +14,7 @@ matplotlib.use("Agg")
 
 from article_observables.qd_mnp_calculate_excitation_spectrum_material_comparison import (
     SCHEMA_NAME,
+    SCHEMA_VERSION,
     _validate_args,
     calculate_payload,
     extract_fwhm_feature,
@@ -40,7 +41,9 @@ class SpectrumMaterialFeatureTests(unittest.TestCase):
         )
         self.assertEqual(feature["status"], "ok")
         self.assertAlmostEqual(float(feature["energy_eV"]), 2.01, places=5)
-        self.assertAlmostEqual(float(feature["fwhm_eV"]), 0.04, delta=2.0e-4)
+        # The operational half-prominence width includes the finite window
+        # baseline, unlike an absolute half-height width.
+        self.assertAlmostEqual(float(feature["fwhm_eV"]), 0.0392068, delta=2.0e-6)
 
     def test_multi_representation_really_requires_multiple_modes(self) -> None:
         args = parse_args(
@@ -129,6 +132,14 @@ class SpectrumMaterialCalculationTests(unittest.TestCase):
         self.assertTrue(np.all(payload["coupled_stability_stable"]))
         self.assertTrue(bool(payload["modal_fit_accepted"][1, 0]))
         self.assertIn("material_energy_eV", payload)
+        self.assertEqual(payload["spectral_sampling_accepted"].shape, (3, 1))
+        self.assertEqual(payload["spectral_window_accepted"].shape, (3, 1))
+        self.assertEqual(payload["spectral_window_relative_change"].shape, (3, 1))
+        self.assertEqual(payload["observable_fit_accepted"].shape, (3, 1))
+        np.testing.assert_allclose(
+            payload["observable_spectrum_nrms_error_vs_direct"][0], 0.0
+        )
+        self.assertIn("final_observable_fit_gate", self.metadata)
         self.assertEqual(payload["spatial_channel_offsets"].shape, (2,))
         self.assertEqual(
             self.metadata["model_api"]["fitted_FQS"],
@@ -167,6 +178,12 @@ class SpectrumMaterialPlotTests(unittest.TestCase):
             "peak_energy_eV": np.asarray([[2.04, 2.04], [2.044, 2.044], [2.048, 2.048]]),
             "feature_status": np.full((3, 2), "ok", dtype="U40"),
             "energy_step_over_isolated_fwhm": np.asarray(0.01),
+            "energy_resolution_accepted": np.asarray(True),
+            "spectral_sampling_accepted": np.ones((3, 2), dtype=bool),
+            "isolated_spectral_sampling_accepted": np.asarray(True),
+            "spectral_window_accepted": np.ones((3, 2), dtype=bool),
+            "isolated_spectral_window_accepted": np.asarray(True),
+            "observable_fit_accepted": np.ones((3, 2), dtype=bool),
             "fit_passive_on_fit_window": np.ones((2, 2), dtype=bool),
             "fit_passive_for_all_positive_frequencies": np.ones(
                 (2, 2), dtype=bool
@@ -179,7 +196,7 @@ class SpectrumMaterialPlotTests(unittest.TestCase):
         }
         metadata = {
             "schema_name": SCHEMA_NAME,
-            "schema_version": 1,
+            "schema_version": SCHEMA_VERSION,
             "multi_fit_mode_count": 9,
             "resolved_arguments": {
                 "max_energy_step_over_isolated_fwhm": 0.05,

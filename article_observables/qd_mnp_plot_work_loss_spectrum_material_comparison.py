@@ -24,10 +24,11 @@ from article_observables.qd_mnp_material_modes_artifact import (
     load_npz_artifact,
     save_figure,
 )
+from article_observables.qd_mnp_work_spectrum_metrics import delta_window_diagnostics
 
 
 SCHEMA_NAME = "qd_mnp.material_work_loss_spectrum_comparison"
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 BRANCH_IDS = ("one", "multi")
 
 REQUIRED_ARRAYS = {
@@ -42,6 +43,8 @@ REQUIRED_ARRAYS = {
     "sigma_qs_work_cm2",
     "bare_mnp_sigma_qs_work_cm2",
     "delta_sigma_qs_work_cm2",
+    "sigma_half_window_cm2",
+    "delta_window_converged",
     "spectrum_support_mask",
     "solver_success",
     "t_final_reached",
@@ -65,6 +68,7 @@ _SOLVE_CERTIFICATES = (
     "state_is_finite",
     "response_tail_converged",
     "spectrum_window_converged",
+    "delta_window_converged",
     "work_nonnegative_within_tolerance",
     "density_matrix_positive",
     "incident_ft_converged",
@@ -222,6 +226,21 @@ def _validate_payload(
     for name in (*_MODEL_CERTIFICATES, "modal_fit_accepted"):
         _require_exact_boolean(payload, name, model_shape)
 
+    half = np.asarray(payload["sigma_half_window_cm2"], dtype=float)
+    if half.shape != spectrum_shape:
+        raise ValueError("sigma_half_window_cm2 must match the hybrid spectrum shape.")
+    gates = metadata.get("quality_gates", {})
+    try:
+        delta_audit = delta_window_diagnostics(
+            sigma, half, bare[:, :, None, :], support,
+            relative_tolerance=float(gates["max_delta_window_relative_change"]),
+            absolute_tolerance_cm2=float(gates["max_delta_window_absolute_change_cm2"]),
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValueError("Missing or invalid delta-window tolerances.") from exc
+    if not np.array_equal(payload["delta_window_converged"], delta_audit["delta_window_converged"]):
+        raise ValueError("delta_window_converged disagrees with the saved time windows.")
+
     metadata_mode_count = metadata.get("multi_fit_mode_count")
     if metadata_mode_count is not None:
         try:
@@ -270,13 +289,17 @@ def load_work_loss_spectrum_artifact(
     payload, metadata = load_npz_artifact(
         source,
         schema_name=SCHEMA_NAME,
-        required_arrays=REQUIRED_ARRAYS,
+        schema_version=SCHEMA_VERSION,
+        required_arrays={"branch_id"},
     )
     if int(metadata.get("schema_version", -1)) != SCHEMA_VERSION:
         raise ValueError(
             f"Unsupported schema version {metadata.get('schema_version')!r}; "
-            f"expected {SCHEMA_VERSION}."
+            f"expected {SCHEMA_VERSION}. Recalculate with the delta-window certificate."
         )
+    missing = REQUIRED_ARRAYS.difference(payload)
+    if missing:
+        raise ValueError(f"Missing required arrays: {sorted(missing)}")
     _validate_payload(payload, metadata)
     failures = _certificate_failures(payload)
     if failures and not allow_unconverged:

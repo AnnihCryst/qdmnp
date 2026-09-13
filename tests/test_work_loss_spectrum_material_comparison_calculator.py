@@ -22,9 +22,32 @@ from article_observables.qd_mnp_calculate_work_loss_fluence import (
     spectral_effective_alpha_au,
 )
 from qd_mnp_rational_fit import GaussianPulse, au_to_eV, eV_to_au, fs_to_au
+from article_observables.qd_mnp_work_spectrum_metrics import delta_window_diagnostics
 
 
 class WorkLossSpectrumFourierTests(unittest.TestCase):
+    def test_metal_background_cannot_hide_unconverged_qd_contrast(self) -> None:
+        bare = np.full(9, 1.0e-10)
+        full = bare + 1.0e-14
+        half = full + 1.0e-15
+        # The total spectrum easily passes a 0.1% check; its contrast does not.
+        self.assertLess(np.max(abs(full-half))/np.max(abs(full)), 1e-3)
+        audit = delta_window_diagnostics(full, half, bare, np.ones(9, dtype=bool),
+                                         relative_tolerance=1e-3)
+        self.assertFalse(audit["delta_window_converged"])
+        self.assertAlmostEqual(float(audit["delta_window_max_normalized_change"]), 0.1, places=9)
+
+    def test_zero_contrast_and_unsupported_points_have_defined_window_status(self) -> None:
+        bare = np.asarray([1.0e-10, 1.0e-10, np.nan])
+        support = np.asarray([True, True, False])
+        audit = delta_window_diagnostics(bare, bare, bare, support, relative_tolerance=.01)
+        self.assertTrue(audit["delta_window_converged"])
+        self.assertEqual(float(audit["delta_window_max_normalized_change"]), 0.0)
+        changed = bare.copy()
+        changed[0] += 1e-15
+        audit = delta_window_diagnostics(bare, changed, bare, support, relative_tolerance=.01)
+        self.assertFalse(audit["delta_window_converged"])
+
     def test_analytic_real_gaussian_transform_matches_quadrature(self) -> None:
         pulse = GaussianPulse(
             E0_au=2.3e-5,
@@ -210,6 +233,8 @@ class WorkLossSpectrumCalculationTests(unittest.TestCase):
         self.assertEqual(payload["sigma_qs_work_cm2"].shape, (2, 1, 2, 9))
         self.assertEqual(payload["bare_mnp_sigma_qs_work_cm2"].shape, (2, 1, 9))
         self.assertEqual(payload["energy_grid_converged"].shape, (2, 1, 2))
+        self.assertEqual(payload["delta_window_converged"].shape, (2, 1, 2))
+        self.assertEqual(payload["delta_sigma_half_window_cm2"].shape, (2, 1, 2, 9))
         np.testing.assert_allclose(
             payload["delta_sigma_qs_work_cm2"],
             payload["sigma_qs_work_cm2"]

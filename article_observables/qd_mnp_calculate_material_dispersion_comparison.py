@@ -296,6 +296,10 @@ def _make_model(
     params = make_params_with_overrides(
         c_nm=args.c_nm,
         a_nm=args.a_nm,
+        # This adapter uses the legacy material fitter only.  Keep its unused
+        # QD outside ANY requested spheroid instead of inheriting R=18 nm.
+        r_nm=2.0 * args.c_nm + 2.0,
+        qd_radius_nm=2.0,
         eps_m=args.eps_m,
         orientation=orientation,
     )
@@ -696,6 +700,10 @@ def calculate_material_dispersion_comparison(
             ),
         },
         "physical_parameters_by_orientation": physical_parameters,
+        "auxiliary_qd_scope": (
+            "QD parameters only satisfy the legacy fitter constructor; "
+            "no QD response or coupling enters this bare-MNP calculation."
+        ),
         "fit_diagnostics_by_orientation": fit_metadata,
         "definitions": {
             "direct": (

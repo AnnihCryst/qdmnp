@@ -48,9 +48,47 @@ class ExcitationFluenceMaterialComparisonTests(unittest.TestCase):
         fluence = np.asarray([1.0, 4.0, 9.0])
         population = np.asarray([0.1, 0.4, 0.8])
         value, status, bracket = calculate._first_threshold(fluence, population, 0.6)
-        self.assertEqual(status, "interpolated")
+        self.assertEqual(status, "resolved")
         self.assertEqual(bracket, 1)
         self.assertAlmostEqual(value, 6.25)
+
+    def test_calculator_and_plotter_stop_before_second_rabi_lobe(self) -> None:
+        fluence = np.arange(1.0, 7.0) ** 2
+        population = np.asarray([0.1, 0.6, 0.6, 0.4, 0.5, 0.8])
+        value, status, bracket = calculate._first_threshold(fluence, population, 0.7)
+        plotted_value, plotted_status = plot._first_threshold(fluence, population, 0.7)
+        self.assertTrue(np.isnan(value))
+        self.assertTrue(np.isnan(plotted_value))
+        self.assertEqual(status, "not_reached_first_lobe")
+        self.assertEqual(plotted_status, status)
+        self.assertEqual(bracket, -1)
+
+    def test_left_censored_thresholds_do_not_enter_ratios_or_intensities(self) -> None:
+        args = calculate.parse_args(["--preset", "quick", "--points", "3", "--target-population", "0.5"])
+        one, multi = _branch_payload(1.2), _branch_payload(1.5)
+        one["p_exc_read"][1] = [0.6, 0.7, 0.8]
+        metadata = {"resolved_settings": {}, "channels": []}
+        with (
+            patch.object(calculate, "calculate_excitation_fluence", side_effect=[(one, metadata), (multi, metadata)]),
+            patch.object(calculate, "validate_excitation_comparison"),
+            patch.object(calculate, "source_hashes", return_value={}),
+            patch.object(calculate, "git_provenance", return_value={}),
+        ):
+            payload, _ = calculate.calculate_material_fluence_comparison(args)
+        self.assertEqual(payload["threshold_status"][0, 1], "left_censored")
+        self.assertEqual(payload["threshold_fluence_j_cm2"][0, 1], one["fluence_j_cm2"][0])
+        self.assertTrue(np.isnan(payload["threshold_peak_intensity_w_cm2"][0, 1]))
+        self.assertTrue(np.isnan(payload["hybrid_threshold_ratio_one_to_multi"][0]))
+        self.assertTrue(np.all(np.isfinite(payload["hybrid_threshold_ratio_one_to_multi"][1:])))
+
+        with tempfile.TemporaryDirectory() as directory:
+            with patch.object(plot, "save_figure") as saved:
+                plot.plot_comparison(payload, {}, Path(directory) / "censored.png", channel_filter=["axis_long"])
+            figure = saved.call_args.args[0]
+            labels = [item.get_text() for axis in figure.axes for item in axis.texts]
+            self.assertTrue(any("left_censored" in label for label in labels))
+            self.assertFalse(any("mathcal" in label for label in labels))
+            plot.plt.close(figure)
 
     def test_calculation_stacks_two_existing_api_results(self) -> None:
         args = calculate.parse_args(

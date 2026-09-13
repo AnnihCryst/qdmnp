@@ -1,0 +1,130 @@
+# One-MNP adaptation of Shah et al., Phys. Rev. B 88, 075411 (2013).
+# This is a complete runnable scenario, not a reproduction of the Au-QD-Au dimer.
+# Every dimensional key states its unit. No Gaussian/CGS field units are used.
+schema_version = 1
+scenario = "shah_single_mnp"
+source_url = "https://arxiv.org/pdf/1304.4538"
+source_local = "shah2013_agent/article.md"
+
+[geometry]
+# Shah: semi-axes, not full axes; the QD diameter is 4 nm.
+mnp_count = 1
+c_nm = 15.0
+a_nm = 10.0
+qd_radius_nm = 2.0
+# Shah's 6 nm metal-metal gap gives R=15+6/2=18 nm and g=18-15-2=1 nm.
+reference_surface_gap_nm = 1.0
+# The additional gaps/channels are study-design choices, not Shah data.
+gaps_nm = [1.0, 2.0, 3.0, 5.0, 10.0, 20.0, 50.0]
+channels = ["axis_long", "axis_trans", "side_long", "side_trans_radial", "side_trans_tangential"]
+
+[qd]
+transition_energy_eV = 2.042
+effective_dipole_debye = 13.9
+population_decay_energy_neV = 268.0
+# Read as the pure-dephasing coefficient in Shah's Lindblad equation.
+# The code receives TOTAL hbar*Gamma2 = 1.27 meV + hbar*gamma1/2.
+pure_dephasing_energy_meV = 1.27
+dipole_convention = "effective_external"
+# Bookkeeping background from the native project, NOT a verified Shah value.
+# With effective_external it causes no extra screening of the fitted 13.9 D.
+background_relative_permittivity = 6.0
+
+[medium]
+relative_permittivity = 2.25
+
+[pulse]
+carrier_energy_eV = 2.042
+intensity_fwhm_fs = 20.0
+target_population = 0.5
+# Study-design bounds: include the isolated-QD threshold, not just Shah's
+# much lower fluences enhanced by a TWO-particle antenna.
+fluence_min_J_cm2 = 5.0e-10
+fluence_max_J_cm2 = 2.0e-4
+fluence_points = 65
+max_fluence_points = 257
+max_fluence_extensions = 2
+refine_threshold = true
+threshold_root_xtol_sqrt_J_cm2 = 1.0e-14
+threshold_root_rtol = 1.0e-8
+max_fluence_midpoint_population_error = 0.01
+max_isolated_pulse_area_step_rad = 0.25
+carrier_scan_eV = [2.002, 2.042, 2.082]
+# Model-conditioned readout after coherence decay; own population loss <1%.
+population_read_fs = 8000.0
+max_population_decay_fraction = 0.01
+
+[material]
+# Native Johnson-Christy gold table; no imported effective dimer oscillator,
+# dimer coupling g, or dimer Purcell-corrected gamma1 is used.
+table = "native_gold_johnson_christy"
+fit_min_eV = 0.8
+fit_max_eV = 3.5
+mode_candidates = [9, 10, 12]
+validation_modes = 13
+seed = 12345
+max_bright_nrms = 0.025
+max_bright_pointwise_error = 0.05
+
+[spectrum]
+min_eV = 1.85
+max_eV = 2.234
+feature_center_eV = 2.042
+feature_half_window_eV = 0.17
+points = 4001
+max_points = 16001
+max_step_over_width = 0.05
+max_coarsening_change = 0.05
+max_window_change = 0.05
+max_observable_nrms = 0.05
+max_observable_shift_over_gamma0 = 0.10
+max_observable_width_relative_error = 0.10
+max_observable_gain_relative_error = 0.10
+
+[numerics]
+spatial_order = 80
+max_spatial_order = 160
+spatial_rtol = 2.0e-5
+modal_audit_points = 2001
+max_modal_nrms = 0.03
+max_modal_relative_error = 0.08
+method = "DOP853"
+rtol = 1.0e-8
+atol = 1.0e-10
+points_per_fastest_cycle = 20
+tail_ratio_tolerance = 1.0e-4
+tail_window_fraction = 0.05
+max_spectral_leakage = 1.0e-3
+dd_tolerance = 0.10
+threshold_relative_tolerance = 0.05
+weak_field_max_population = 0.01
+weak_field_relative_tolerance = 0.02
+max_weak_field_refinements = 3
+
+[validation]
+# Sensitivity ranges are deliberately labelled design assumptions, not
+# measured uncertainty of Shah's particles or a statistical ensemble.
+enabled = true
+gap_offset_nm = 0.2
+shape_relative_offset = 0.05
+exciton_offset_eV = 0.005
+population_decay_relative_offset = 0.20
+dephasing_relative_offset = 0.20
+# Retardation indicators are reported; these cutoffs are conservative
+# selection rules, not a proof of accuracy of electrostatics/point QD.
+max_k_c_for_selection = 0.30
+max_k_R_for_selection = 0.50
+
+[work_spectrum]
+# Optional in the article, enabled here to obtain ALL implemented plots.
+enabled = true
+min_eV = 1.90
+max_eV = 2.18
+points = 1001
+post_fs = 12000.0
+max_delta_window_relative_change = 0.001
+max_delta_window_absolute_change_cm2 = 0.0
+
+[output]
+directory = "results/article_shah_single"
+dpi = 180

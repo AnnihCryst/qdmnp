@@ -24,6 +24,11 @@ if str(PROJECT_ROOT) not in sys.path:
 import numpy as np
 import scipy
 
+from article_observables.qd_mnp_threshold_metrics import (
+    resolved_threshold_mask,
+    resolved_threshold_ratio,
+    threshold_from_curve,
+)
 from article_observables.qd_mnp_calculate_excitation_fluence import (
     HYBRID_CHANNELS,
     _build_channel_model,
@@ -71,23 +76,10 @@ def _first_threshold(
     population: np.ndarray,
     target: float,
 ) -> tuple[float, str, int]:
-    """First rising-branch threshold, interpolated in sqrt(fluence)."""
+    """Compatibility adapter around the shared first-lobe definition."""
 
-    x = np.asarray(fluence, dtype=float)
-    y = np.asarray(population, dtype=float)
-    if y[0] >= target:
-        return float(x[0]), "left_censored", 0
-    for index in range(x.size - 1):
-        y0 = float(y[index])
-        y1 = float(y[index + 1])
-        if y0 < target <= y1 and y1 > y0:
-            root_x = np.sqrt(x[index]) + (
-                (target - y0)
-                / (y1 - y0)
-                * (np.sqrt(x[index + 1]) - np.sqrt(x[index]))
-            )
-            return float(root_x**2), "interpolated", index
-    return float("nan"), "not_reached", -1
+    value, status, bracket = threshold_from_curve(fluence, population, target)
+    return value, status, -1 if bracket is None else bracket[0]
 
 
 def _threshold_arrays(
@@ -96,7 +88,7 @@ def _threshold_arrays(
     target: float,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     thresholds = np.full(population.shape[:-1], np.nan, dtype=float)
-    status = np.empty(population.shape[:-1], dtype="U24")
+    status = np.empty(population.shape[:-1], dtype="U32")
     bracket_index = np.full(population.shape[:-1], -1, dtype=np.int64)
     for index in np.ndindex(population.shape[:-1]):
         value, label, bracket = _first_threshold(fluence, population[index], target)
@@ -232,21 +224,17 @@ def calculate_material_fluence_comparison(
     peak_intensity = np.asarray(one_payload["peak_intensity_w_cm2"], dtype=float)
     threshold_intensity = np.full_like(thresholds, np.nan)
     for index in np.ndindex(thresholds.shape):
-        if np.isfinite(thresholds[index]):
+        if resolved_threshold_mask(threshold_status[index]) and np.isfinite(thresholds[index]):
             threshold_intensity[index] = float(
                 np.interp(thresholds[index], fluence, peak_intensity)
             )
 
     hybrid_slice = slice(1, None)
-    threshold_ratio = np.divide(
+    threshold_ratio = resolved_threshold_ratio(
         thresholds[0, hybrid_slice],
         thresholds[1, hybrid_slice],
-        out=np.full(thresholds.shape[1] - 1, np.nan),
-        where=(
-            np.isfinite(thresholds[0, hybrid_slice])
-            & np.isfinite(thresholds[1, hybrid_slice])
-            & (thresholds[1, hybrid_slice] > 0.0)
-        ),
+        threshold_status[0, hybrid_slice],
+        threshold_status[1, hybrid_slice],
     )
 
     payload: dict[str, np.ndarray] = {
@@ -287,6 +275,7 @@ def calculate_material_fluence_comparison(
         Path(__file__),
         PROJECT_ROOT / "article_observables" / "qd_mnp_calculate_excitation_fluence.py",
         PROJECT_ROOT / "article_observables" / "qd_mnp_material_modes_artifact.py",
+        PROJECT_ROOT / "article_observables" / "qd_mnp_threshold_metrics.py",
         PROJECT_ROOT / "qd_mnp_rational_fit.py",
         PROJECT_ROOT / "qd_mnp_full_qs_model.py",
         PROJECT_ROOT / "qd_mnp_spheroid_green.py",
@@ -323,8 +312,9 @@ def calculate_material_fluence_comparison(
             "p_exc_read": "rho_ee at the common post-pulse read time",
             "p_exc_max": "maximum rho_ee on the saved solver trajectory",
             "threshold": (
-                "first rising crossing of target population, interpolated "
-                "linearly in sqrt(fluence); left-censored if already reached"
+                "first upward crossing before the first observed Rabi descent; "
+                "interpolated in sqrt(fluence); censored bounds are excluded "
+                "from threshold intensities and ratios"
             ),
             "threshold_ratio": "F_eta(one) / F_eta(multi)",
         },

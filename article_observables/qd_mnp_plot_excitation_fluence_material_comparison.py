@@ -9,6 +9,11 @@ from typing import Any
 import matplotlib.pyplot as plt
 import numpy as np
 
+from article_observables.qd_mnp_threshold_metrics import (
+    resolved_threshold_mask,
+    resolved_threshold_ratio,
+    threshold_from_curve,
+)
 from article_observables.qd_mnp_material_modes_artifact import (
     load_npz_artifact,
     save_figure,
@@ -35,19 +40,8 @@ def _first_threshold(
     population: np.ndarray,
     target: float,
 ) -> tuple[float, str]:
-    if population[0] >= target:
-        return float(fluence[0]), "left_censored"
-    for index in range(fluence.size - 1):
-        y0 = float(population[index])
-        y1 = float(population[index + 1])
-        if y0 < target <= y1 and y1 > y0:
-            root = np.sqrt(fluence[index]) + (
-                (target - y0)
-                / (y1 - y0)
-                * (np.sqrt(fluence[index + 1]) - np.sqrt(fluence[index]))
-            )
-            return float(root**2), "interpolated"
-    return float("nan"), "not_reached"
+    value, status, _ = threshold_from_curve(fluence, population, target)
+    return value, status
 
 
 def _branch_payload(payload: dict[str, np.ndarray], branch: str) -> dict[str, np.ndarray]:
@@ -344,7 +338,7 @@ def plot_comparison(
                 upper.plot(
                     crossing,
                     target,
-                    marker="o" if status == "interpolated" else "<",
+                    marker="o" if resolved_threshold_mask(status) else "<",
                     color=colors[branch],
                     ms=6,
                 )
@@ -352,11 +346,12 @@ def plot_comparison(
         lower.plot(fluence, difference, color="#6A3D9A", lw=1.8)
         lower.axhline(0.0, color="0.35", lw=0.9, ls=":")
         upper.axhline(target, color="0.45", lw=1.0, ls=":")
-        one_threshold, _ = _first_threshold(fluence, population[0, channel_index], target)
-        multi_threshold, _ = _first_threshold(fluence, population[1, channel_index], target)
-        ratio_text = "threshold unavailable"
-        if np.isfinite(one_threshold) and np.isfinite(multi_threshold) and multi_threshold > 0.0:
-            ratio_text = rf"$\mathcal{{F}}_\eta^{{(1)}}/\mathcal{{F}}_\eta^{{(N)}}={one_threshold / multi_threshold:.3g}$"
+        one_threshold, one_status = _first_threshold(fluence, population[0, channel_index], target)
+        multi_threshold, multi_status = _first_threshold(fluence, population[1, channel_index], target)
+        ratio = float(resolved_threshold_ratio(one_threshold, multi_threshold, one_status, multi_status))
+        ratio_text = f"threshold unavailable: {one_status} / {multi_status}"
+        if np.isfinite(ratio):
+            ratio_text = rf"$\mathcal{{F}}_\eta^{{(1)}}/\mathcal{{F}}_\eta^{{(N)}}={ratio:.3g}$"
         upper.text(0.03, 0.04, ratio_text, transform=upper.transAxes, fontsize=9)
         upper.set_title(labels_by_id.get(channel_ids[channel_index], channel_ids[channel_index]))
         upper.set_ylim(-0.025, 1.025)

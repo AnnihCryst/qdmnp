@@ -4,6 +4,7 @@ import ast
 import hashlib
 import json
 from pathlib import Path
+import tempfile
 import unittest
 
 import numpy as np
@@ -29,8 +30,17 @@ def _decode_complex(value: list[float]) -> complex:
     return complex(float(value[0]), float(value[1]))
 
 
-def _file_sha256(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+def _source_sha256_variants(path: Path) -> set[str]:
+    """Match immutable source provenance across Git LF/CRLF checkouts.
+
+    The offline generator records raw bytes.  Only newline representation is
+    allowed to differ; every other source byte still participates in the hash.
+    Neither the numerical fixture nor its historical hashes are rewritten.
+    """
+    raw = path.read_bytes()
+    lf = raw.replace(b"\r\n", b"\n")
+    return {hashlib.sha256(value).hexdigest() for value in
+            (raw, lf, lf.replace(b"\n", b"\r\n"))}
 
 
 def _sphere_exact_longitudinal(
@@ -266,6 +276,16 @@ class SphereBEMValidationTests(unittest.TestCase):
 
 
 class ImmutableBEMFixtureTests(unittest.TestCase):
+    def test_source_provenance_allows_only_line_ending_changes(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "source.py"
+            path.write_bytes(b"x = 1\ny = 2\n")
+            original = _source_sha256_variants(path)
+            path.write_bytes(b"x = 1\r\ny = 2\r\n")
+            self.assertEqual(original, _source_sha256_variants(path))
+            path.write_bytes(b"x = 9\r\ny = 2\r\n")
+            self.assertTrue(original.isdisjoint(_source_sha256_variants(path)))
+
     @classmethod
     def setUpClass(cls) -> None:
         cls.fixture = json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))
@@ -278,8 +298,8 @@ class ImmutableBEMFixtureTests(unittest.TestCase):
         provenance = fixture["provenance"]
         solver_path = PROJECT_ROOT / provenance["solver_module"]
         generator_path = PROJECT_ROOT / provenance["generator"]
-        self.assertEqual(provenance["solver_sha256"], _file_sha256(solver_path))
-        self.assertEqual(provenance["generator_sha256"], _file_sha256(generator_path))
+        self.assertIn(provenance["solver_sha256"], _source_sha256_variants(solver_path))
+        self.assertIn(provenance["generator_sha256"], _source_sha256_variants(generator_path))
 
         for path in (solver_path, generator_path):
             tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
