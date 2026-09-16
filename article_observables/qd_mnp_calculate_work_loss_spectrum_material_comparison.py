@@ -31,6 +31,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 import numpy as np
+from article_observables.qd_mnp_fit_options import add_fit_refinement_argument
 import scipy
 
 from article_observables.qd_mnp_calculate_work_loss_fluence import (
@@ -588,6 +589,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser.add_argument("--one-fit-modes", type=int, default=1)
     parser.add_argument("--multi-fit-modes", type=int, default=9)
+    add_fit_refinement_argument(parser)
     parser.add_argument("--fit-window-ev", nargs=2, type=float, default=(0.8, 3.0))
     parser.add_argument("--fit-seed", type=int, default=12345)
     parser.add_argument("--alpha-objective-weight", type=float, default=1.0)
@@ -988,6 +990,7 @@ def calculate_payload(
                 spatial_order_max=args.spatial_order_max,
                 material_fit_modes=int(branch_mode_counts[branch_index]),
                 fit_window_eV=tuple(args.fit_window_ev),
+                fit_refinement=getattr(args,"fit_refinement",None),
                 fit_seed=args.fit_seed,
                 alpha_objective_weight=args.alpha_objective_weight,
                 inv_alpha_objective_weight=args.inv_alpha_objective_weight,

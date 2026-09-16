@@ -1,7 +1,7 @@
 """Opt-in, lossless memoization of the native fitter during an article run.
 
-The mathematical model files are unmodified. A context manager temporarily
-wraps their deterministic material fit, restoring the method on exit. Geometry
+A context manager temporarily wraps the deterministic material fit, restoring
+the method on exit. Geometry
 coupling, stability, spatial convergence and every ODE are still evaluated.
 """
 
@@ -22,6 +22,8 @@ def fit_key(model) -> dict:
     source = Path(__file__).resolve().parents[1] / "qd_mnp_rational_fit.py"
     return {
         "source_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
+        "refinement_source_sha256": hashlib.sha256(source.with_name("qd_mnp_passive_fit.py").read_bytes()).hexdigest(),
+        "refinement": asdict(model.fit_refinement) if model.fit_refinement is not None else None,
         "orientation": model.orientation, "L": float(model.L),
         "aspect": float(model.params.c_au / model.params.a_au), "eps_m": float(model.params.eps_m),
         "n_modes": int(model.n_modes), "window": list(model.fit_window_eV),
@@ -66,7 +68,20 @@ def material_fit_cache(directory: Path):
                 memory[digest] = RationalLorentzFit(**values)
             else:
                 print(f"Fitting material N={model.n_modes}, {model.orientation}; subsequent identical fits will be reused.", flush=True)
-                memory[digest] = original(model)
+                requested = (model.max_fit_normalized_rms, model.max_fit_pointwise_relative_error)
+                # These limits also set optimizer stopping goals. Removing only
+                # limits at/above the native defaults leaves those goals exactly
+                # unchanged, but lets us preserve rejected coefficients for
+                # diagnosis/resume before enforcing the requested gates below.
+                if all(value is None or value >= default for value, default in zip(requested, (.025, .05))):
+                    try:
+                        model.max_fit_normalized_rms = None
+                        model.max_fit_pointwise_relative_error = None
+                        memory[digest] = original(model)
+                    finally:
+                        model.max_fit_normalized_rms, model.max_fit_pointwise_relative_error = requested
+                else:
+                    memory[digest] = original(model)
                 temporary = path.with_suffix(".pending.npz")
                 np.savez_compressed(temporary, **asdict(memory[digest]))
                 temporary.replace(path)

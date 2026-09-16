@@ -9,6 +9,7 @@ import tomllib
 
 import numpy as np
 from scipy.constants import c, epsilon_0, hbar, elementary_charge
+from qd_mnp_passive_fit import PassiveFitRefinement
 
 from qd_mnp_rational_fit import (
     AU_DIPOLE_C_M, AU_LENGTH_M, AU_TIME_S, AU_ENERGY_EV, DEBYE_C_M,
@@ -123,6 +124,11 @@ def validate_inputs(config: dict) -> None:
     ):
         integer(section, key, minimum)
     g, q, p, m, s, n = (config[k] for k in ("geometry", "qd", "pulse", "material", "spectrum", "numerics"))
+    if m.get("refinement") is not None:
+        refinement = PassiveFitRefinement(**m["refinement"])
+        if not (m["fit_min_eV"] < refinement.focus_center_eV-refinement.focus_half_width_eV
+                < refinement.focus_center_eV+refinement.focus_half_width_eV < m["fit_max_eV"]):
+            raise ValueError("The material refinement focus must lie inside the fit window.")
     if g["mnp_count"] != 1:
         raise ValueError("This workflow contains exactly one MNP.")
     if not 0 < g["a_nm"] <= g["c_nm"] or g["qd_radius_nm"] <= 0:

@@ -60,11 +60,19 @@ max_population_decay_fraction = 0.01
 table = "native_gold_johnson_christy"
 fit_min_eV = 0.8
 fit_max_eV = 3.5
-mode_candidates = [9, 10, 12]
+mode_candidates = [12]
 validation_modes = 13
 seed = 12345
 max_bright_nrms = 0.025
 max_bright_pointwise_error = 0.05
+
+[material.refinement]
+# Numerical approximation settings; not extra physical resonances of gold.
+# The full-band gates above and the final-observable gates remain unchanged.
+focus_center_eV = 2.042
+focus_half_width_eV = 0.0075
+focus_relative_error = 0.0025
+pole_bound_factor = 4.0
 
 [spectrum]
 min_eV = 1.85

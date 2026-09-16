@@ -35,6 +35,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 import numpy as np
+from article_observables.qd_mnp_fit_options import add_fit_refinement_argument
 import scipy
 from scipy.integrate import quad
 
@@ -660,6 +661,7 @@ def _build_channel_model(
     reduction_max_nodes: int | None,
     reduction_policy: str,
     reduction_reaudit_points: int,
+    fit_refinement: dict | None = None,
 ) -> ChannelModel:
     resolved_R_nm = resolved_center_distance_nm(
         spec,
@@ -689,6 +691,7 @@ def _build_channel_model(
         orientation=spec.orientation,
         n_modes=material_fit_modes,
         fit_window_eV=fit_window_eV,
+        fit_refinement=fit_refinement,
         alpha_objective_weight=alpha_objective_weight,
         inv_alpha_objective_weight=inv_alpha_objective_weight,
         max_fit_normalized_rms=None,
@@ -959,6 +962,7 @@ def _source_file_hashes() -> dict[str, str]:
         PROJECT_ROOT / "qd_mnp_full_qs_model.py",
         PROJECT_ROOT / "qd_mnp_params.py",
         PROJECT_ROOT / "qd_mnp_rational_fit.py",
+        PROJECT_ROOT / "qd_mnp_passive_fit.py",
         PROJECT_ROOT / "qd_mnp_spheroid_equatorial.py",
         PROJECT_ROOT / "qd_mnp_spheroid_green.py",
     )
@@ -1126,6 +1130,7 @@ def calculate_work_loss_fluence(
     max_isolated_pulse_area_step_rad: float = 0.25,
     overwrite: bool = False,
     verbose: bool = True,
+    fit_refinement: dict | None = None,
 ) -> Path:
     """Run full-QS dynamics and write one self-describing compressed NPZ."""
 
@@ -1290,6 +1295,7 @@ def calculate_work_loss_fluence(
             spatial_order_max=spatial_order_max,
             material_fit_modes=material_fit_modes,
             fit_window_eV=fit_window_eV,
+            fit_refinement=fit_refinement,
             fit_seed=fit_seed,
             alpha_objective_weight=alpha_objective_weight,
             inv_alpha_objective_weight=inv_alpha_objective_weight,
@@ -1606,6 +1612,7 @@ def calculate_work_loss_fluence(
 
     first_params = bundles[0].params
     metadata = {
+        "fit_refinement": fit_refinement,
         "schema": WORK_LOSS_FLUENCE_SCHEMA,
         "schema_version": WORK_LOSS_FLUENCE_SCHEMA_VERSION,
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
@@ -2146,6 +2153,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--spatial-order-max", type=int, default=80)
     parser.add_argument("--material-fit-modes", type=int, default=9)
+    add_fit_refinement_argument(parser)
     parser.add_argument("--fit-window-ev", nargs=2, type=float, default=(0.8, 3.0))
     parser.add_argument("--fit-seed", type=int, default=12345)
     parser.add_argument("--alpha-objective-weight", type=float, default=1.0)
@@ -2291,6 +2299,7 @@ def main(argv: list[str] | None = None) -> Path:
         spatial_order_max=args.spatial_order_max,
         material_fit_modes=args.material_fit_modes,
         fit_window_eV=tuple(args.fit_window_ev),
+        fit_refinement=args.fit_refinement,
         fit_seed=args.fit_seed,
         alpha_objective_weight=args.alpha_objective_weight,
         inv_alpha_objective_weight=args.inv_alpha_objective_weight,

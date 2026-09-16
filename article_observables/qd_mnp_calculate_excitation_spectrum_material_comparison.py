@@ -30,6 +30,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 import numpy as np
+from article_observables.qd_mnp_fit_options import add_fit_refinement_argument
 
 from article_observables.qd_mnp_spectral_features import extract_feature, sampling_diagnostics
 from article_observables.qd_mnp_calculate_excitation_fluence import (
@@ -163,6 +164,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
     parser.add_argument("--spatial-order-max", type=int)
     parser.add_argument("--multi-fit-modes", type=int)
+    add_fit_refinement_argument(parser)
     parser.add_argument("--fit-min-ev", type=float, default=0.8)
     parser.add_argument("--fit-max-ev", type=float, default=3.0)
     parser.add_argument("--weight-center-ev", type=float)
@@ -298,6 +300,7 @@ def _make_bright_model(
         params,
         orientation=spec.orientation,
         n_modes=n_modes,
+        fit_refinement=getattr(args, "fit_refinement", None),
         fit_window_eV=(args.fit_min_ev, args.fit_max_ev),
         weight_center_eV=args.weight_center_ev,
         weight_sigma_eV=args.weight_sigma_ev,

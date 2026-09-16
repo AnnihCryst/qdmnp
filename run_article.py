@@ -238,6 +238,7 @@ class ArticleRun:
     def fit_args(self, *, mode_key="material-fit-modes", count=None):
         m, n = self.config["material"], self.config["numerics"]
         return {mode_key: count or self.material_n, "fit-min-ev": m["fit_min_eV"], "fit-max-ev": m["fit_max_eV"],
+                "fit-refinement": json.dumps(m["refinement"], sort_keys=True) if m.get("refinement") else None,
                 "max-bright-fit-normalized-rms": m["max_bright_nrms"], "max-bright-fit-pointwise-relative-error": m["max_bright_pointwise_error"],
                 "spatial-order-max": self.spatial_order, "spatial-convergence-rtol": n["spatial_rtol"],
                 "modal-audit-points": n["modal_audit_points"], "max-modal-normalized-rms": n["max_modal_nrms"],
@@ -287,6 +288,7 @@ class ArticleRun:
             try:
                 data = self.step("fig01_material", PREFIX+"calculate_material_dispersion_comparison", {
                     "c-nm": g["c_nm"], "a-nm": g["a_nm"], "eps-m": self.config["medium"]["relative_permittivity"],
+                    "fit-refinement": json.dumps(m["refinement"], sort_keys=True) if m.get("refinement") else None,
                     "fit-min-ev": m["fit_min_eV"], "fit-max-ev": m["fit_max_eV"], "energy-min-ev": m["fit_min_eV"], "energy-max-ev": m["fit_max_eV"],
                     "one-modes": 1, "multi-modes": count, "seed": m["seed"], "max-normalized-rms": m["max_bright_nrms"], "max-pointwise-relative-error": m["max_bright_pointwise_error"]})
                 self.material_n = count

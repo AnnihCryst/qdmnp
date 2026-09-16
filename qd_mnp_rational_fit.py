@@ -29,6 +29,7 @@ from scipy.constants import c as C_SI, epsilon_0, e as E_CHARGE, hbar, physical_
 from scipy.integrate import solve_ivp
 from scipy.optimize import least_squares
 from scipy.special import erf
+from qd_mnp_passive_fit import PassiveFitRefinement, positive_lorentz_candidate
 
 # ================================================================
 # Atomic units
@@ -1088,6 +1089,7 @@ class HybridQDPlasmonModel:
         fit_window_eV: tuple[float, float] = (0.8, 3.0),
         weight_center_eV: float | None = None,
         weight_sigma_eV: float | None = None,
+        fit_refinement: PassiveFitRefinement | dict | None = None,
         alpha_objective_weight: float = 1.0,
         inv_alpha_objective_weight: float = 1.2,
         max_fit_normalized_rms: float | None = 0.025,
@@ -1151,6 +1153,19 @@ class HybridQDPlasmonModel:
         self.fit_window_eV = fit_window_eV
         self.weight_center_eV = weight_center_eV
         self.weight_sigma_eV = weight_sigma_eV
+        self.fit_refinement = (
+            PassiveFitRefinement(**fit_refinement)
+            if isinstance(fit_refinement, dict) else fit_refinement
+        )
+        if self.fit_refinement is not None:
+            if not isinstance(self.fit_refinement, PassiveFitRefinement):
+                raise ValueError('fit_refinement must be PassiveFitRefinement, a dict, or None.')
+            focus = self.fit_refinement
+            if not (fit_window_eV[0] < focus.focus_center_eV-focus.focus_half_width_eV
+                    < focus.focus_center_eV+focus.focus_half_width_eV < fit_window_eV[1]):
+                raise ValueError('The refinement focus must lie inside fit_window_eV.')
+            if weight_center_eV is not None:
+                raise ValueError('Use either legacy Gaussian weights or fit_refinement.')
         self.alpha_objective_weight = float(alpha_objective_weight)
         self.inv_alpha_objective_weight = float(inv_alpha_objective_weight)
         self.max_fit_normalized_rms = (
@@ -1491,6 +1506,10 @@ class HybridQDPlasmonModel:
         # oscillators in the time-domain realization.
         omega_lo_scalar = max(0.35 * omega_min, 1e-5)
         omega_hi_scalar = float(eV_to_au(self.params.material.energy_eV[-1]))
+        if self.fit_refinement is not None and self.n_modes >= 5:
+            # Auxiliary out-of-band poles supply a smooth finite-band
+            # background; their frequencies are not measured Au resonances.
+            omega_hi_scalar *= self.fit_refinement.pole_bound_factor
         gamma_lo_scalar = max(1e-4, 0.01 * omega_min)
         gamma_hi_scalar = max(2.0 * omega_max, 0.20)
 
@@ -1695,12 +1714,17 @@ class HybridQDPlasmonModel:
             best_stage: dict[str, object] | None = None
             for u0 in starts:
                 u0 = np.clip(np.asarray(u0, dtype=float), lower, upper)
+                # The high-frequency term is fixed by electrostatics, not a
+                # fit coordinate. A 2e-12-wide trust-region coordinate can
+                # obstruct otherwise useful steps of the physical poles.
+                def expand(trial):
+                    return np.concatenate(([physical_alpha_inf], trial))
                 try:
                     result = least_squares(
-                        lambda trial: residual(trial, n_modes),
-                        jac=lambda trial: jacobian(trial, n_modes),
-                        x0=u0,
-                        bounds=(lower, upper),
+                        lambda trial: residual(expand(trial), n_modes),
+                        jac=lambda trial: jacobian(expand(trial), n_modes)[:, 1:],
+                        x0=u0[1:],
+                        bounds=(lower[1:], upper[1:]),
                         method='trf',
                         loss='soft_l1',
                         f_scale=0.3,
@@ -1712,7 +1736,7 @@ class HybridQDPlasmonModel:
                     )
                 except (FloatingPointError, ValueError):
                     continue
-                candidate = candidate_metrics(n_modes, result.x)
+                candidate = candidate_metrics(n_modes, expand(result.x))
                 if candidate is not None and (
                     best_stage is None or candidate['score'] < best_stage['score']
                 ):
@@ -1741,13 +1765,33 @@ class HybridQDPlasmonModel:
             )
 
         best: dict[str, object] | None = None
+        if self.fit_refinement is not None and self.n_modes >= 5:
+            focus = self.fit_refinement
+            trial = positive_lorentz_candidate(
+                energies, alpha_true, physical_alpha_inf, self.n_modes,
+                omega_bounds=(omega_lo_scalar*AU_ENERGY_EV, omega_hi_scalar*AU_ENERGY_EV),
+                gamma_bounds=(gamma_lo_scalar*AU_ENERGY_EV, gamma_hi_scalar*AU_ENERGY_EV),
+                strength_max=100.0*strength_scale*AU_ENERGY_EV**2,
+                alpha_weight=self.alpha_objective_weight,
+                inverse_weight=self.inv_alpha_objective_weight,
+                nrms_limit=min(.025, self.max_fit_normalized_rms or .025),
+                pointwise_limit=min(.05, self.max_fit_pointwise_relative_error or .05),
+                focus_center=focus.focus_center_eV,
+                focus_half_width=focus.focus_half_width_eV,
+                focus_relative_error=focus.focus_relative_error,
+            )
+            n = self.n_modes
+            refined_u = np.r_[physical_alpha_inf, trial[:n]/AU_ENERGY_EV**2,
+                              trial[n:2*n]-np.log(AU_ENERGY_EV),
+                              trial[2*n:]-np.log(AU_ENERGY_EV)]
+            best = candidate_metrics(n, refined_u)
         canonical_aspect = 15.0 / 7.0
         has_bundled_n9_warm_start = bool(
             self.n_modes == 9
             and self.params.material is DEFAULT_AU_MATERIAL
             and np.allclose(self.fit_window_eV, (0.8, 3.0), rtol=0.0, atol=1e-14)
         )
-        if has_bundled_n9_warm_start:
+        if best is None and has_bundled_n9_warm_start:
             alpha_seed, strength_seed, omega_seed, gamma_seed = (
                 _CANONICAL_PASSIVE_N9_SEEDS[self.orientation]
             )

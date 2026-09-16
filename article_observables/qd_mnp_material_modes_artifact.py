@@ -98,6 +98,9 @@ def source_hashes(paths: Iterable[str | Path]) -> dict[str, str]:
     for raw_path in paths:
         path = Path(raw_path).resolve()
         result[str(path)] = hashlib.sha256(path.read_bytes()).hexdigest()
+        if path.name == "qd_mnp_rational_fit.py":
+            helper = path.with_name("qd_mnp_passive_fit.py")
+            result[str(helper)] = hashlib.sha256(helper.read_bytes()).hexdigest()
     return result
 
 

@@ -37,6 +37,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 import matplotlib.pyplot as plt
 import numpy as np
+from article_observables.qd_mnp_fit_options import add_fit_refinement_argument
 import scipy
 from scipy.constants import epsilon_0 as EPSILON_0_SI
 from scipy.optimize import brentq
@@ -175,6 +176,7 @@ def _source_hashes(extra_paths: Iterable[Path] = ()) -> dict[str, str]:
         PROJECT_ROOT / "article_observables" / "qd_mnp_dd_pulse.py",
         PROJECT_ROOT / "qd_mnp_spheroid_pulse_comparison.py",
         PROJECT_ROOT / "qd_mnp_rational_fit.py",
+        PROJECT_ROOT / "qd_mnp_passive_fit.py",
         PROJECT_ROOT / "qd_mnp_full_qs_model.py",
         PROJECT_ROOT / "qd_mnp_spheroid_green.py",
         PROJECT_ROOT / "qd_mnp_spheroid_equatorial.py",
@@ -355,6 +357,7 @@ def _build_channel(
         params,
         orientation=spec.orientation,
         n_modes=args.material_fit_modes,
+        fit_refinement=getattr(args, "fit_refinement", None),
         fit_window_eV=(args.fit_min_ev, args.fit_max_ev),
         weight_center_eV=args.weight_center_ev,
         weight_sigma_eV=args.weight_sigma_ev,
@@ -1950,6 +1953,7 @@ def _add_common_calculation_arguments(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument("--spatial-order-max", type=int)
     parser.add_argument("--material-fit-modes", type=int)
+    add_fit_refinement_argument(parser)
     parser.add_argument("--fit-min-ev", type=float, default=0.8)
     parser.add_argument("--fit-max-ev", type=float, default=3.0)
     parser.add_argument("--weight-center-ev", type=float)

@@ -19,6 +19,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 import numpy as np
+from article_observables.qd_mnp_fit_options import add_fit_refinement_argument
 import scipy
 
 from article_observables.qd_mnp_material_modes_artifact import (
@@ -307,6 +308,7 @@ def _make_model(
         params,
         orientation=orientation,
         n_modes=n_modes,
+        fit_refinement=getattr(args, "fit_refinement", None),
         fit_window_eV=(args.fit_min_ev, args.fit_max_ev),
         weight_center_eV=args.weight_center_ev,
         weight_sigma_eV=args.weight_sigma_ev,
@@ -790,6 +792,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--energy-min-ev", type=_positive_float, default=0.8)
     parser.add_argument("--energy-max-ev", type=_positive_float, default=3.0)
     parser.add_argument("--energy-points", type=int, default=801)
+    add_fit_refinement_argument(parser)
     parser.add_argument("--fit-min-ev", type=_positive_float, default=0.8)
     parser.add_argument("--fit-max-ev", type=_positive_float, default=3.0)
     parser.add_argument("--one-modes", type=int, default=1)
