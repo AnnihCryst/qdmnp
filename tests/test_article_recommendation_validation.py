@@ -16,6 +16,8 @@ from run_article import (
 class RecommendationRankingTests(unittest.TestCase):
     def setUp(self):
         self.config = load_inputs()
+        # These tests exercise the gate that includes the carrier scan.
+        self.config["validation"]["carrier_scan_in_ranking"] = True
         self.master = {
             "channel_id": np.array(self.config["geometry"]["channels"]),
             "gap_nm": np.array([1., 10.]),
@@ -62,6 +64,14 @@ class RecommendationRankingTests(unittest.TestCase):
         self.assertFalse(self.assess()["accepted"])
         self.records.pop()
         self.assertFalse(self.assess()["sensitivity_checks_complete"])
+
+    def test_carrier_scan_can_be_reported_without_gating_robustness(self):
+        self.records[-1]["best_configuration_unchanged"] = False
+        self.records[-1]["resolved_pairs_complete"] = False
+        self.config["validation"]["carrier_scan_in_ranking"] = False
+        self.assertTrue(self.assess()["accepted"])
+        self.records = [row for row in self.records if "carrier_energy_eV" not in row]
+        self.assertTrue(self.assess()["sensitivity_checks_complete"])
 
     def test_left_bound_can_conceal_better_candidate(self):
         self.master["threshold_status"][1, 1, 0] = "left_censored"

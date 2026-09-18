@@ -39,7 +39,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from article_observables.qd_mnp_fit_options import add_fit_refinement_argument
 import scipy
-from scipy.constants import epsilon_0 as EPSILON_0_SI
+from scipy.constants import epsilon_0 as EPSILON_0_SI, hbar as HBAR_SI
 from scipy.optimize import brentq
 
 from article_observables.qd_mnp_spectral_features import (
@@ -55,6 +55,7 @@ from article_observables.qd_mnp_threshold_metrics import (
     resolved_threshold_mask,
     threshold_from_curve,
 )
+from article_observables.qd_mnp_parallel import process_pool, resolve_workers, shared_fit_cache
 from qd_mnp_spheroid_pulse_comparison import _legacy_tail_ratio
 from article_observables.qd_mnp_dd_pulse import solve_dd_with_resolution
 from qd_mnp_full_qs_model import (
@@ -398,7 +399,7 @@ def _build_channel(
     reduction = None
     fqs_model = None
     if require_time_model:
-        if spec.qd_placement == "side" and args.spatial_order_max > SIDE_DIRECT_REFERENCE_ORDER_MAX:
+        if (spec.qd_placement == "side" or getattr(args, "dark_reduction", "side") == "all") and args.spatial_order_max > SIDE_DIRECT_REFERENCE_ORDER_MAX:
             reduction = build_positive_dark_reduction(
                 dd_model,
                 kernel,
@@ -434,8 +435,25 @@ def dd_validity_distance(
     gap_nm: np.ndarray,
     discrepancy: np.ndarray,
     tolerance: float,
+    valid: np.ndarray | None = None,
 ) -> float:
-    """Smallest gap after which every larger sampled gap satisfies tolerance."""
+    """Smallest gap after which every larger VALID sampled gap satisfies tolerance.
+
+    ``valid`` marks gaps inside the declared quasi-static range (k_m R cutoff).
+    Gaps outside it can neither establish nor refute DD/FQS agreement, because
+    both models omit retardation there.
+    """
+
+    return dd_validity_assessment(gap_nm, discrepancy, tolerance, valid)[0]
+
+
+def dd_validity_assessment(
+    gap_nm: np.ndarray,
+    discrepancy: np.ndarray,
+    tolerance: float,
+    valid: np.ndarray | None = None,
+) -> tuple[float, str, int]:
+    """Return (boundary gap, status, number of valid gaps supporting it)."""
 
     gap = np.asarray(gap_nm, dtype=float)
     delta = np.asarray(discrepancy, dtype=float)
@@ -443,10 +461,95 @@ def dd_validity_distance(
         raise ValueError("gap/discrepancy arrays must match and gaps must increase.")
     if not np.isfinite(tolerance) or tolerance <= 0.0:
         raise ValueError("tolerance must be finite and positive.")
-    accepted = np.isfinite(delta) & (delta <= float(tolerance))
+    mask = np.ones(gap.shape, dtype=bool) if valid is None else np.asarray(valid, dtype=bool)
+    if mask.shape != gap.shape:
+        raise ValueError("valid mask must match the gap grid.")
+    if not np.any(mask):
+        return np.nan, "no_valid_gaps", 0
+    valid_gap, valid_delta = gap[mask], delta[mask]
+    accepted = np.isfinite(valid_delta) & (valid_delta <= float(tolerance))
     suffix = np.logical_and.accumulate(accepted[::-1])[::-1]
     indices = np.flatnonzero(suffix)
-    return float(gap[indices[0]]) if indices.size else np.nan
+    if not indices.size:
+        return np.nan, "not_established_within_validity", 0
+    support = int(valid_gap.size - indices[0])
+    status = "established" if support >= 2 else "last_valid_point_only"
+    return float(valid_gap[indices[0]]), status, support
+
+
+def retardation_k_r(
+    args: argparse.Namespace,
+    channels: list[ChannelSpec],
+    gaps: np.ndarray,
+    energy_eV: float,
+) -> np.ndarray:
+    """k_m R (centre-to-centre) for each channel and gap at ``energy_eV``."""
+
+    wavenumber_per_nm = (
+        np.sqrt(float(args.eps_m)) * float(energy_eV) * E_CHARGE / (HBAR_SI * C_SI) * 1.0e-9
+    )
+    return np.asarray(
+        [[wavenumber_per_nm * _resolved_center_distance_nm(spec, float(gap), args) for gap in gaps]
+         for spec in channels],
+        dtype=float,
+    )
+
+
+def _quasistatic_validity(
+    args: argparse.Namespace,
+    channels: list[ChannelSpec],
+    gaps: np.ndarray,
+    default_energy_eV: float,
+) -> tuple[np.ndarray, np.ndarray, float]:
+    energy = float(args.retardation_energy_ev) if args.retardation_energy_ev is not None else float(default_energy_eV)
+    if not np.isfinite(energy) or energy <= 0.0:
+        raise ValueError("--retardation-energy-ev must be finite and positive.")
+    k_r = retardation_k_r(args, channels, gaps, energy)
+    if args.max_k_r is None:
+        valid = np.ones(k_r.shape, dtype=bool)
+    else:
+        if not np.isfinite(args.max_k_r) or args.max_k_r <= 0.0:
+            raise ValueError("--max-k-r must be finite and positive.")
+        valid = k_r <= float(args.max_k_r)
+    return k_r, valid, energy
+
+
+def _validity_payload(
+    gaps: np.ndarray,
+    discrepancy: np.ndarray,
+    tolerance: float,
+    k_r: np.ndarray,
+    valid: np.ndarray,
+    energy_eV: float,
+    max_k_r: float | None,
+) -> tuple[dict[str, np.ndarray], dict[str, Any]]:
+    assessments = [
+        dd_validity_assessment(gaps, discrepancy[ci], tolerance, valid[ci])
+        for ci in range(discrepancy.shape[0])
+    ]
+    payload = {
+        "dd_validity_gap_nm": np.asarray([item[0] for item in assessments], dtype=float),
+        "dd_validity_status": np.asarray([item[1] for item in assessments], dtype="U40"),
+        "dd_validity_supporting_points": np.asarray([item[2] for item in assessments], dtype=np.int64),
+        "retardation_k_r": k_r,
+        "quasistatic_valid": valid,
+        "retardation_energy_eV": np.asarray(energy_eV),
+    }
+    metadata = {
+        "quasistatic_validity": {
+            "k_r_definition": "sqrt(eps_m) * E / (hbar c) * centre-to-centre distance",
+            "energy_eV": float(energy_eV),
+            "max_k_r": None if max_k_r is None else float(max_k_r),
+            "rule": "gaps with k_m R above max_k_r neither establish nor refute DD/FQS agreement",
+        },
+        "dd_validity_status_values": {
+            "established": "tolerance holds at the boundary and at least one larger valid gap",
+            "last_valid_point_only": "tolerance holds only at the largest valid gap; boundary is not supported",
+            "not_established_within_validity": "no valid suffix of gaps satisfies the tolerance",
+            "no_valid_gaps": "every sampled gap violates the quasi-static cutoff",
+        },
+    }
+    return payload, metadata
 
 
 def _pulse_for_fluence(
@@ -498,6 +601,7 @@ def _solve_population(
     if kind == "dd":
         result = solve_dd_with_resolution(
             bundle.dd_model, pulse, points_per_fastest_cycle=args.points_per_fastest_cycle,
+            step_frequency_policy=args.step_frequency_policy,
             method=args.method,
             rtol=args.rtol,
             atol=args.atol,
@@ -549,6 +653,7 @@ def _solve_population(
             rtol=args.rtol,
             atol=args.atol,
             points_per_fastest_cycle=args.points_per_fastest_cycle,
+            step_frequency_policy=args.step_frequency_policy,
             spectral_window_policy=args.spectral_window_policy,
             max_spectral_leakage=args.max_spectral_leakage,
             positivity_policy=args.positivity_policy,
@@ -1205,16 +1310,17 @@ def compute_spectral_payload(
             f"allowed={args.max_energy_step_over_gamma0:.6g}; refine the grid or expand "
             "a clipped feature window. Inspect saved per-curve certificates.",
         )
-    validity_gap = np.asarray(
-        [
-            dd_validity_distance(
-                gaps,
-                derived["spectral_l2_relative_dd_vs_fqs"][ci],
-                args.dd_tolerance,
-            )
-            for ci in range(n_channel)
-        ],
-        dtype=float,
+    k_r, quasistatic_valid, retardation_energy = _quasistatic_validity(
+        args, channels, gaps, float(args.energy_max_ev)
+    )
+    validity_arrays, validity_metadata = _validity_payload(
+        gaps,
+        derived["spectral_l2_relative_dd_vs_fqs"],
+        args.dd_tolerance,
+        k_r,
+        quasistatic_valid,
+        retardation_energy,
+        args.max_k_r,
     )
     first = bundles[0]
     material = first.params.material
@@ -1322,7 +1428,7 @@ def compute_spectral_payload(
         "max_relative_A_disagreement_dd_vs_fqs": np.asarray(
             max_relative_a_disagreement
         ),
-        "dd_validity_gap_nm": validity_gap,
+        **validity_arrays,
         "material_energy_eV": np.asarray(material.energy_eV),
         "material_n": np.asarray(material.n),
         "material_k": np.asarray(material.k),
@@ -1398,8 +1504,10 @@ def compute_spectral_payload(
             "on the fixed feature window W, without separately normalizing either spectrum"
         ),
         "dd_validity_definition": (
-            "smallest sampled gap for which discrepancy stays below tolerance at every larger sampled gap"
+            "smallest quasi-static-valid sampled gap for which discrepancy stays below "
+            "tolerance at every larger quasi-static-valid sampled gap"
         ),
+        **validity_metadata,
         "array_dimensions": {
             "qd_excitation_spectrum": ["model", "channel", "gap", "energy"],
             "peak_energy_eV": ["model", "channel", "gap"],
@@ -1459,7 +1567,159 @@ def _solver_evaluation_payload(records: list[dict[str, Any]]) -> dict[str, np.nd
     return payload
 
 
+_WORKER_BUNDLES: dict[tuple[str, float], BuiltChannel] = {}
+BRACKET_ARRAY_UNITS = {
+    "search_fluence_j_cm2": "J cm^-2",
+    "search_population": "1",
+    "weak_field_population_gain": "1",
+    "search_max_observed_area_step_rad": "rad",
+}
+
+
+def _bracket_threshold(
+    kind: Literal["dd", "fqs"],
+    bundle: BuiltChannel,
+    args: argparse.Namespace,
+    context: dict[str, Any],
+) -> dict[str, Any]:
+    """First-branch threshold from a weak-field-predicted sqrt(F) ladder and Brent.
+
+    The same solves as the grid scan are used, only at fewer fluences. The step in
+    sqrt(F) is chosen so that the predicted pulse-area increment of this curve,
+    sqrt(weak-field gain) times the isolated one, does not exceed
+    ``max_area_step_rad``; the observed increment 2*arcsin(sqrt(P)) is audited and
+    the step is halved when it exceeds twice that value. A descent before the
+    target ends the first branch exactly as ``threshold_from_curve`` does.
+    """
+
+    target = float(context["target"])
+    max_area = float(context["max_area_step_rad"])
+    s_min, s_max = np.sqrt(float(context["fluence_min"])), np.sqrt(float(context["fluence_max"]))
+    t_span = tuple(float(value) for value in context["t_span"])
+    evaluations: dict[float, tuple[float, dict[str, Any]]] = {}
+    records: list[dict[str, Any]] = []
+
+    def population(amplitude: float) -> float:
+        fluence = float(amplitude) ** 2
+        if fluence not in evaluations:
+            pulse = _pulse_for_fluence(fluence, args.carrier_energy_ev, args)
+            value, diagnostics = _solve_population(kind, bundle, pulse, t_span, args)
+            evaluations[fluence] = (float(value), diagnostics)
+            records.append({
+                "model_id": kind,
+                "channel_id": bundle.spec.channel_id,
+                "gap_nm": float(bundle.gap_nm),
+                "fluence_j_cm2": fluence,
+                "population": float(value),
+                **{f"diagnostic__{key}": item for key, item in diagnostics["solver_certificate"].items()},
+            })
+        return evaluations[fluence][0]
+
+    def area(value: float) -> float:
+        return float(2.0 * np.arcsin(np.sqrt(np.clip(value, 0.0, 1.0))))
+
+    p_prev = population(s_min)
+    reference = float(context["isolated_population_at_min"])
+    gain = p_prev / reference if reference > 0.0 else 1.0
+    predicted_area_per_amplitude = float(context["area_per_sqrt_fluence"]) * np.sqrt(max(gain, 1.0e-12))
+    step = max_area / max(predicted_area_per_amplitude, np.finfo(float).tiny)
+    s_prev, rose, refinements, max_observed = s_min, False, 0, 0.0
+    status, bracket = ("left_censored", None) if p_prev >= target else (None, None)
+    while status is None:
+        s_next = min(s_prev + step, s_max)
+        p_next = population(s_next)
+        observed = abs(area(p_next) - area(p_prev))
+        if observed > 2.0 * max_area and refinements < 20 and s_next - s_prev > 1.0e-6 * s_max:
+            step *= 0.5
+            refinements += 1
+            continue
+        max_observed = max(max_observed, observed)
+        if p_next < p_prev:
+            status = "not_reached_first_lobe" if rose else "left_lobe_censored"
+        elif p_next >= target:
+            status, bracket = "resolved", (s_prev, s_next)
+        elif s_next >= s_max:
+            status = "right_censored"
+        rose = rose or p_next > p_prev
+        s_prev, p_prev = s_next, p_next
+
+    threshold = float(context["fluence_min"]) if status == "left_censored" else np.nan
+    if status == "resolved":
+        lo, hi = bracket
+        if args.refine_threshold:
+            root = brentq(lambda amplitude: population(amplitude) - target, lo, hi,
+                          xtol=args.threshold_root_xtol_sqrt_fluence, rtol=args.threshold_root_rtol)
+            threshold, status = float(root) ** 2, "resolved_refined"
+        else:
+            p_lo, p_hi = population(lo), population(hi)
+            amplitude = lo + (target - p_lo) * (hi - lo) / (p_hi - p_lo)
+            threshold = float(amplitude) ** 2
+    ordered = sorted(evaluations)
+    return {
+        "threshold": threshold,
+        "status": status,
+        "weak_field_gain": float(gain),
+        "max_observed_area_step_rad": float(max_observed),
+        "refinements": int(refinements),
+        "fluence": np.asarray(ordered, dtype=float),
+        "population": np.asarray([evaluations[f][0] for f in ordered], dtype=float),
+        "tail_converged": np.asarray([bool(evaluations[f][1]["tail_converged"]) for f in ordered], dtype=bool),
+        "records": records,
+    }
+
+
+def _threshold_search_job(job: tuple[str, float, str, argparse.Namespace, dict[str, Any]]) -> dict[str, Any]:
+    channel_id, gap_nm, kind, args, context = job
+    key = (channel_id, float(gap_nm))
+    if key not in _WORKER_BUNDLES:
+        # Keep at most one channel per worker: FQS kernels are large.
+        _WORKER_BUNDLES.clear()
+        _WORKER_BUNDLES[key] = _build_channel(CHANNEL_BY_ID[channel_id], float(gap_nm), args, require_time_model=True)
+    return _bracket_threshold(kind, _WORKER_BUNDLES[key], args, context)
+
+
+def _run_bracket_searches(
+    bundles: list[BuiltChannel],
+    args: argparse.Namespace,
+    context: dict[str, Any],
+) -> dict[tuple[int, str], dict[str, Any]]:
+    # FQS jobs first so that the longest solves start immediately.
+    jobs = [(flat_index, kind) for kind in ("fqs", "dd") for flat_index in range(len(bundles))]
+    workers = resolve_workers(args.workers, len(jobs))
+    results: dict[tuple[int, str], dict[str, Any]] = {}
+
+    def report(done: int, flat_index: int, kind: str, outcome: dict[str, Any]) -> None:
+        bundle = bundles[flat_index]
+        print(f"[{done}/{len(jobs)}] {kind.upper()} {bundle.spec.channel_id}, gap={bundle.gap_nm:g} nm: "
+              f"{outcome['status']}, F_eta={outcome['threshold']:.6e} J/cm^2, solves={len(outcome['records'])}",
+              flush=True)
+
+    if workers > 1:
+        payloads = [(bundles[i].spec.channel_id, float(bundles[i].gap_nm), kind, args, context) for i, kind in jobs]
+        print(f"Threshold search: {len(jobs)} curves on {workers} worker processes.", flush=True)
+        with process_pool(workers) as pool:
+            for done, ((flat_index, kind), outcome) in enumerate(zip(jobs, pool.map(_threshold_search_job, payloads)), start=1):
+                results[(flat_index, kind)] = outcome
+                report(done, flat_index, kind, outcome)
+    else:
+        for done, (flat_index, kind) in enumerate(jobs, start=1):
+            results[(flat_index, kind)] = _bracket_threshold(kind, bundles[flat_index], args, context)
+            report(done, flat_index, kind, results[(flat_index, kind)])
+    return results
+
+
 def compute_threshold_payload(
+    args: argparse.Namespace,
+) -> tuple[dict[str, np.ndarray], dict[str, Any]]:
+    jobs = 2 * len(args.channels) * len(args.gaps_nm)
+    parallel = args.threshold_search == "bracket" and resolve_workers(args.workers, jobs) > 1
+    # Workers (and a calculator launched as a subprocess) reopen one material-fit
+    # cache instead of refitting.
+    with shared_fit_cache(create_temporary=parallel):
+        return _compute_threshold_payload(args)
+
+
+def _compute_threshold_payload(
     args: argparse.Namespace,
 ) -> tuple[dict[str, np.ndarray], dict[str, Any]]:
     _validate_common_inputs(args)
@@ -1500,7 +1760,8 @@ def compute_threshold_payload(
     isolated_tail_ratio = np.zeros(fluence.size, dtype=float)
     isolated_nfev = np.zeros(fluence.size, dtype=np.int64)
     n_model, n_channel, n_gap = 2, len(channels), gaps.size
-    population = np.empty((n_model, n_channel, n_gap, fluence.size), dtype=float)
+    population = np.full((n_model, n_channel, n_gap, fluence.size), np.nan, dtype=float)
+    grid_search = args.threshold_search == "grid"
     tail_converged = np.ones_like(population, dtype=bool)
     tail_ratio = np.zeros_like(population)
     nfev = np.zeros_like(population, dtype=np.int64)
@@ -1557,7 +1818,7 @@ def compute_threshold_payload(
         for flat_index, bundle in enumerate(bundles):
             ci, gi = divmod(flat_index, n_gap)
             center_distance[ci, gi] = _resolved_center_distance_nm(bundle.spec, bundle.gap_nm, args)
-            for mi, kind in enumerate(("dd", "fqs")):
+            for mi, kind in enumerate(("dd", "fqs") if grid_search else ()):
                 value, diagnostics = _solve_population(kind, bundle, pulse, t_span, args)
                 record_solve(kind, flat_index, target_fluence, value, diagnostics)
                 caches[(kind, flat_index, float(target_fluence))] = value
@@ -1572,7 +1833,63 @@ def compute_threshold_payload(
     )
     thresholds = np.full((n_model, n_channel, n_gap), np.nan)
     statuses = np.full((n_model, n_channel, n_gap), "not_evaluated", dtype="U32")
-    for mi, kind in enumerate(("dd", "fqs")):
+    bracket_arrays: dict[str, np.ndarray] = {}
+    bracket_accepted = True
+    if not grid_search:
+        amplitude_min = _pulse_for_fluence(float(fluence[0]), args.carrier_energy_ev, args)
+        context = {
+            "fluence_min": float(fluence[0]),
+            "fluence_max": float(fluence[-1]),
+            "target": float(args.target_population),
+            "isolated_population_at_min": float(isolated[0]),
+            "area_per_sqrt_fluence": float(
+                reference_params.qd_local_field_factor * reference_params.d_au * amplitude_min.E0_au
+                * np.sqrt(2.0 * np.pi) * amplitude_min.sigma_t_au / np.sqrt(fluence[0])
+            ),
+            "max_area_step_rad": float(args.bracket_max_area_step_rad),
+            "t_span": tuple(float(value) for value in t_span),
+        }
+        outcomes = _run_bracket_searches(bundles, args, context)
+        length = max(outcome["fluence"].size for outcome in outcomes.values())
+        search_fluence = np.full((n_model, n_channel, n_gap, length), np.nan)
+        search_population = np.full_like(search_fluence, np.nan)
+        search_tail = np.zeros(search_fluence.shape, dtype=bool)
+        search_count = np.zeros((n_model, n_channel, n_gap), dtype=np.int64)
+        search_gain = np.full((n_model, n_channel, n_gap), np.nan)
+        search_area = np.full_like(search_gain, np.nan)
+        search_refinements = np.zeros_like(search_count)
+        for (flat_index, kind), outcome in outcomes.items():
+            ci, gi = divmod(flat_index, n_gap)
+            mi = 0 if kind == "dd" else 1
+            count = outcome["fluence"].size
+            search_fluence[mi, ci, gi, :count] = outcome["fluence"]
+            search_population[mi, ci, gi, :count] = outcome["population"]
+            search_tail[mi, ci, gi, :count] = outcome["tail_converged"]
+            search_count[mi, ci, gi] = count
+            search_gain[mi, ci, gi] = outcome["weak_field_gain"]
+            search_area[mi, ci, gi] = outcome["max_observed_area_step_rad"]
+            search_refinements[mi, ci, gi] = outcome["refinements"]
+            thresholds[mi, ci, gi] = outcome["threshold"]
+            statuses[mi, ci, gi] = outcome["status"]
+            solver_records.extend(outcome["records"])
+        checked = ~np.isin(statuses, ("left_censored",))
+        bracket_accepted = bool(np.all(search_area[checked] <= 2.0 * args.bracket_max_area_step_rad * (1.0 + 1.0e-9)))
+        bracket_arrays = {
+            "search_fluence_j_cm2": search_fluence,
+            "search_population": search_population,
+            "search_tail_converged": search_tail,
+            "search_evaluation_count": search_count,
+            "weak_field_population_gain": search_gain,
+            "search_max_observed_area_step_rad": search_area,
+            "search_step_refinements": search_refinements,
+        }
+        if not bracket_accepted:
+            _apply_policy(
+                args.fluence_grid_convergence_policy,
+                "The bracket ladder did not resolve the first Rabi branch: max observed pulse-area step="
+                f"{float(np.nanmax(search_area)):.6g} rad, allowed={2.0 * args.bracket_max_area_step_rad:.6g} rad.",
+            )
+    for mi, kind in enumerate(("dd", "fqs") if grid_search else ()):
         for ci in range(n_channel):
             for gi in range(n_gap):
                 flat_index = ci * n_gap + gi
@@ -1632,22 +1949,38 @@ def compute_threshold_payload(
         where=paired_resolved,
     )
     absolute_bias = np.abs(signed_bias)
-    validity_gap = np.asarray(
-        [dd_validity_distance(gaps, absolute_bias[ci], args.dd_tolerance) for ci in range(n_channel)]
+    k_r, quasistatic_valid, retardation_energy = _quasistatic_validity(
+        args, channels, gaps, float(args.carrier_energy_ev)
+    )
+    validity_arrays, validity_metadata = _validity_payload(
+        gaps,
+        absolute_bias,
+        args.dd_tolerance,
+        k_r,
+        quasistatic_valid,
+        retardation_energy,
+        args.max_k_r,
     )
 
     reference_fluence = threshold_iso if isolated_resolved and np.isfinite(threshold_iso) else args.reference_fluence_j_cm2
     if not fluence[0] <= reference_fluence <= fluence[-1]:
         raise ValueError("Reference fluence lies outside the sampled grid; extend the scan or set --reference-fluence-j-cm2 within its bounds.")
-    reference_population = np.empty((n_model, n_channel, n_gap), dtype=float)
+    reference_population = np.full((n_model, n_channel, n_gap), np.nan, dtype=float)
     for mi in range(n_model):
         for ci in range(n_channel):
             for gi in range(n_gap):
-                reference_population[mi, ci, gi] = np.interp(
-                    np.sqrt(reference_fluence),
-                    np.sqrt(fluence),
-                    population[mi, ci, gi],
-                )
+                if grid_search:
+                    reference_population[mi, ci, gi] = np.interp(
+                        np.sqrt(reference_fluence),
+                        np.sqrt(fluence),
+                        population[mi, ci, gi],
+                    )
+                    continue
+                count = int(bracket_arrays["search_evaluation_count"][mi, ci, gi])
+                samples = bracket_arrays["search_fluence_j_cm2"][mi, ci, gi, :count]
+                values = bracket_arrays["search_population"][mi, ci, gi, :count]
+                if count >= 2 and samples[0] <= reference_fluence <= samples[-1]:
+                    reference_population[mi, ci, gi] = np.interp(np.sqrt(reference_fluence), np.sqrt(samples), values)
     isolated_reference_population = float(
         np.interp(np.sqrt(reference_fluence), np.sqrt(fluence), isolated)
     )
@@ -1675,8 +2008,10 @@ def compute_threshold_payload(
         ],
         dtype=float,
     )
-    all_population_curves = np.concatenate(
-        [isolated[None, :], population.reshape(-1, fluence.size)], axis=0
+    all_population_curves = (
+        np.concatenate([isolated[None, :], population.reshape(-1, fluence.size)], axis=0)
+        if grid_search
+        else isolated[None, :]
     )
     grid_diagnostics = fluence_grid_resolution_diagnostics(
         fluence,
@@ -1776,16 +2111,16 @@ def compute_threshold_payload(
         "isolated_pulse_tail_ratio": isolated_tail_ratio,
         "isolated_solver_nfev": isolated_nfev,
         "hybrid_population": population,
-        "pulse_tail_converged": tail_converged,
-        "pulse_tail_ratio": tail_ratio,
-        "solver_nfev": nfev,
+        **({"pulse_tail_converged": tail_converged, "pulse_tail_ratio": tail_ratio, "solver_nfev": nfev}
+           if grid_search else bracket_arrays),
         "fluence_grid_midpoint_error_isolated": np.asarray(
             grid_diagnostics["midpoint_interpolation_error_by_channel"][0]
         ),
-        "fluence_grid_midpoint_error_hybrid": np.asarray(
-            grid_diagnostics["midpoint_interpolation_error_by_channel"][1:]
-        ).reshape(n_model, n_channel, n_gap),
-        "fluence_grid_converged": np.asarray(grid_diagnostics["accepted"]),
+        "fluence_grid_midpoint_error_hybrid": (
+            np.asarray(grid_diagnostics["midpoint_interpolation_error_by_channel"][1:]).reshape(n_model, n_channel, n_gap)
+            if grid_search else np.full((n_model, n_channel, n_gap), np.nan)
+        ),
+        "fluence_grid_converged": np.asarray(bool(grid_diagnostics["accepted"]) and bracket_accepted),
         "maximum_isolated_pulse_area_step_rad": np.asarray(
             grid_diagnostics["maximum_isolated_pulse_area_step_rad"]
         ),
@@ -1800,7 +2135,7 @@ def compute_threshold_payload(
         "isolated_threshold_peak_intensity_w_cm2": np.asarray(isolated_threshold_intensity),
         "signed_threshold_bias_dd_vs_fqs": signed_bias,
         "absolute_threshold_discrepancy_dd_vs_fqs": absolute_bias,
-        "dd_validity_gap_nm": validity_gap,
+        **validity_arrays,
         "reference_fluence_j_cm2": np.asarray(reference_fluence),
         "isolated_population_at_reference": np.asarray(isolated_reference_population),
         "hybrid_population_at_reference": reference_population,
@@ -1835,6 +2170,14 @@ def compute_threshold_payload(
             "interpolation and optional Brent refinement are performed in sqrt(fluence)"
         ),
         "threshold_censoring": "left_censored is an upper bound; only resolved/resolved_refined values enter ratios and intensities",
+        "threshold_search": (
+            "grid: every hybrid curve solved on the common sqrt(fluence) grid, then Brent"
+            if grid_search else
+            "bracket: isolated QD on the common grid; each hybrid curve on a sqrt(fluence) ladder whose step keeps "
+            "the weak-field-predicted pulse-area increment <= bracket_max_area_step_rad (observed increment audited, "
+            "step halved when above twice that), first descent ends the branch, then Brent; hybrid_population is NaN, "
+            "the solved samples are search_fluence_j_cm2/search_population"
+        ),
         "solver_certificates": {
             "prefix": "evaluation_diagnostic__",
             "scope": "every grid and Brent-refinement solve at the common read time",
@@ -1886,6 +2229,11 @@ def compute_threshold_payload(
             ),
         },
         "dd_tolerance": float(args.dd_tolerance),
+        "dd_validity_definition": (
+            "smallest quasi-static-valid gap after which the threshold discrepancy stays "
+            "below tolerance at every larger quasi-static-valid gap; censored thresholds count as failures"
+        ),
+        **validity_metadata,
     }
     return payload, metadata
 
@@ -1893,7 +2241,7 @@ def compute_threshold_payload(
 def _apply_preset(args: argparse.Namespace, *, threshold: bool) -> argparse.Namespace:
     publication = args.preset == "publication"
     if args.gaps_nm is None:
-        args.gaps_nm = [1.0, 2.0, 3.0, 5.0, 10.0, 20.0, 50.0] if publication else [1.0, 10.0]
+        args.gaps_nm = [1.0, 2.0, 3.0, 5.0, 7.0, 10.0, 12.0] if publication else [1.0, 10.0]
     if args.spatial_order_max is None:
         args.spatial_order_max = 80 if publication else 4
     if args.material_fit_modes is None:
@@ -1973,12 +2321,22 @@ def _add_common_calculation_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--reduction-max-tolerance", type=float, default=1.0e-4)
     parser.add_argument("--reduction-max-nodes", type=int)
     parser.add_argument("--dd-tolerance", type=float, default=0.1)
+    parser.add_argument(
+        "--max-k-r", type=float,
+        help="Quasi-static cutoff for k_m R; larger gaps are excluded from the DD validity boundary. "
+             "Omitted: every gap is treated as valid (legacy behaviour).",
+    )
+    parser.add_argument(
+        "--retardation-energy-ev", type=float,
+        help="Photon energy for k_m R; default is the spectral upper bound or the pulse carrier.",
+    )
     parser.add_argument("--verbose-fit", action="store_true")
     parser.add_argument("--radiative-consistency-policy", choices=POLICIES, default="warn")
     parser.add_argument("--fit-quality-policy", choices=POLICIES)
     parser.add_argument("--bright-fit-quality-policy", choices=POLICIES)
     parser.add_argument("--spatial-convergence-policy", choices=POLICIES)
     parser.add_argument("--reduction-policy", choices=POLICIES, default="raise")
+    parser.add_argument("--dark-reduction", choices=("side", "all"), default="side", help='Apply the certified positive dark-kernel reduction to side channels only (legacy) or to every channel.')
 
 
 def _add_pulse_arguments(parser: argparse.ArgumentParser) -> None:
@@ -1990,6 +2348,8 @@ def _add_pulse_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--rtol", type=float, default=1.0e-8)
     parser.add_argument("--atol", type=float, default=1.0e-10)
     parser.add_argument("--points-per-fastest-cycle", type=int, default=20)
+    parser.add_argument("--step-frequency-policy", choices=("all_poles", "excited_band"), default="all_poles",
+                        help='Step-size cap: all_poles resolves every modal/material pole (legacy); excited_band resolves carrier, exciton and Rabi frequencies only, material poles being controlled by rtol/atol.')
     parser.add_argument("--max-spectral-leakage", type=float, default=1.0e-3)
     parser.add_argument("--positivity-tolerance", type=float, default=1.0e-7)
     parser.add_argument("--tail-ratio-tolerance", type=float, default=1.0e-4)
@@ -2056,6 +2416,12 @@ def parse_threshold_calculation_args(argv: list[str] | None = None) -> argparse.
     )
     parser.add_argument("--threshold-root-xtol-sqrt-fluence", type=float, default=1.0e-14)
     parser.add_argument("--threshold-root-rtol", type=float, default=1.0e-8)
+    parser.add_argument("--threshold-search", choices=("grid", "bracket"), default="grid",
+                        help="grid: solve every hybrid curve on the fluence grid (legacy); bracket: weak-field-predicted "
+                             "sqrt(F) ladder plus Brent for each curve.")
+    parser.add_argument("--bracket-max-area-step-rad", type=float, default=0.35)
+    parser.add_argument("--workers", type=int, default=1,
+                        help="Worker processes for bracket searches; 0 = all logical CPUs except two.")
     return _apply_preset(parser.parse_args(argv), threshold=True)
 
 
@@ -2166,6 +2532,42 @@ def _save_figure(fig: Any, output: Path, *, dpi: int, show: bool) -> Path:
     return output
 
 
+def _plot_discrepancy_curves(
+    ax: Any,
+    gaps: np.ndarray,
+    values: np.ndarray,
+    labels: list[str],
+    colors: np.ndarray,
+    valid: np.ndarray,
+    dd_tolerance: float,
+) -> None:
+    """Filled markers: quasi-static-valid gaps; open markers: outside the k_m R cutoff."""
+
+    for ci, (label, color) in enumerate(zip(labels, colors)):
+        ax.plot(gaps, values[ci], color=color, lw=1.2, label=label)
+        ax.plot(gaps[valid[ci]], values[ci][valid[ci]], ls="none", marker="o", color=color)
+        if np.any(~valid[ci]):
+            ax.plot(
+                gaps[~valid[ci]], values[ci][~valid[ci]], ls="none", marker="o",
+                markerfacecolor="white", markeredgecolor=color,
+            )
+        validity = dd_validity_distance(gaps, values[ci], dd_tolerance, valid[ci])
+        if np.isfinite(validity):
+            ax.scatter([validity], [dd_tolerance], marker="v", s=45, color=color, zorder=5)
+    ax.axhline(dd_tolerance, color="black", ls="--", lw=1.0, label=f"tolerance {dd_tolerance:g}")
+    if np.any(~valid):
+        ax.plot([], [], ls="none", marker="o", markerfacecolor="white", markeredgecolor="gray",
+                label=r"open: $k_mR$ above cutoff")
+
+
+def _stored_validity(payload: dict[str, np.ndarray], n_channel: int, n_gap: int) -> np.ndarray:
+    if "quasistatic_valid" in payload:
+        valid = np.asarray(payload["quasistatic_valid"], dtype=bool)
+        if valid.shape == (n_channel, n_gap):
+            return valid
+    return np.ones((n_channel, n_gap), dtype=bool)
+
+
 def plot_gap_metric(
     metric: str,
     artifact: Path,
@@ -2209,24 +2611,9 @@ def plot_gap_metric(
             payload["absolute_threshold_discrepancy_dd_vs_fqs"], dtype=float
         )
         ylabel = r"$\delta_{\mathcal{F}}$"
-        for ci, (label, color) in enumerate(zip(labels, colors)):
-            ax.plot(gaps, values[ci], marker="o", color=color, label=label)
-            validity = dd_validity_distance(gaps, values[ci], dd_tolerance)
-            if np.isfinite(validity):
-                ax.scatter(
-                    [validity],
-                    [dd_tolerance],
-                    marker="v",
-                    s=45,
-                    color=color,
-                    zorder=5,
-                )
-        ax.axhline(
-            dd_tolerance,
-            color="black",
-            ls="--",
-            lw=1.0,
-            label=f"tolerance {dd_tolerance:g}",
+        _plot_discrepancy_curves(
+            ax, gaps, values, labels, colors,
+            _stored_validity(payload, len(channels), gaps.size), dd_tolerance,
         )
         ax.set_yscale("log")
         ax.set_xlabel(r"surface gap $g$ (nm)")
@@ -2288,19 +2675,10 @@ def plot_gap_metric(
         else:
             values = derived["spectral_l2_relative_dd_vs_fqs"]
             ylabel = r"$\delta_{\rm spec}$"
-            for ci, (label, color) in enumerate(zip(labels, colors)):
-                ax.plot(gaps, values[ci], marker="o", color=color, label=label)
-                validity = dd_validity_distance(gaps, values[ci], dd_tolerance)
-                if np.isfinite(validity):
-                    ax.scatter(
-                        [validity],
-                        [dd_tolerance],
-                        marker="v",
-                        s=45,
-                        color=color,
-                        zorder=5,
-                    )
-            ax.axhline(dd_tolerance, color="black", ls="--", lw=1.0, label=f"tolerance {dd_tolerance:g}")
+            _plot_discrepancy_curves(
+                ax, gaps, values, labels, colors,
+                _stored_validity(payload, len(channels), gaps.size), dd_tolerance,
+            )
             ax.set_yscale("log")
             ax.set_xlabel(r"surface gap $g$ (nm)")
             ax.set_ylabel(ylabel)
@@ -2357,6 +2735,43 @@ def plot_gap_metric(
         for ci, (label, color) in enumerate(zip(labels, colors)):
             ax.plot(gaps, values[1, ci], marker="o", color=color, label=f"{label}, FQS")
             ax.plot(gaps, values[0, ci], marker="s", ls="--", color=color, alpha=0.72, label=f"{label}, DD")
+        # Censored thresholds are plotted as bounds at the scanned-range edge,
+        # not silently dropped: a strongly suppressing channel has F_eta above
+        # the scan, which is itself a result (ratio > F_max/F_eta,0).
+        isolated_threshold = float(np.asarray(payload.get("isolated_threshold_fluence_j_cm2", np.nan)))
+        stored_statuses = payload.get("threshold_status")
+        if (
+            stored_statuses is not None
+            and np.isclose(target, stored_target, rtol=0.0, atol=1.0e-15)
+            and np.isfinite(isolated_threshold)
+            and isolated_threshold > 0.0
+        ):
+            statuses = np.asarray(stored_statuses).astype(str)
+            bounds = (
+                (("right_censored", "not_reached_first_lobe"), float(fluence[-1]) / isolated_threshold, "^",
+                 r"$\mathcal{F}_\eta$ above scan: lower bound"),
+                (("left_censored", "left_lobe_censored"), float(fluence[0]) / isolated_threshold, "v",
+                 r"$\mathcal{F}_\eta$ below scan: upper bound"),
+            )
+            # Every bound lies on the same ratio; offset channels (and DD/FQS)
+            # horizontally so that no censored point hides another one.
+            n_channel = len(colors)
+            for names, bound, marker, legend in bounds:
+                present = False
+                for mi, open_marker in ((0, True), (1, False)):
+                    for ci, color in enumerate(colors):
+                        censored = np.isin(statuses[mi, ci], names)
+                        if np.any(censored):
+                            present = True
+                            shift = 0.03 * (ci - (n_channel - 1) / 2) + (0.012 if mi == 1 else -0.012)
+                            positions = gaps[censored] * (1.0 + shift) if x_scale == "log" else gaps[censored] + shift * np.ptp(gaps)
+                            ax.scatter(
+                                positions, np.full(np.count_nonzero(censored), bound),
+                                marker=marker, s=46, facecolors="white" if open_marker else color,
+                                edgecolors=color, zorder=5 + mi,
+                            )
+                if present:
+                    ax.scatter([], [], marker=marker, facecolors="gray", edgecolors="gray", label=legend)
         ax.axhline(1.0, color="black", lw=0.9, alpha=0.5)
         ax.set_xlabel(r"surface gap $g$ (nm)")
         ax.set_ylabel(r"$\mathcal{F}_\eta/\mathcal{F}_{\eta,0}$")

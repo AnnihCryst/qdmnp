@@ -1616,6 +1616,7 @@ class FullQSSpheroidPulseModel:
         atol: float = 1.0e-10,
         max_step_au: float | None = None,
         points_per_fastest_cycle: float = 20.0,
+        step_frequency_policy: Literal["all_poles", "excited_band"] = "all_poles",
         spectral_window_policy: Policy = "raise",
         max_spectral_leakage: float = 1.0e-3,
         positivity_policy: Policy = "raise",
@@ -1647,6 +1648,8 @@ class FullQSSpheroidPulseModel:
                 raise ValueError(f"{tolerance_name} must be a finite positive scalar.")
         if not np.isfinite(points_per_fastest_cycle) or points_per_fastest_cycle < 8.0:
             raise ValueError("points_per_fastest_cycle must be finite and at least 8.")
+        if step_frequency_policy not in {"all_poles", "excited_band"}:
+            raise ValueError("step_frequency_policy must be 'all_poles' or 'excited_band'.")
         if not np.isfinite(max_spectral_leakage) or not 0.0 <= max_spectral_leakage < 1.0:
             raise ValueError("max_spectral_leakage must lie in [0, 1).")
         if not np.isfinite(positivity_tolerance) or positivity_tolerance < 0.0:
@@ -1712,13 +1715,24 @@ class FullQSSpheroidPulseModel:
             * self.params.qd_local_field_factor
             * abs(pulse.E0_au)
         )
-        frequency_ceiling = max(
-            pulse.omegaL_au,
-            self.params.omega0_au,
-            float(np.max(np.abs(self.modal_poles_au))),
-            self.coupled_stability.spectral_radius_au,
-            incident_peak_rabi,
-        )
+        if step_frequency_policy == "all_poles":
+            frequency_ceiling = max(
+                pulse.omegaL_au,
+                self.params.omega0_au,
+                float(np.max(np.abs(self.modal_poles_au))),
+                self.coupled_stability.spectral_radius_au,
+                incident_peak_rabi,
+            )
+        else:
+            # Cap the step by the frequencies the pulse actually excites (carrier,
+            # exciton and Rabi). Off-resonant auxiliary material poles follow the
+            # drive adiabatically; their accuracy is controlled by rtol/atol, not by
+            # a forced step. The equations of motion are unchanged.
+            frequency_ceiling = max(
+                pulse.omegaL_au,
+                self.params.omega0_au,
+                incident_peak_rabi,
+            )
         rabi_step_refinement_count = 0
         max_rabi_refinements = 3
         # A small headroom prevents repeated solves merely because the more

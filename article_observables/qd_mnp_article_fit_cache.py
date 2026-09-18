@@ -10,6 +10,7 @@ from copy import deepcopy
 from dataclasses import asdict, fields
 import hashlib
 import json
+import os
 from pathlib import Path
 
 import numpy as np
@@ -91,7 +92,14 @@ def material_fit_cache(directory: Path):
         return result
 
     HybridQDPlasmonModel._fit_rational_alpha = cached
+    # Worker processes of parallel calculators reopen the same cache directory.
+    previous = os.environ.get("QDMNP_MATERIAL_FIT_CACHE")
+    os.environ["QDMNP_MATERIAL_FIT_CACHE"] = str(Path(directory).resolve())
     try:
         yield
     finally:
         HybridQDPlasmonModel._fit_rational_alpha = original
+        if previous is None:
+            os.environ.pop("QDMNP_MATERIAL_FIT_CACHE", None)
+        else:
+            os.environ["QDMNP_MATERIAL_FIT_CACHE"] = previous

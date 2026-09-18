@@ -2309,6 +2309,8 @@ class HybridQDPlasmonModel:
         positivity_policy: Literal['raise', 'warn', 'ignore'] = 'raise',
         spectral_window_policy: Literal['raise', 'warn', 'ignore'] = 'raise',
         max_spectral_leakage: float = 1e-3,
+        points_per_fastest_cycle: float = 20.0,
+        step_frequency_policy: Literal['all_poles', 'excited_band'] = 'all_poles',
     ) -> HybridSolveResult:
         # Recheck here as callers can replace params after model construction.
         self._validate_physical_parameters()
@@ -2321,6 +2323,10 @@ class HybridQDPlasmonModel:
             raise ValueError('positivity_tol must be finite and non-negative.')
         if not np.isfinite(max_spectral_leakage) or not 0.0 <= max_spectral_leakage < 1.0:
             raise ValueError('max_spectral_leakage must be finite and lie in [0, 1).')
+        if not np.isfinite(points_per_fastest_cycle) or points_per_fastest_cycle < 8.0:
+            raise ValueError('points_per_fastest_cycle must be finite and at least 8.')
+        if step_frequency_policy not in {'all_poles', 'excited_band'}:
+            raise ValueError("step_frequency_policy must be 'all_poles' or 'excited_band'.")
 
         fit_window = getattr(self, 'fit_window_eV', None)
         if fit_window is None:
@@ -2368,12 +2374,13 @@ class HybridQDPlasmonModel:
             float(pulse.omegaL_au),
             float(self.params.omega0_au),
         ]
-        frequency_candidates.extend(
-            float(value) for value in self.fit.omega_modes_au
-        )
-        frequency_candidates.extend(
-            float(abs(value)) for value in linear_stability.poles_au
-        )
+        if step_frequency_policy == 'all_poles':
+            frequency_candidates.extend(
+                float(value) for value in self.fit.omega_modes_au
+            )
+            frequency_candidates.extend(
+                float(abs(value)) for value in linear_stability.poles_au
+            )
         incident_peak_rabi_frequency = float(
             2.0
             * abs(self.params.d_au)
@@ -2387,7 +2394,7 @@ class HybridQDPlasmonModel:
         max_rabi_refinements = 3
         while True:
             resolution_step_limit = float(
-                2.0 * np.pi / (20.0 * integration_frequency_ceiling)
+                2.0 * np.pi / (points_per_fastest_cycle * integration_frequency_ceiling)
             )
             max_step_au = (
                 resolution_step_limit
@@ -2454,7 +2461,7 @@ class HybridQDPlasmonModel:
                 observed_peak_rabi_frequency,
             )
             required_step_limit = float(
-                2.0 * np.pi / (20.0 * required_frequency_ceiling)
+                2.0 * np.pi / (points_per_fastest_cycle * required_frequency_ceiling)
             )
             if max_step_au <= required_step_limit * (1.0 + 1.0e-12):
                 integration_frequency_ceiling = required_frequency_ceiling

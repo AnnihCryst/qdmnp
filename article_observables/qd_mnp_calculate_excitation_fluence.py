@@ -11,7 +11,7 @@ JSON metadata document, and does not create figures.
 from __future__ import annotations
 
 import argparse
-from concurrent.futures import ThreadPoolExecutor
+from types import SimpleNamespace
 from dataclasses import asdict, dataclass, fields
 from datetime import datetime
 import hashlib
@@ -34,6 +34,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 import numpy as np
 from article_observables.qd_mnp_fit_options import add_fit_refinement_argument
+from article_observables.qd_mnp_parallel import process_pool, resolve_workers, shared_fit_cache
 import scipy
 from scipy.constants import epsilon_0 as EPSILON_0_SI, hbar as HBAR_SI
 from scipy.integrate import solve_ivp
@@ -386,6 +387,8 @@ def _resolved_settings(args: argparse.Namespace) -> dict[str, Any]:
         minimum = 101 if "grid_points" in key or key == "modal_audit_points" else 1
         if key == "points_per_fastest_cycle":
             minimum = 8
+        if key == "workers":
+            minimum = 0  # 0 = all logical CPUs except two (qd_mnp_parallel.resolve_workers)
         if settings[key] < minimum:
             raise ValueError(f"{key} must be at least {minimum}.")
     settings["max_auto_tail_extensions"] = int(settings["max_auto_tail_extensions"])
@@ -472,7 +475,7 @@ def _build_channel_model(channel: ChannelSpec, settings: dict[str, Any]):
         )
 
     reduction = None
-    if channel.qd_placement == "side" and settings["spatial_order_max"] > SIDE_DIRECT_REFERENCE_ORDER_MAX:
+    if (channel.qd_placement == "side" or settings.get("dark_reduction", "side") == "all") and settings["spatial_order_max"] > SIDE_DIRECT_REFERENCE_ORDER_MAX:
         reduction = build_positive_dark_reduction(
             bright_model,
             kernel,
@@ -614,6 +617,7 @@ def _solve_full_model(model: FullQSSpheroidPulseModel, pulse: GaussianPulse, t_s
         rtol=settings["rtol"],
         atol=settings["atol"],
         points_per_fastest_cycle=settings["points_per_fastest_cycle"],
+        step_frequency_policy=settings.get("step_frequency_policy", "all_poles"),
         spectral_window_policy=settings["spectral_window_policy"],
         max_spectral_leakage=settings["max_spectral_leakage"],
         positivity_policy=settings["positivity_policy"],
@@ -744,9 +748,52 @@ def _model_metadata(
     )
 
 
+_FLUENCE_WORKER_MODELS: dict[str, Any] = {}
+
+
+def _fluence_solve_job(job: tuple[dict[str, Any], int, float, tuple[float, float]]) -> tuple[float, float, float, float, dict[str, Any]]:
+    """One (channel, fluence) FQS solve in a worker; return only what the artifact stores."""
+    settings, channel_index, target_fluence, t_span = job
+    channel = HYBRID_CHANNELS[channel_index]
+    if channel.channel_id not in _FLUENCE_WORKER_MODELS:
+        if len(_FLUENCE_WORKER_MODELS) >= 2:
+            _FLUENCE_WORKER_MODELS.pop(next(iter(_FLUENCE_WORKER_MODELS)))
+        _FLUENCE_WORKER_MODELS[channel.channel_id] = _build_channel_model(channel, settings)[-1]
+    result = _solve_full_model(_FLUENCE_WORKER_MODELS[channel.channel_id],
+                               _pulse_for_fluence(float(target_fluence), settings), t_span, settings)
+    index = int(np.argmax(result.rho22))
+    return (float(result.rho22[index]), float(result.rho22[-1]), float(result.t_au[index]),
+            float(result.t_au[-1]), asdict(result.diagnostics))
+
+
+def _parallel_fluence_results(settings: dict[str, Any], fluence: np.ndarray, t_span: tuple[float, float], workers: int):
+    jobs = [(channel_index, fluence_index) for channel_index in range(len(HYBRID_CHANNELS))
+            for fluence_index in range(fluence.size)]
+    payloads = [(settings, channel_index, float(fluence[fluence_index]), t_span) for channel_index, fluence_index in jobs]
+    results = {}
+    print(f"P_exc(F): {len(jobs)} FQS solves on {workers} worker processes.", flush=True)
+    with process_pool(workers) as pool:
+        for done, ((channel_index, fluence_index), (p_max, p_read, t_max, t_end, diagnostics)) in enumerate(
+                zip(jobs, pool.map(_fluence_solve_job, payloads)), start=1):
+            # Two samples reproduce what the loop reads: argmax/maximum and the read value.
+            results[(fluence_index, channel_index)] = SimpleNamespace(
+                rho22=np.asarray([p_max, p_read]), t_au=np.asarray([t_max, t_end]),
+                diagnostics=FullQSSolveDiagnostics(**diagnostics))
+            if done % max(1, len(jobs) // 20) == 0 or done == len(jobs):
+                print(f"[{done}/{len(jobs)}] FQS solves done", flush=True)
+    return results
+
+
 def calculate_excitation_fluence(settings: dict[str, Any]) -> tuple[dict[str, np.ndarray], dict[str, Any]]:
     """Run all channels and return NPZ arrays plus JSON-compatible metadata."""
 
+    jobs = len(HYBRID_CHANNELS) * len(settings["fluence_grid_j_cm2"])
+    parallel = settings["post_fs"] is not None and resolve_workers(settings.get("workers", 1), jobs) > 1
+    with shared_fit_cache(create_temporary=parallel):
+        return _calculate_excitation_fluence(settings)
+
+
+def _calculate_excitation_fluence(settings: dict[str, Any]) -> tuple[dict[str, np.ndarray], dict[str, Any]]:
     built = []
     for channel in HYBRID_CHANNELS:
         print(f"Building full-QS channel {channel.channel_id} ...", flush=True)
@@ -816,6 +863,14 @@ def calculate_excitation_fluence(settings: dict[str, Any]) -> tuple[dict[str, np
         initial_end_au = float(fs_to_au(settings["post_fs"]))
         automatic_post = False
 
+    parallel_results = None
+    workers = resolve_workers(settings.get("workers", 1), len(HYBRID_CHANNELS) * n_fluence)
+    if not automatic_post and workers > 1:
+        # The common window is fluence independent: sigma_t does not depend on amplitude.
+        first_pulse = _pulse_for_fluence(float(fluence[0]), settings)
+        parallel_results = _parallel_fluence_results(
+            settings, fluence, (float(-settings["start_sigma"] * first_pulse.sigma_t_au), float(initial_end_au)), workers)
+
     for fluence_index, target_fluence in enumerate(fluence):
         pulse = _pulse_for_fluence(float(target_fluence), settings)
         e0_au[fluence_index] = pulse.E0_au
@@ -836,14 +891,8 @@ def calculate_excitation_fluence(settings: dict[str, Any]) -> tuple[dict[str, np
         while True:
             t_span = (float(start_au), float(end_au))
             models = [item[-1] for item in built]
-            if settings["workers"] > 1:
-                with ThreadPoolExecutor(max_workers=settings["workers"], thread_name_prefix="excitation-fluence") as executor:
-                    full_results = list(
-                        executor.map(
-                            lambda active_model: _solve_full_model(active_model, pulse, t_span, settings),
-                            models,
-                        )
-                    )
+            if parallel_results is not None:
+                full_results = [parallel_results[(fluence_index, index)] for index in range(len(models))]
             else:
                 full_results = [
                     _solve_full_model(active_model, pulse, t_span, settings)
@@ -1258,6 +1307,9 @@ def build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("--rtol", type=float, default=1.0e-8)
     parser.add_argument("--atol", type=float, default=1.0e-10)
     parser.add_argument("--points-per-fastest-cycle", type=int, default=20)
+    parser.add_argument("--step-frequency-policy", choices=("all_poles", "excited_band"), default="all_poles",
+                        help='Step-size cap: all_poles resolves every modal/material pole (legacy); excited_band resolves carrier, exciton and Rabi frequencies only, material poles being controlled by rtol/atol.')
+    parser.add_argument("--dark-reduction", choices=("side", "all"), default="side", help='Apply the certified positive dark-kernel reduction to side channels only (legacy) or to every channel.')
     parser.add_argument("--start-sigma", type=float, default=10.0)
     parser.add_argument("--post-fs", type=float)
     parser.add_argument("--max-auto-tail-extensions", type=int, default=2)
@@ -1273,7 +1325,7 @@ def build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-modal-normalized-rms", type=float, default=0.03)
     parser.add_argument("--max-modal-relative-error", type=float, default=0.06)
     parser.add_argument("--spatial-convergence-rtol", type=float, default=2.0e-5)
-    parser.add_argument("--workers", type=int, default=1)
+    parser.add_argument("--workers", type=int, default=1, help="Worker processes; 0 = all logical CPUs except two.")
     parser.add_argument("--verbose-fit", action="store_true")
 
     parser.add_argument("--radiative-consistency-policy", choices=POLICIES, default="warn")

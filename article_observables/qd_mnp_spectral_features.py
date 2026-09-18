@@ -2,6 +2,9 @@
 
 The reported width is an operational half-prominence width in a fixed window.
 It is not a fit to a Lorentzian or an estimate of a microscopic decay rate.
+The reported peak energy is the vertex of the parabola through the sampled
+maximum and its two neighbours, so shifts smaller than one grid step are not
+quantized to grid nodes; the reported height remains the sampled maximum.
 """
 
 from __future__ import annotations
@@ -22,6 +25,22 @@ class FeatureResult:
     right_eV: float
     status: str
     competing_peak_count: int
+
+
+def _vertex_energy(energy, values, index):
+    """Parabolic vertex through an interior sampled maximum (non-uniform grid safe)."""
+    if index <= 0 or index >= values.size - 1:
+        return float(energy[index])
+    x0, x1, x2 = energy[index - 1:index + 2]
+    y0, y1, y2 = values[index - 1:index + 2]
+    # Divided differences of the interpolating quadratic y = y1 + b (x-x1) + a (x-x1)^2.
+    left, right = (y1 - y0) / (x1 - x0), (y2 - y1) / (x2 - x1)
+    curvature = (right - left) / (x2 - x0)
+    if not np.isfinite(curvature) or curvature >= 0.0:
+        return float(x1)
+    slope_at_x1 = left + curvature * (x1 - x0)
+    vertex = x1 - slope_at_x1 / (2.0 * curvature)
+    return float(np.clip(vertex, x0, x2))
 
 
 def _components(energy, values, center, half_window):
@@ -88,7 +107,7 @@ def extract_feature(
     ))
     status = "edge_truncated" if clipped[index] else "split_or_ambiguous" if competing else "ok"
     return FeatureResult(
-        float(local_energy[peaks[index]]), float(local[peaks[index]]), float(prominence[index]),
+        _vertex_energy(local_energy, local, int(peaks[index])), float(local[peaks[index]]), float(prominence[index]),
         float(right[index] - left[index]) if status == "ok" else np.nan,
         float(left[index]) if status == "ok" else np.nan,
         float(right[index]) if status == "ok" else np.nan,

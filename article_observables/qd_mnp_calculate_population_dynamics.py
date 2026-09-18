@@ -392,7 +392,7 @@ def _build_full_qs_model(spec: ChannelSpec, args: argparse.Namespace):
 
     reduction = None
     if (
-        spec.placement == "side"
+        (spec.placement == "side" or getattr(args, "dark_reduction", "side") == "all")
         and args.spatial_order_max > SIDE_DIRECT_REFERENCE_ORDER_MAX
     ):
         reduction = build_positive_dark_reduction(
@@ -550,6 +550,7 @@ def _solve_dd_trace(model, pulse, t_span_au, args):
     """Use the same bright fit and pulse as FQS, retaining real DD diagnostics."""
     result = solve_dd_with_resolution(
         model, pulse, points_per_fastest_cycle=args.points_per_fastest_cycle,
+        step_frequency_policy=args.step_frequency_policy,
         t_span_au=t_span_au, method=args.method, rtol=args.rtol, atol=args.atol,
         spectral_window_policy=args.spectral_window_policy,
         max_spectral_leakage=args.max_spectral_leakage,
@@ -685,6 +686,7 @@ def calculate_population_dynamics(args: argparse.Namespace) -> Path:
                 rtol=args.rtol,
                 atol=args.atol,
                 points_per_fastest_cycle=args.points_per_fastest_cycle,
+                step_frequency_policy=args.step_frequency_policy,
                 spectral_window_policy=args.spectral_window_policy,
                 max_spectral_leakage=args.max_spectral_leakage,
                 positivity_policy=args.positivity_policy,
@@ -1200,6 +1202,9 @@ def parse_args(argv: Iterable[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--rtol", type=float, default=1.0e-8)
     parser.add_argument("--atol", type=float, default=1.0e-10)
     parser.add_argument("--points-per-fastest-cycle", type=float, default=20.0)
+    parser.add_argument("--step-frequency-policy", choices=("all_poles", "excited_band"), default="all_poles",
+                        help='Step-size cap: all_poles resolves every modal/material pole (legacy); excited_band resolves carrier, exciton and Rabi frequencies only, material poles being controlled by rtol/atol.')
+    parser.add_argument("--dark-reduction", choices=("side", "all"), default="side", help='Apply the certified positive dark-kernel reduction to side channels only (legacy) or to every channel.')
     parser.add_argument(
         "--spectral-window-policy",
         choices=("raise", "warn", "ignore"),

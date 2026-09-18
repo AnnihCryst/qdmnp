@@ -385,6 +385,7 @@ def _solve_with_spectrum_tail_extension(
     bare_sigma_cm2: np.ndarray,
     max_delta_window_relative_change: float,
     max_delta_window_absolute_change_cm2: float,
+    step_frequency_policy: str = "all_poles",
 ) -> tuple[Any, float, int, SpectrumWindowAudit, dict[str, np.ndarray]]:
     """Solve until both the response tail and full spectrum are converged."""
 
@@ -405,6 +406,7 @@ def _solve_with_spectrum_tail_extension(
             rtol=rtol,
             atol=atol,
             points_per_fastest_cycle=points_per_fastest_cycle,
+            step_frequency_policy=step_frequency_policy,
             spectral_window_policy=spectral_window_policy,
             max_spectral_leakage=max_spectral_leakage,
             positivity_policy=positivity_policy,
@@ -623,6 +625,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--rtol", type=float, default=1.0e-8)
     parser.add_argument("--atol", type=float, default=1.0e-10)
     parser.add_argument("--points-per-fastest-cycle", type=float, default=20.0)
+    parser.add_argument("--step-frequency-policy", choices=("all_poles", "excited_band"), default="all_poles",
+                        help='Step-size cap: all_poles resolves every modal/material pole (legacy); excited_band resolves carrier, exciton and Rabi frequencies only, material poles being controlled by rtol/atol.')
     parser.add_argument("--pre-sigma", type=float, default=10.0)
     parser.add_argument("--post-fs", type=float)
     parser.add_argument("--spectral-window-policy", choices=POLICIES, default="raise")
@@ -1104,6 +1108,7 @@ def calculate_payload(
                         rtol=args.rtol,
                         atol=args.atol,
                         points_per_fastest_cycle=args.points_per_fastest_cycle,
+                        step_frequency_policy=args.step_frequency_policy,
                         spectral_window_policy=args.spectral_window_policy,
                         max_spectral_leakage=args.max_spectral_leakage,
                         positivity_policy=args.positivity_policy,

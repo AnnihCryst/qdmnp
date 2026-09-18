@@ -20,6 +20,7 @@ import os
 from pathlib import Path
 import platform
 import runpy
+import subprocess
 import sys
 import time
 import traceback
@@ -35,11 +36,25 @@ import scipy
 from scipy.constants import c, hbar, elementary_charge
 
 from article_observables.qd_mnp_article_inputs import (
-    DEFAULT_INPUT, ROOT, load_inputs, physical_arguments, unit_audit,
+    DEFAULT_INPUT, ROOT, center_distance_nm, load_inputs, medium_wavenumber_per_nm,
+    physical_arguments, unit_audit, upper_study_energy_eV,
 )
 from article_observables.qd_mnp_article_fit_cache import material_fit_cache
 from article_observables.qd_mnp_article_fit_identity import compare_fit_coefficients
 from article_observables.qd_mnp_threshold_metrics import resolved_threshold_mask
+from article_observables.qd_mnp_gap_metrics_common import dd_validity_assessment
+from article_observables.qd_mnp_parallel import fit_material_job, process_pool, resolve_workers
+from qd_mnp_spheroid_equatorial import MAX_SUPPORTED_EQUATORIAL_SPATIAL_DEGREE
+from qd_mnp_spheroid_green import MAX_SUPPORTED_SPATIAL_DEGREE
+
+
+def spatial_order_limit(channels) -> int:
+    """Largest spatial order the analytic kernels of these channels support."""
+    side = any(str(channel).startswith("side") for channel in channels)
+    return MAX_SUPPORTED_EQUATORIAL_SPATIAL_DEGREE if side else MAX_SUPPORTED_SPATIAL_DEGREE
+
+RIGHT_CENSORED = ("right_censored", "not_reached_first_lobe")
+LEFT_CENSORED = ("left_censored", "left_lobe_censored")
 
 
 PREFIX = "article_observables.qd_mnp_"
@@ -176,7 +191,8 @@ class ArticleRun:
     def save(self):
         write_json(self.manifest_path, self.manifest)
 
-    def step(self, label, module, arguments=(), *, suffix=".npz", dependencies=()):
+    def _prepare_step(self, label, module, arguments=(), *, suffix=".npz", dependencies=()):
+        """Resume/reuse rules shared by serial and concurrent steps: ("done", path) or ("pending", info)."""
         arguments = flags(arguments) if isinstance(arguments, dict) else list(map(str, arguments))
         signature = hashlib.sha256(json.dumps([module, arguments, [(str(p), sha(Path(p))) for p in dependencies]], sort_keys=True).encode()).hexdigest()
         path = self.directory / ("figures" if suffix == ".png" else "data") / f"{label}_{signature[:10]}{suffix}"
@@ -191,17 +207,24 @@ class ArticleRun:
                     if not original.exists() or sha(original) != previous["sha256"]:
                         raise StageError(f"Completed artifact is missing or changed: {original}")
                     print(f"Reuse identical calculation: {label}", flush=True)
-                    return original
+                    return "done", original
         if record.get("status") == "complete":
             if not path.exists() or record.get("sha256") != sha(path):
                 raise StageError(f"Completed artifact is missing or changed: {path}")
             print(f"Resume: {label}", flush=True)
-            return path
+            return "done", path
         if path.exists():
             raise StageError(f"Uncertified/unrecorded output already exists: {path}; preserve it and use a new output directory.")
         path.parent.mkdir(parents=True, exist_ok=True)
         log = self.directory / "logs" / f"{label}_{signature[:10]}.log"
         log.parent.mkdir(parents=True, exist_ok=True)
+        return "pending", {"label": label, "module": module, "arguments": arguments, "path": path, "key": key, "log": log}
+
+    def step(self, label, module, arguments=(), *, suffix=".npz", dependencies=()):
+        state, prepared = self._prepare_step(label, module, arguments, suffix=suffix, dependencies=dependencies)
+        if state == "done":
+            return prepared
+        arguments, path, key, log = prepared["arguments"], prepared["path"], prepared["key"], prepared["log"]
         argv = [module, *arguments, "--output", str(path)]
         self.manifest["steps"][key] = {"status": "running", "command": [sys.executable, "-m", module, *argv[1:]], "output": str(path), "log": str(log)}
         self.save()
@@ -232,6 +255,109 @@ class ArticleRun:
         self.save()
         return path
 
+    def steps_concurrently(self, specs, concurrency):
+        """Run independent calculator steps as parallel subprocesses.
+
+        The resume, reuse and manifest rules are those of step(). Returns
+        {label: path or StageError}; one failed step does not stop the others.
+        """
+        outcomes, pending = {}, []
+        for label, module, arguments in specs:
+            try:
+                state, prepared = self._prepare_step(label, module, arguments)
+            except StageError as exc:
+                outcomes[label] = exc
+                continue
+            if state == "done":
+                outcomes[label] = prepared
+            else:
+                pending.append(prepared)
+        if concurrency <= 1 or len(pending) <= 1:
+            for prepared in pending:
+                try:
+                    outcomes[prepared["label"]] = self.step(prepared["label"], prepared["module"], prepared["arguments"])
+                except StageError as exc:
+                    outcomes[prepared["label"]] = exc
+            return outcomes
+        queue, running = list(pending), []
+        try:
+            while queue or running:
+                while queue and len(running) < concurrency:
+                    prepared = queue.pop(0)
+                    command = [sys.executable, "-m", prepared["module"], *prepared["arguments"], "--output", str(prepared["path"])]
+                    self.manifest["steps"][prepared["key"]] = {"status": "running", "command": command,
+                                                               "output": str(prepared["path"]), "log": str(prepared["log"])}
+                    self.save()
+                    stream = prepared["log"].open("w", encoding="utf-8")
+                    # The child inherits QDMNP_MATERIAL_FIT_CACHE and single-thread BLAS settings.
+                    process = subprocess.Popen(command, cwd=ROOT, stdout=stream, stderr=subprocess.STDOUT)
+                    running.append((prepared, process, stream, time.perf_counter()))
+                    print(f"Running {prepared['label']} -> {prepared['path'].name} (concurrent)", flush=True)
+                time.sleep(1.0)
+                still_running = []
+                for prepared, process, stream, started in running:
+                    code = process.poll()
+                    if code is None:
+                        still_running.append((prepared, process, stream, started))
+                        continue
+                    stream.close()
+                    elapsed = time.perf_counter() - started
+                    record = self.manifest["steps"][prepared["key"]]
+                    if code == 0 and prepared["path"].exists():
+                        record.update(status="complete", sha256=sha(prepared["path"]), elapsed_s=elapsed)
+                        outcomes[prepared["label"]] = prepared["path"]
+                        print(f"Finished {prepared['label']} in {elapsed:.0f} s", flush=True)
+                    else:
+                        message = f"CLI exited with {code}" if code else f"Stage did not create its output: {prepared['path']}"
+                        tail = prepared["log"].read_text(encoding="utf-8", errors="replace")[-1500:]
+                        record.update(status="failed", error=message, elapsed_s=elapsed)
+                        outcomes[prepared["label"]] = StageError(f"{prepared['label']}: {message}; see {prepared['log']}\n{tail}")
+                        print(f"Failed {prepared['label']} after {elapsed:.0f} s", flush=True)
+                    self.save()
+                running = still_running
+        except KeyboardInterrupt:
+            for prepared, process, stream, started in running:
+                process.terminate()
+                stream.close()
+                self.manifest["steps"][prepared["key"]].update(status="failed", error="interrupted",
+                                                               elapsed_s=time.perf_counter()-started)
+            self.save()
+            raise
+        return outcomes
+
+    def prefit_materials(self):
+        """Fill the material-fit cache for every shape and pole count of the run in parallel.
+
+        The fits are identical to those the calculators would compute one after
+        another (same cache key); only the waiting time changes.
+        """
+        if self.config["smoke"]:
+            return
+        g, m, v = self.config["geometry"], self.config["material"], self.config["validation"]
+        window, refinement = (m["fit_min_eV"], m["fit_max_eV"]), m.get("refinement")
+        eps_m = self.config["medium"]["relative_permittivity"]
+        combinations = [(g["c_nm"], g["a_nm"], n) for n in sorted({1, *m["mode_candidates"]})]
+        if v["enabled"]:
+            combinations.append((g["c_nm"], g["a_nm"], m["validation_modes"]))
+            amount = v["shape_relative_offset"]
+            for sign in (-1, 1):
+                # Same arithmetic as validation(): cfg[key]*(1+sign*amount).
+                for c_nm, a_nm in ((g["c_nm"]*(1+sign*amount), g["a_nm"]), (g["c_nm"], g["a_nm"]*(1+sign*amount))):
+                    combinations += [(c_nm, a_nm, n) for n in sorted({1, *v["shape_check_mode_candidates"]})]
+        jobs = [(c_nm, a_nm, eps_m, orientation, n, window, refinement)
+                for c_nm, a_nm, n in combinations for orientation in ("long", "trans")]
+        workers = resolve_workers(self.config["numerics"]["workers"], len(jobs))
+        if workers <= 1:
+            return
+        started = time.perf_counter()
+        print(f"Prefitting {len(jobs)} material representations on {workers} processes ...", flush=True)
+        with process_pool(workers) as pool:
+            fitted = list(pool.map(fit_material_job, jobs))
+        self.state["prefit_materials"] = {"count": len(fitted), "elapsed_s": time.perf_counter()-started,
+                                          "fits": [dict(zip(("c_nm", "a_nm", "orientation", "n_modes", "nrms_alpha",
+                                                             "nrms_inverse_alpha", "max_alpha_error"), row)) for row in fitted]}
+        print(f"Prefit finished in {time.perf_counter()-started:.0f} s", flush=True)
+
     def common(self, config=None):
         return physical_arguments(config or self.config)
 
@@ -257,6 +383,7 @@ class ArticleRun:
         p, n = cfg["pulse"], cfg["numerics"]
         result = {"pulse-tau-fs": p["intensity_fwhm_fs"], "pulse-tau-kind": "fwhm_intensity", "post-fs": p["population_read_fs"],
                   "method": n["method"], "rtol": n["rtol"], "atol": n["atol"], "points-per-fastest-cycle": n["points_per_fastest_cycle"],
+                  "step-frequency-policy": n["step_frequency_policy"], "dark-reduction": n["dark_reduction"],
                   "spectral-window-policy": self.policy, "max-spectral-leakage": n["max_spectral_leakage"],
                   "positivity-policy": "raise", "work-passivity-policy": "raise", "population-decay-policy": self.policy,
                   "max-population-decay-fraction-at-read": p["max_population_decay_fraction"],
@@ -308,7 +435,8 @@ class ArticleRun:
                     "preset": "publication", **self.common(), **self.fit_args(), **self.spectral_args(),
                     "gaps-nm": self.config["geometry"]["gaps_nm"], "channels": self.config["geometry"]["channels"],
                     "max-energy-step-over-gamma0": self.config["spectrum"]["max_step_over_width"],
-                    "spectral-observable": "linear_qd_response", "dd-tolerance": self.config["numerics"]["dd_tolerance"]})
+                    "spectral-observable": "linear_qd_response", "dd-tolerance": self.config["numerics"]["dd_tolerance"],
+                    **self.retardation_args()})
                 break
             except StageError as exc:
                 if not self.refine_spectral_failure(exc):
@@ -319,17 +447,23 @@ class ArticleRun:
             self.plot("fig02"+letter, metric+"_gap", data)
         self.state.update(energy_points=self.energy_points, spatial_order=self.spatial_order)
 
+    def retardation_args(self, config=None):
+        cfg = config or self.config
+        return {"max-k-r": cfg["validation"]["max_k_R_for_selection"],
+                "retardation-energy-ev": upper_study_energy_eV(cfg)}
+
     def refine_spectral_failure(self, exc):
         message = str(exc).lower()
         if any(x in message for x in ("sampling", "coarsening", "energy-grid", "spectral grid")) and self.energy_points < self.config["spectrum"]["max_points"]:
             self.energy_points = min(2*self.energy_points-1, self.config["spectrum"]["max_points"])
             return True
-        if "spatial" in message and self.spatial_order < self.config["numerics"]["max_spatial_order"]:
-            self.spatial_order = min(2*self.spatial_order, self.config["numerics"]["max_spatial_order"])
+        ceiling = min(self.config["numerics"]["max_spatial_order"], spatial_order_limit(self.config["geometry"]["channels"]))
+        if "spatial" in message and self.spatial_order < ceiling:
+            self.spatial_order = min(2*self.spatial_order, ceiling)
             return True
         return False
 
-    def material_spectrum(self, label, gap, *, count=None, config=None):
+    def material_spectrum(self, label, gap, *, count=None, config=None, overrides=None):
         s = self.config["spectrum"]
         fit = self.fit_args(mode_key="multi-fit-modes", count=count)
         # This calculator checks multi-mode fit accuracy unconditionally;
@@ -340,11 +474,18 @@ class ArticleRun:
             "channels": self.config["geometry"]["channels"], "gap-nm": gap,
             "max-energy-step-over-isolated-fwhm": s["max_step_over_width"], "observable-fit-policy": self.policy,
             "max-observable-spectrum-nrms": s["max_observable_nrms"], "max-observable-shift-over-isolated-fwhm": s["max_observable_shift_over_gamma0"],
-            "max-observable-width-relative-error": s["max_observable_width_relative_error"], "max-observable-gain-relative-error": s["max_observable_gain_relative_error"]})
+            "max-observable-width-relative-error": s["max_observable_width_relative_error"], "max-observable-gain-relative-error": s["max_observable_gain_relative_error"],
+            **(overrides or {})})
 
     def preflight(self):
-        gaps = self.config["geometry"]["gaps_nm"]
-        preflight_gaps = sorted(set([gaps[0], gaps[len(gaps)//2], gaps[-1]]))
+        gaps = np.asarray(self.config["geometry"]["gaps_nm"], float)
+        _, allowed = retardation_selection_mask(self.config, self.config["geometry"]["channels"], gaps)
+        discrepancy = None
+        if self.state.get("spectral_master"):
+            spectral, _ = read_npz(self.state["spectral_master"])
+            discrepancy = spectral.get("spectral_l2_relative_dd_vs_fqs")
+        preflight_gaps, rule = choose_preflight_gaps(gaps, allowed, discrepancy, self.config["numerics"]["dd_tolerance"])
+        self.state["preflight_gap_choice"] = {"gaps_nm": preflight_gaps, "rule": rule}
         while True:
             try:
                 paths = [self.material_spectrum("preflight_g"+str(g), g) for g in preflight_gaps]
@@ -370,9 +511,13 @@ class ArticleRun:
                     self.config["material"]["mode_candidates"] = old
 
     def threshold_calculation(self, label, *, config=None, gaps=None, channels=None, count=None, points=None):
+        return self.step(label, PREFIX+"calculate_threshold_fluence_gap",
+                         self.threshold_arguments(config=config, gaps=gaps, channels=channels, count=count, points=points))
+
+    def threshold_arguments(self, *, config=None, gaps=None, channels=None, count=None, points=None):
         cfg = config or self.config
         p = cfg["pulse"]
-        return self.step(label, PREFIX+"calculate_threshold_fluence_gap", {
+        return {
             "preset": "publication", **self.common(cfg), **self.fit_args(count=count), **self.temporal_args(config=cfg),
             "gaps-nm": gaps if gaps is not None else cfg["geometry"]["gaps_nm"],
             "channels": channels if channels is not None else cfg["geometry"]["channels"],
@@ -384,10 +529,22 @@ class ArticleRun:
             "threshold-root-rtol": p["threshold_root_rtol"],
             "max-fluence-grid-midpoint-error": p["max_fluence_midpoint_population_error"],
             "max-isolated-pulse-area-step-rad": p["max_isolated_pulse_area_step_rad"],
-            "fluence-grid-convergence-policy": self.policy, "dd-tolerance": cfg["numerics"]["dd_tolerance"]})
+            "fluence-grid-convergence-policy": self.policy, "dd-tolerance": cfg["numerics"]["dd_tolerance"],
+            "threshold-search": cfg["numerics"]["threshold_search"],
+            "bracket-max-area-step-rad": cfg["numerics"]["bracket_max_area_step_rad"],
+            "workers": cfg["numerics"]["workers"],
+            **self.retardation_args(cfg)}
 
     def thresholds(self):
         extensions = 0
+        # The grid prediction only matters when every hybrid curve uses the grid.
+        if self.state.get("spectral_master") and not self.config["smoke"] and self.config["numerics"]["threshold_search"] == "grid":
+            spectral, _ = read_npz(self.state["spectral_master"])
+            prediction = predict_fluence_points(self.config, spectral.get("excitation_gain_optimized"), self.fluence_points)
+            self.state["fluence_grid_prediction"] = prediction
+            # A failed grid audit discards every solve of the whole master; start
+            # from the nested grid predicted to pass instead of paying for it.
+            self.fluence_points = max(self.fluence_points, prediction["predicted_points"])
         while True:
             try:
                 path = self.threshold_calculation("fig03_master")
@@ -397,12 +554,15 @@ class ArticleRun:
                     continue
                 raise
             data, _ = read_npz(path)
-            statuses = np.concatenate(([str(data["isolated_threshold_status"])], data["threshold_status"].ravel()))
-            if self.config["smoke"] or not np.any(np.isin(statuses, ["left_censored", "right_censored", "left_lobe_censored"])) or extensions >= self.config["pulse"]["max_fluence_extensions"]:
+            if self.config["smoke"]:
                 break
-            if np.any(np.isin(statuses, ["left_censored", "left_lobe_censored"])):
+            extend_min, extend_max = censoring_extension(data, self.config)
+            self.state["fluence_range_decision"] = {"extend_min": extend_min, "extend_max": extend_max, "extensions": extensions}
+            if not (extend_min or extend_max) or extensions >= self.config["pulse"]["max_fluence_extensions"]:
+                break
+            if extend_min:
                 self.config["pulse"]["fluence_min_J_cm2"] /= 10
-            if np.any(statuses == "right_censored"):
+            if extend_max:
                 self.config["pulse"]["fluence_max_J_cm2"] *= 2
             extensions += 1
         self.state.update(threshold_master=str(path), fluence_points=self.fluence_points,
@@ -420,27 +580,40 @@ class ArticleRun:
     def validation(self):
         selection = self.state["selection"]
         channels = list(dict.fromkeys([selection["best_channel"], selection["runner_up_channel"], selection["control_channel"]]))
+        # The recommendation depends on resolved thresholds of the leader and the
+        # nearest competitor. The control is a contrast: a strongly suppressing
+        # control is expected to lie above the scanned fluence range, and that
+        # censoring must not invalidate the numerical checks of the leader.
+        required = list(dict.fromkeys([selection["best_channel"], selection["runner_up_channel"]]))
         gaps = sorted(set([selection["best_gap_nm"], selection["runner_up_gap_nm"]]))
-        baseline = self.threshold_calculation("validation_reference", gaps=gaps, channels=channels)
-        records = []
+        master, _ = read_npz(self.state["threshold_master"])
+        # The same inputs and grid were already solved in the master scan.
+        baseline = threshold_subset(master, channels, gaps)
+        # Frequency-domain checks run now (seconds, they gate some threshold checks);
+        # all threshold checks are planned in order and then solved concurrently.
+        planned = []
 
-        def check(label, cfg=None, **kwargs):
-            try:
-                artifact = self.threshold_calculation("check_"+label, config=cfg, gaps=kwargs.pop("gaps", gaps), channels=channels, **kwargs)
-                result = compare_thresholds(baseline, artifact)
-                record = {"label": label, "artifact": str(artifact), **result}
-            except StageError as exc:
-                # Preserve a failed scientific check as a negative outcome. Never
-                # label the recommendation certified just because other plots exist.
-                record = {"label": label, "accepted": False, "error": str(exc)}
-            records.append(record)
-            return record
+        def check(label, cfg=None, overrides=None, extra=None, **kwargs):
+            check_gaps = kwargs.pop("gaps", gaps)
+            arguments = {**self.threshold_arguments(config=cfg, gaps=check_gaps, channels=channels, **kwargs),
+                         **(overrides or {})}
+            item = {"label": label, "gaps": check_gaps, "extra": extra or {},
+                    "spec": ("check_"+label, PREFIX+"calculate_threshold_fluence_gap", arguments)}
+            planned.append(item)
+            return item
 
         for carrier in self.config["pulse"]["carrier_scan_eV"]:
-            cfg = deepcopy(self.config)
-            cfg["pulse"]["carrier_energy_eV"] = carrier
-            record = check("carrier_"+str(carrier), cfg)
-            record["carrier_energy_eV"] = carrier
+            if np.isclose(carrier, self.config["pulse"]["carrier_energy_eV"], rtol=0, atol=1e-12):
+                # The reference carrier is the master scan itself.
+                item = {"label": "carrier_"+str(carrier), "record": {
+                    "label": "carrier_"+str(carrier), "artifact": self.state["threshold_master"], "derived_from_master": True,
+                    **compare_thresholds(baseline, baseline, required_channels=required)}}
+                planned.append(item)
+            else:
+                cfg = deepcopy(self.config)
+                cfg["pulse"]["carrier_energy_eV"] = carrier
+                item = check("carrier_"+str(carrier), cfg)
+            item["carrier_energy_eV"] = carrier
         if self.config["validation"]["enabled"]:
             # Certify the higher-N linear response before its nonlinear check.
             higher = self.config["material"]["validation_modes"]
@@ -449,12 +622,23 @@ class ArticleRun:
                     self.material_spectrum("check_higher_N_spectrum", gap, count=higher)
                 check("higher_N", count=higher)
             except StageError as exc:
-                records.append({"label": "higher_N", "accepted": False, "error": str(exc)})
+                planned.append({"label": "higher_N", "error": str(exc)})
             check("fluence_refined", points=2*self.fluence_points-1)
             original_order = self.spatial_order
-            self.spatial_order *= 2
+            limit = spatial_order_limit(channels)
+            # The side (equatorial) kernel supports orders <= 80. When doubling is
+            # impossible, compare with half the order instead: the threshold change
+            # between n/2 and n bounds the remaining spatial error at n. The n/2 model
+            # only reports its own half-order certificate; the production order keeps
+            # the strict one in the master scan.
+            refined = 2*original_order <= limit
+            self.spatial_order = 2*original_order if refined else max(1, original_order//2)
             try:
-                check("spatial_refined")
+                check("spatial_refined",
+                      overrides=None if refined else {"spatial-convergence-policy": "warn"},
+                      extra={"spatial_order_check": {"production_order": original_order, "check_order": self.spatial_order,
+                                                     "direction": "refined" if refined else "coarsened",
+                                                     "kernel_order_limit": limit}})
             finally:
                 self.spatial_order = original_order
             cfg = deepcopy(self.config)
@@ -470,11 +654,12 @@ class ArticleRun:
                     self.energy_points = 2*original_points-1
                     path = self.material_spectrum("check_energy_refined", gap)
                     result = compare_spectral_refinement(reference, path, self.config["spectrum"])
-                    records.append({"label": "energy_refined", "artifact": str(path),
-                                    "reference_artifact": str(reference), "gap_nm": gap, **result})
+                    planned.append({"label": "energy_refined", "record": {
+                        "label": "energy_refined", "artifact": str(path), "reference_artifact": str(reference),
+                        "gap_nm": gap, **result}})
                     self.energy_points = original_points
             except StageError as exc:
-                records.append({"label": "energy_refined", "accepted": False, "error": str(exc)})
+                planned.append({"label": "energy_refined", "error": str(exc)})
             finally:
                 self.energy_points = original_points
             v = self.config["validation"]
@@ -490,24 +675,77 @@ class ArticleRun:
                     cfg = deepcopy(self.config)
                     cfg[section][key] = cfg[section][key]*(1+sign*amount) if relative else cfg[section][key]+sign*amount
                     if parameter in ("c", "a"):
-                        try:
-                            for gap in gaps:
-                                self.material_spectrum("check_shape_"+parameter+"_"+suffix, gap, config=cfg)
-                        except StageError as exc:
-                            records.append({"label": parameter+"_"+suffix, "accepted": False, "error": str(exc)})
+                        # A varied shape needs its own validated material representation:
+                        # use the smallest declared pole count that passes the fit and
+                        # final-spectrum gates (N sensitivity itself is the higher_N check).
+                        # A +/-5 % shape is a robustness probe whose material is at the
+                        # identifiability limit (13 poles) and whose side kernel is at its
+                        # maximum order (80): the modal-transform and spatial-series gates
+                        # are relaxed for these checks only and recorded with the result.
+                        relaxed = {"max-modal-normalized-rms": v["shape_check_max_modal_nrms"],
+                                   "max-modal-relative-error": v["shape_check_max_modal_relative_error"],
+                                   "spatial-convergence-rtol": v["shape_check_spatial_rtol"]}
+                        used, errors = None, []
+                        for n_modes in v["shape_check_mode_candidates"]:
+                            try:
+                                for gap in gaps:
+                                    self.material_spectrum("check_shape_"+parameter+"_"+suffix, gap, count=n_modes,
+                                                           config=cfg, overrides=relaxed)
+                                used = n_modes
+                                break
+                            except StageError as exc:
+                                errors.append(f"N={n_modes}: {exc}")
+                                if not any(word in str(exc).lower() for word in ("fit", "accuracy", "modal", "observable")):
+                                    break
+                        if used is None:
+                            planned.append({"label": parameter+"_"+suffix, "error": " | ".join(errors)})
                             continue
+                        check(parameter+"_"+suffix, cfg, count=used, overrides=relaxed,
+                              extra={"material_modes_used": used, "rejected_mode_counts": [e.split(":")[0] for e in errors],
+                                     "relaxed_numerical_gates": relaxed})
+                        continue
                     check(parameter+"_"+suffix, cfg)
+
+        specs = [item["spec"] for item in planned if "spec" in item]
+        # Each check already uses up to 2*channels*gaps worker processes; run as many
+        # checks side by side as the CPU budget allows.
+        per_check = 2*len(channels)*len(gaps)
+        budget = resolve_workers(self.config["numerics"]["workers"], 10**6)
+        concurrency = max(1, budget // max(1, per_check)) if self.config["numerics"]["workers"] != 1 else 1
+        outcomes = self.steps_concurrently(specs, concurrency)
+        records = []
+        for item in planned:
+            if "record" in item:
+                record = item["record"]
+            elif "error" in item:
+                record = {"label": item["label"], "accepted": False, "error": item["error"]}
+            else:
+                outcome = outcomes[item["spec"][0]]
+                if isinstance(outcome, Exception):
+                    # Preserve a failed scientific check as a negative outcome. Never
+                    # label the recommendation certified just because other plots exist.
+                    record = {"label": item["label"], "accepted": False, "error": str(outcome)}
+                else:
+                    record = {"label": item["label"], "artifact": str(outcome),
+                              **compare_thresholds(baseline, outcome, required_channels=required)}
+                    below = [g for g in item["gaps"] if g < self.config["geometry"]["min_surface_gap_nm"]]
+                    if below:
+                        record["gaps_below_min_surface_gap_nm"] = below
+            if "carrier_energy_eV" in item:
+                record["carrier_energy_eV"] = item["carrier_energy_eV"]
+            record.update(item.get("extra", {}))
+            records.append(record)
         numerical_labels = {"higher_N", "fluence_refined", "spatial_refined", "time_step_refined", "energy_refined"}
         tolerance = self.config["numerics"]["threshold_relative_tolerance"]
         for row in records:
             if row["label"] in numerical_labels and "max_relative_threshold_change" in row:
                 row["accepted"] = row["resolved_pairs_complete"] and row["max_relative_threshold_change"] <= tolerance
         self.state["validation"] = records
+        self.state["carrier_scan_summary"] = summarize_carrier_scan(records, selection)
         present_labels = {row["label"] for row in records}
         self.state["numerical_validation_accepted"] = bool(self.config["validation"]["enabled"]
             and numerical_labels <= present_labels and all(
                 row.get("accepted", False) for row in records if row["label"] in numerical_labels))
-        master, _ = read_npz(self.state["threshold_master"])
         self.state["ranking_validation"] = assess_recommendation_ranking(
             master, selection, records, self.config,
             numerical_accepted=self.state["numerical_validation_accepted"],
@@ -577,14 +815,33 @@ class ArticleRun:
         if selection["runner_up_gap_nm"] != gap:
             self.material_spectrum("fig04_runner_up_check", selection["runner_up_gap_nm"])
         p = self.config["pulse"]
-        data = self.step("fig05_material_fluence", PREFIX+"calculate_excitation_fluence_material_comparison", {
-            "preset": "publication", **self.common(), **self.fit_args(), **self.temporal_args(),
-            "gap-nm": gap, "pulse-energy-ev": p["carrier_energy_eV"],
-            "fluence-min-j-cm2": p["fluence_min_J_cm2"], "fluence-max-j-cm2": p["fluence_max_J_cm2"],
-            "points": self.fluence_points, "grid-scale": "sqrt", "target-population": p["target_population"],
-            "max-fluence-grid-midpoint-error": p["max_fluence_midpoint_population_error"],
-            "max-isolated-pulse-area-step-rad": p["max_isolated_pulse_area_step_rad"],
-            "fluence-grid-convergence-policy": self.policy})
+        points = self.fluence_points
+        if self.state.get("spectral_master") and not self.config["smoke"]:
+            # Fig. 5 plots whole grid curves; start from the grid predicted to pass the
+            # midpoint audit (a failed audit discards every solve of both branches).
+            spectral, _ = read_npz(self.state["spectral_master"])
+            prediction = predict_fluence_points(self.config, spectral.get("excitation_gain_optimized"), points)
+            self.state["fig05_fluence_grid_prediction"] = prediction
+            points = max(points, prediction["predicted_points"])
+        while True:
+            try:
+                data = self.step("fig05_material_fluence", PREFIX+"calculate_excitation_fluence_material_comparison", {
+                    "preset": "publication", **self.common(), **self.fit_args(), **self.temporal_args(),
+                    "gap-nm": gap, "pulse-energy-ev": p["carrier_energy_eV"],
+                    "fluence-min-j-cm2": p["fluence_min_J_cm2"], "fluence-max-j-cm2": p["fluence_max_J_cm2"],
+                    "points": points, "grid-scale": "sqrt", "target-population": p["target_population"],
+                    "max-fluence-grid-midpoint-error": p["max_fluence_midpoint_population_error"],
+                    "max-isolated-pulse-area-step-rad": p["max_isolated_pulse_area_step_rad"],
+                    "fluence-grid-convergence-policy": self.policy, "workers": self.config["numerics"]["workers"]})
+                break
+            except StageError as exc:
+                # The full P_exc(F) curves are plotted, so the grid audit covers the
+                # whole range; refine like the threshold master instead of stopping.
+                if "grid" in str(exc).lower() and "fluence" in str(exc).lower() and points < p["max_fluence_points"]:
+                    points = min(2*points-1, p["max_fluence_points"])
+                    continue
+                raise
+        self.state["fig05_fluence_points"] = points
         self.plot("fig05", "excitation_fluence_material_comparison", data,
                   {"channels": [selection["best_channel"], selection["control_channel"]], "target-population": p["target_population"]})
         self.state["fluence_material_artifact"] = str(data)
@@ -671,9 +928,12 @@ class ArticleRun:
         fit.pop("fit-min-ev")
         fit.pop("fit-max-ev")
         temporal = self.temporal_args()
-        for key in ("population-decay-policy", "max-population-decay-fraction-at-read", "bright-fit-quality-policy"):
+        for key in ("population-decay-policy", "max-population-decay-fraction-at-read", "bright-fit-quality-policy", "dark-reduction"):
             temporal.pop(key)
         temporal["post-fs"] = w["post_fs"]
+        # S1 Fourier-transforms the trajectory: keep 20 samples per excited-band cycle
+        # (0.1 fs) even when the population observables use the coarser setting.
+        temporal["points-per-fastest-cycle"] = max(20, temporal["points-per-fastest-cycle"])
         # These are recorded diagnostic policies in --smoke only.
         args = {"preset": "publication", **self.common(), **fit, **temporal,
                 "fit-window-ev": [material["fit_min_eV"],material["fit_max_eV"]],
@@ -688,8 +948,18 @@ class ArticleRun:
                 "max-delta-window-absolute-change-cm2": w["max_delta_window_absolute_change_cm2"],
                 "observable-convergence-policy": self.policy, "energy-grid-convergence-policy": self.policy,
                 "spectral-support-policy": self.policy, "incident-ft-policy": self.policy}
-        path = self.step("supp01_work_spectrum", PREFIX+"calculate_work_loss_spectrum_material_comparison", args,
-                         dependencies=[Path(self.state["fluence_material_artifact"])])
+        while True:
+            try:
+                path = self.step("supp01_work_spectrum", PREFIX+"calculate_work_loss_spectrum_material_comparison", args,
+                                 dependencies=[Path(self.state["fluence_material_artifact"])])
+                break
+            except StageError as exc:
+                # A narrow hybrid feature needs a denser energy grid; refine like Fig. 2.
+                if "energy grid" in str(exc).lower() and args["energy-points"] < w["max_points"]:
+                    args["energy-points"] = min(2*args["energy-points"]-1, w["max_points"])
+                    continue
+                raise
+        self.state["supp01_energy_points"] = args["energy-points"]
         self.audit_fit_identity(path)
         self.plot("supp01", "work_loss_spectrum_material_comparison", path)
 
@@ -701,14 +971,16 @@ class ArticleRun:
         verdict = bool(verdict and difference is not None and difference <= self.config["numerics"]["threshold_relative_tolerance"])
         report = {"scope": "conditional single-MNP local-QS recommendations, not Shah dimer reproduction or PL quantum yield",
                   "numerically_checked_recommendation": verdict, "smoke": self.config["smoke"],
+                  "interpretation": recommendation_notes(self.state, self.audit),
                   "units": self.audit, "results": self.state, "figures": self.manifest["figures"]}
         write_json(self.directory / "article_results.json", report)
         self.manifest["recommendation_accepted"] = verdict
         banner = "SMOKE: техническая проверка цепочки, не данные для статьи." if self.config["smoke"] else (
             "Проверки численной сходимости и устойчивости выбранного кандидата на заданных сетках пройдены; глобальный оптимум и физическая применимость не удостоверены." if verdict else
             "Есть неразрешённые проверки или пороги. Графики не удостоверяют однозначную рекомендацию; см. article_results.json и validation.json.")
+        notes = "".join(f"<li>{html.escape(note)}</li>" for note in report["interpretation"])
         figures = "\n".join(f'<figure><figcaption>{html.escape(name)}</figcaption><a href="{html.escape(path)}"><img src="{html.escape(path)}" loading="lazy"></a></figure>' for name,path in self.manifest["figures"].items())
-        page = f'<!doctype html><html lang="ru"><meta charset="utf-8"><title>QD–MNP article results</title><style>body{{font:16px sans-serif;max-width:1200px;margin:2em auto}}img{{max-width:100%}}figure{{margin:2em 0}}aside{{padding:1em;background:#fff2cf}}</style><h1>КТ и одна золотая МНЧ</h1><aside>{banner}</aside><p>Входы: resolved_inputs.json. Единицы: units.json. Численные результаты: article_results.json. Журнал: manifest.json и logs/.</p>{figures}</html>'
+        page = f'<!doctype html><html lang="ru"><meta charset="utf-8"><title>QD–MNP article results</title><style>body{{font:16px sans-serif;max-width:1200px;margin:2em auto}}img{{max-width:100%}}figure{{margin:2em 0}}aside{{padding:1em;background:#fff2cf}}</style><h1>КТ и одна золотая МНЧ</h1><aside>{banner}</aside><p>Входы: resolved_inputs.json. Единицы: units.json. Численные результаты: article_results.json. Журнал: manifest.json и logs/.</p><h2>Условия интерпретации</h2><ul>{notes}</ul>{figures}</html>'
         (self.directory / "index.html").write_text(page, encoding="utf-8")
         print(f"\nResults and figures: {self.directory / 'index.html'}", flush=True)
 
@@ -716,6 +988,7 @@ class ArticleRun:
         # Replaying orchestration on resume reuses verified artifacts and rebuilds
         # dynamic choices deterministically; no mutable state is blindly trusted.
         with material_fit_cache(self.directory / "material_fit_cache"), diagnostic_figure_label(self.config["smoke"]):
+            self.prefit_materials()
             for stage in STAGES:
                 getattr(self, stage)()
                 self.save()
@@ -727,16 +1000,25 @@ class ArticleRun:
         self.save()
 
 
+def retardation_selection_mask(config: dict, channels, gaps) -> tuple[np.ndarray, np.ndarray]:
+    """k_m R per channel/gap and the admissible set: k_m R, k_m c cutoffs and g >= g_min."""
+    g, v = config["geometry"], config["validation"]
+    gaps = np.asarray(gaps, float)
+    k = medium_wavenumber_per_nm(config, upper_study_energy_eV(config))
+    kR = np.array([[k*center_distance_nm(config, str(ch), gap) for gap in gaps] for ch in channels], float)
+    allowed = (kR <= v["max_k_R_for_selection"]) & (k*g["c_nm"] <= v["max_k_c_for_selection"])
+    allowed &= gaps[None, :] >= g["min_surface_gap_nm"]
+    return kR, allowed
+
+
 def select_scenarios(data: dict, config: dict) -> dict:
     channels, gaps = list(data["channel_id"].astype(str)), np.asarray(data["gap_nm"], float)
     thresholds = np.asarray(data["threshold_fluence_j_cm2"][1], float)
-    resolved = resolved_threshold_mask(data["threshold_status"][1]) & np.isfinite(thresholds) & (thresholds>0)
-    g, v = config["geometry"], config["validation"]
-    upper_energy = max(config["spectrum"]["max_eV"], max(config["pulse"]["carrier_scan_eV"]))
-    k = np.sqrt(config["medium"]["relative_permittivity"])*upper_energy*elementary_charge/(hbar*c)*1e-9
-    radii = np.array([g["c_nm"] if ch.startswith("axis") else g["a_nm"] for ch in channels])
-    kR = k*(radii[:,None]+g["qd_radius_nm"]+gaps[None,:])
-    allowed = (kR<=v["max_k_R_for_selection"]) & (k*g["c_nm"]<=v["max_k_c_for_selection"])
+    statuses = np.asarray(data["threshold_status"][1]).astype(str)
+    resolved = resolved_threshold_mask(statuses) & np.isfinite(thresholds) & (thresholds>0)
+    g = config["geometry"]
+    k = medium_wavenumber_per_nm(config, upper_study_energy_eV(config))
+    kR, allowed = retardation_selection_mask(config, channels, gaps)
     eligible = resolved & allowed
     candidates = sorted(((float(thresholds[ci,gi]),ci,gi) for ci,gi in zip(*np.where(eligible))))
     if candidates:
@@ -755,25 +1037,205 @@ def select_scenarios(data: dict, config: dict) -> dict:
     far = float(usable_gaps[-1]) if usable_gaps.size else float(gaps[-1])
     discrepancy = np.asarray(data["absolute_threshold_discrepancy_dd_vs_fqs"][ci],float)
     valid_discrepancy = discrepancy[np.isclose(gaps, far)]
-    return {"best_channel": channels[ci], "best_gap_nm": float(gaps[gi]), "runner_up_channel":channels[rci],
-            "runner_up_gap_nm":float(gaps[rgi]), "control_channel":controls[channels[ci]], "far_gap_nm":far,
+    far_agrees = bool(valid_discrepancy.size and np.isfinite(valid_discrepancy[0]) and valid_discrepancy[0]<=config["numerics"]["dd_tolerance"])
+    boundary, boundary_status, support = dd_validity_assessment(gaps, discrepancy, config["numerics"]["dd_tolerance"], allowed[ci])
+    control = controls[channels[ci]]
+    control_index = channels.index(control)
+    best_gap = float(gaps[gi])
+    return {"best_channel": channels[ci], "best_gap_nm": best_gap, "runner_up_channel":channels[rci],
+            "runner_up_gap_nm":float(gaps[rgi]), "control_channel":control, "far_gap_nm":far,
             "resolved_threshold_selected": bool(candidates), "selection_is_illustration_only":not bool(candidates),
-            "far_point_satisfies_threshold_DD_tolerance": bool(valid_discrepancy.size and np.isfinite(valid_discrepancy[0]) and valid_discrepancy[0]<=config["numerics"]["dd_tolerance"]),
+            "far_point_satisfies_threshold_DD_tolerance": far_agrees,
+            # The largest admissible gap agrees whenever any admissible agreement
+            # suffix exists; otherwise Fig. 6 "far" is labelled as a contrast only.
+            "far_gap_role": "dd_fqs_threshold_agreement" if far_agrees else "largest_admissible_gap_without_dd_agreement",
+            "threshold_dd_validity_gap_nm": boundary, "threshold_dd_validity_status": boundary_status,
+            "threshold_dd_validity_supporting_points": support,
+            "min_surface_gap_nm": float(g["min_surface_gap_nm"]),
+            "best_gap_at_lower_admissible_bound": bool(candidates) and bool(usable_gaps.size) and np.isclose(best_gap, usable_gaps[0]),
+            "best_channel_gap_profile": [{"gap_nm": float(gap), "threshold_J_cm2": float(thresholds[ci, j]) if resolved[ci, j] else None,
+                                          "status": statuses[ci, j], "admissible": bool(allowed[ci, j])} for j, gap in enumerate(gaps)],
+            "control_threshold_status_at_best_gap": statuses[control_index, gi],
+            "point_qd_field_variation_lower_bound_at_best": 3*g["qd_radius_nm"]/center_distance_nm(config, channels[ci], best_gap),
             "k_c_at_upper_study_energy":float(k*g["c_nm"]), "k_R_by_channel_gap":kR,
             "selection_allowed_by_declared_retardation_cutoffs":allowed,
             "physical_scope":"conditional point-QD/local-QS result; declared k cutoffs do not validate finite-QD or nonlocal physics"}
 
 
-def compare_thresholds(reference_path, candidate_path):
-    reference,_ = read_npz(reference_path)
-    candidate,_ = read_npz(candidate_path)
-    if not np.array_equal(reference["channel_id"], candidate["channel_id"]) or reference["threshold_status"].shape != candidate["threshold_status"].shape:
+def choose_preflight_gaps(gaps, allowed, discrepancy, tolerance):
+    """Near, transition and far gaps inside the admissible range for every channel.
+
+    near/far are the extreme gaps admissible for all channels; the transition gap
+    is the intermediate gap whose worst-channel spectral DD/FQS discrepancy is
+    closest (logarithmically) to the DD tolerance.
+    """
+    gaps = np.asarray(gaps, float)
+    common = gaps[np.all(np.asarray(allowed, bool), axis=0)]
+    if not common.size:
+        raise StageError("No gap is admissible for every channel; revise gaps_nm, min_surface_gap_nm or the k_m R cutoff.")
+    near, far, middle = float(common[0]), float(common[-1]), common[1:-1]
+    if not middle.size:
+        return sorted({near, far}), "fewer than three admissible gaps: near and far only"
+    if discrepancy is None:
+        transition = float(middle[middle.size//2])
+        rule = "transition = middle admissible gap (no spectral DD/FQS discrepancy available)"
+    else:
+        delta = np.asarray(discrepancy, float)
+        worst = np.array([np.nanmax(np.where(np.isfinite(delta[:, j]), delta[:, j], np.inf))
+                          for j in np.flatnonzero(np.isin(gaps, middle))])
+        score = np.abs(np.log(np.maximum(worst, np.finfo(float).tiny)/tolerance))
+        transition = float(middle[int(np.argmin(score))])
+        rule = "transition = admissible gap whose worst-channel delta_spec is closest to the DD tolerance"
+    return [near, transition, far], rule
+
+
+def predict_fluence_points(config, excitation_gain, start_points):
+    """Smallest nested sqrt(F) grid (n -> 2n-1) predicted to pass the midpoint audit.
+
+    Weak-field population of the strongest hybrid scales as G * theta_0^2, so its
+    pulse-area step is sqrt(G) times the isolated step. For sin^2(theta/2) the
+    audited midpoint error is bounded by (2*dtheta)^2/8 * 1/2 = dtheta^2/4.
+    The prediction only chooses the starting grid; the saved audit still decides.
+    """
+    p, audit = config["pulse"], unit_audit(config)
+    si = audit["SI"]
+    area_reference = (si["qd_dipole_C_m"]*audit["reference_field_V_m"]*np.sqrt(2*np.pi)
+                      * si["pulse_sigma_field_fs"]*1e-15/hbar)
+    area_per_sqrt_fluence = area_reference/np.sqrt(audit["reference_fluence_J_cm2"])
+    gain = np.asarray(excitation_gain if excitation_gain is not None else [1.0], float)
+    gain_max = float(np.nanmax(gain[np.isfinite(gain)])) if np.any(np.isfinite(gain)) else 1.0
+    gain_max = max(gain_max, 1.0)
+    limit = min(0.9*2*np.sqrt(p["max_fluence_midpoint_population_error"]), p["max_isolated_pulse_area_step_rad"]*np.sqrt(gain_max))
+    span = np.sqrt(p["fluence_max_J_cm2"]) - np.sqrt(p["fluence_min_J_cm2"])
+    points = int(start_points)
+    while True:
+        step = area_per_sqrt_fluence*span/(points-1)*np.sqrt(gain_max)
+        if step <= limit or points >= p["max_fluence_points"]:
+            break
+        points = min(2*points-1, p["max_fluence_points"])
+    return {"predicted_points": points, "max_weak_field_gain": gain_max,
+            "predicted_hybrid_area_step_rad": float(step), "predicted_midpoint_error": float(step**2/4),
+            "rule": "dtheta_hybrid = dtheta_isolated*sqrt(max G_exc); midpoint error <= dtheta^2/4; audit remains authoritative"}
+
+
+def censoring_extension(data: dict, config: dict) -> tuple[bool, bool]:
+    """Decide whether a censored threshold can change the recommendation.
+
+    A threshold below the scan (left censoring) can conceal a better candidate, so
+    the lower bound is extended. A hybrid threshold above the scan exceeds the
+    isolated threshold and cannot win; extending the upper bound is needed only
+    when the isolated reference or every admissible FQS threshold is unresolved.
+    """
+    statuses = np.asarray(data["threshold_status"]).astype(str)
+    isolated = str(data["isolated_threshold_status"])
+    extend_min = bool(isolated in LEFT_CENSORED or np.any(np.isin(statuses, LEFT_CENSORED)))
+    channels, gaps = list(np.asarray(data["channel_id"]).astype(str)), np.asarray(data["gap_nm"], float)
+    _, allowed = retardation_selection_mask(config, channels, gaps)
+    any_resolved = bool(np.any(resolved_threshold_mask(statuses[1]) & allowed))
+    extend_max = bool(isolated in RIGHT_CENSORED or not any_resolved)
+    return extend_min, extend_max
+
+
+def threshold_subset(master: dict, channels, gaps) -> dict:
+    """Slice a threshold master to the channel/gap ordering of a validation check."""
+    master_channels = list(np.asarray(master["channel_id"]).astype(str))
+    ci = [master_channels.index(ch) for ch in channels]
+    master_gaps = np.asarray(master["gap_nm"], float)
+    gi = [int(np.flatnonzero(np.isclose(master_gaps, gap, rtol=0, atol=1e-12))[0]) for gap in gaps]
+    return {"channel_id": np.asarray(channels), "gap_nm": np.asarray(gaps, float),
+            "threshold_fluence_j_cm2": np.asarray(master["threshold_fluence_j_cm2"])[:, ci][:, :, gi],
+            "threshold_status": np.asarray(master["threshold_status"])[:, ci][:, :, gi],
+            "isolated_threshold_fluence_j_cm2": np.asarray(master["isolated_threshold_fluence_j_cm2"]),
+            "isolated_threshold_status": np.asarray(master["isolated_threshold_status"])}
+
+
+def summarize_carrier_scan(records, selection) -> dict:
+    """Best tested carrier for the selected configuration; no post-hoc figure change."""
+    rows = []
+    for row in sorted((r for r in records if "carrier_energy_eV" in r and "candidate_own_thresholds" in r),
+                      key=lambda r: r["carrier_energy_eV"]):
+        ci = row["channels"].index(selection["best_channel"])
+        gi = [float(g) for g in row["gaps_nm"]].index(float(selection["best_gap_nm"]))
+        value = row["candidate_own_thresholds"][ci][gi]
+        value = float(value) if value is not None and np.isfinite(value) else None
+        isolated = row.get("isolated_threshold")
+        isolated = float(isolated) if isolated is not None and np.isfinite(isolated) and isolated > 0 else None
+        rows.append({"carrier_energy_eV": row["carrier_energy_eV"], "threshold_J_cm2": value,
+                     "isolated_threshold_J_cm2": isolated,
+                     "ratio_to_isolated": value/isolated if value is not None and isolated is not None else None})
+    resolved = [r for r in rows if r["threshold_J_cm2"] is not None]
+    if not resolved:
+        return {"rows": rows, "best_tested_carrier_eV": None, "note": "no resolved threshold in the carrier scan"}
+    best = min(resolved, key=lambda r: r["threshold_J_cm2"])
+    ratios = [r for r in resolved if r["ratio_to_isolated"] is not None]
+    best_ratio = min(ratios, key=lambda r: r["ratio_to_isolated"]) if ratios else None
+    energies = [r["carrier_energy_eV"] for r in rows]
+    return {"rows": rows, "best_tested_carrier_eV": best["carrier_energy_eV"],
+            "best_tested_carrier_is_interior": best["carrier_energy_eV"] not in (min(energies), max(energies)),
+            "largest_relative_gain_carrier_eV": None if best_ratio is None else best_ratio["carrier_energy_eV"],
+            "note": "figures keep the pre-registered carrier; an edge optimum only bounds the tested range"}
+
+
+def recommendation_notes(state: dict, audit: dict) -> list[str]:
+    """Plain statements that must accompany any recommendation drawn from this run."""
+    notes = []
+    selection = state.get("selection", {})
+    if selection.get("best_gap_at_lower_admissible_bound"):
+        notes.append(f"Лучший зазор совпадает с нижней допустимой границей g_min = {selection.get('min_surface_gap_nm')} нм: "
+                     "это краевой, а не внутренний оптимум; рекомендация — «как можно ближе, но не ближе g_min».")
+    if selection.get("far_gap_role") == "largest_admissible_gap_without_dd_agreement":
+        notes.append("Дальний случай рис. 6 — наибольший допустимый зазор без согласия DD/FQS по порогу; "
+                     "граница применимости DD в допустимой по k_m R области не установлена.")
+    bound = selection.get("point_qd_field_variation_lower_bound_at_best")
+    if bound is not None:
+        notes.append(f"Точечная КТ: r_QD|∇E|/|E| ≥ {bound:.2f} уже для дипольного поля у выбранного зазора (не ≪ 1).")
+    carrier = state.get("carrier_scan_summary", {})
+    if carrier.get("best_tested_carrier_eV") is not None:
+        edge = "" if carrier.get("best_tested_carrier_is_interior") else " (на краю сетки несущих — только граница)"
+        notes.append(f"Лучшая проверенная несущая: {carrier['best_tested_carrier_eV']} эВ{edge}; рисунки построены при заранее заданной несущей.")
+    estimates = audit.get("model_error_estimates", {})
+    if "long" in estimates:
+        long = estimates["long"]
+        damping = long["surface_damping"]
+        notes.append(
+            "Не учтённые моделью эффекты (оценка для продольной поляризуемости на несущей): запаздывание "
+            f"×{long['alpha_squared_ratio_retardation_at_carrier']:.2f} для |α|², сдвиг LSPR {long['lspr_shift_meV']:.0f} мэВ; "
+            f"поверхностное затухание ×{damping[-1]['alpha_squared_ratio_at_carrier']:.2f}…×{damping[0]['alpha_squared_ratio_at_carrier']:.2f}. "
+            "Абсолютные усиления и пороги имеют систематическую неопределённость этого порядка; сравнение DD/FQS — нет.")
+    return notes
+
+
+def _threshold_arrays(source):
+    return source if isinstance(source, dict) else read_npz(source)[0]
+
+
+def compare_thresholds(reference_path, candidate_path, required_channels=None):
+    """Compare FQS thresholds of a check with its reference on identical channel/gap ordering.
+
+    ``required_channels`` must be resolved in both scans (default: every channel).
+    Other channels (the physical control) are compared when resolved and otherwise
+    only need a consistent censoring class; they never block the numerical check.
+    """
+    reference = _threshold_arrays(reference_path)
+    candidate = _threshold_arrays(candidate_path)
+    if not np.array_equal(np.asarray(reference["channel_id"]).astype(str), np.asarray(candidate["channel_id"]).astype(str)) or np.shape(reference["threshold_status"]) != np.shape(candidate["threshold_status"]):
         raise ValueError("Threshold comparison requires matching channel and gap-index ordering.")
-    left, right = reference["threshold_fluence_j_cm2"][1], candidate["threshold_fluence_j_cm2"][1]
-    valid = resolved_threshold_mask(reference["threshold_status"][1]) & resolved_threshold_mask(candidate["threshold_status"][1])
-    valid &= np.isfinite(left) & np.isfinite(right) & (left>0) & (right>0)
-    difference = np.abs(right[valid]/left[valid]-1)
+    channels = list(np.asarray(candidate["channel_id"]).astype(str))
+    required = np.isin(channels, channels if required_channels is None else list(required_channels))
+    left, right = np.asarray(reference["threshold_fluence_j_cm2"][1], float), np.asarray(candidate["threshold_fluence_j_cm2"][1], float)
+    left_status = np.asarray(reference["threshold_status"][1]).astype(str)
+    right_status = np.asarray(candidate["threshold_status"][1]).astype(str)
+    left_ok = resolved_threshold_mask(left_status) & np.isfinite(left) & (left>0)
+    right_ok = resolved_threshold_mask(right_status) & np.isfinite(right) & (right>0)
+    valid = left_ok & right_ok
+    required_pairs = np.broadcast_to(required[:, None], valid.shape)
+    difference = np.abs(right[valid & required_pairs]/left[valid & required_pairs]-1)
+    optional = ~required_pairs
+    optional_difference = np.abs(right[valid & optional]/left[valid & optional]-1)
+    same_class = (np.isin(left_status, RIGHT_CENSORED) & np.isin(right_status, RIGHT_CENSORED)) | (np.isin(left_status, LEFT_CENSORED) & np.isin(right_status, LEFT_CENSORED))
+    optional_consistent = bool(np.all((valid | same_class)[optional]))
     masked = np.where(valid,right,np.nan)
+    own = np.where(right_ok, right, np.nan)
     isolated = float(candidate["isolated_threshold_fluence_j_cm2"])
     isolated_reference = float(reference["isolated_threshold_fluence_j_cm2"])
     isolated_valid = bool(resolved_threshold_mask(str(candidate["isolated_threshold_status"]))
@@ -785,12 +1247,17 @@ def compare_thresholds(reference_path, candidate_path):
         isolated = np.nan
     before_best = np.unravel_index(np.nanargmin(np.where(valid,left,np.nan)),left.shape) if np.any(valid) else None
     after_best = np.unravel_index(np.nanargmin(masked),right.shape) if np.any(valid) else None
-    return {"accepted":bool(np.any(valid)), "resolved_pairs_complete":bool(np.all(valid) and isolated_valid),
+    return {"accepted":bool(np.any(valid & required_pairs)),
+            "resolved_pairs_complete":bool(np.all(valid[required_pairs]) and isolated_valid),
+            "all_pairs_resolved":bool(np.all(valid) and isolated_valid),
+            "required_channels":[ch for ch, flag in zip(channels, required) if flag],
             "max_relative_threshold_change":max(float(np.max(difference)), isolated_change) if difference.size else float("inf"),
             "isolated_relative_threshold_change":isolated_change,
-            "channels":candidate["channel_id"].astype(str).tolist(), "gaps_nm":candidate["gap_nm"].tolist(),
-            "candidate_thresholds":masked.tolist(), "isolated_threshold":isolated,
-            "candidate_status":candidate["threshold_status"][1].astype(str).tolist(),
+            "nonrequired_max_relative_threshold_change":float(np.max(optional_difference)) if optional_difference.size else None,
+            "nonrequired_pairs_consistent":optional_consistent,
+            "channels":channels, "gaps_nm":np.asarray(candidate["gap_nm"], float).tolist(),
+            "candidate_thresholds":masked.tolist(), "candidate_own_thresholds":own.tolist(), "isolated_threshold":isolated,
+            "candidate_status":right_status.tolist(),
             "best_channel_unchanged":bool(before_best is not None and before_best[0]==after_best[0]),
             "best_configuration_unchanged":bool(before_best is not None and before_best==after_best)}
 
@@ -865,19 +1332,35 @@ def assess_recommendation_ranking(master, selection, records, config, *, numeric
             equivalent.append({"channel":channels[aci], "gap_nm":float(gaps[agi]),
                                "threshold_J_cm2":float(values[aci,agi])})
     expected_sensitivity = {name+"_"+suffix for name in ("gap", "c", "a", "exciton", "gamma1", "dephasing") for suffix in ("low", "high")}
-    sensitivity = [row for row in records if row["label"] in expected_sensitivity or "carrier_energy_eV" in row]
+    # Laser detuning is controllable: by default the carrier scan informs the choice
+    # of E_L (carrier_scan_summary) while uncontrolled sample inputs gate robustness.
+    carriers_gate = bool(config["validation"].get("carrier_scan_in_ranking", True))
+    sensitivity = [row for row in records if row["label"] in expected_sensitivity
+                   or (carriers_gate and "carrier_energy_eV" in row)]
     present = {row["label"] for row in sensitivity}
     carrier_values = {row["carrier_energy_eV"] for row in sensitivity if "carrier_energy_eV" in row}
-    sensitivity_complete = bool(expected_sensitivity<=present and set(config["pulse"]["carrier_scan_eV"])<=carrier_values)
+    sensitivity_complete = bool(expected_sensitivity<=present
+                                and (not carriers_gate or set(config["pulse"]["carrier_scan_eV"])<=carrier_values))
     ranking_preserved = bool(sensitivity_complete and all(row.get("accepted", False)
         and row.get("resolved_pairs_complete", False) and row.get("best_configuration_unchanged", False) for row in sensitivity))
 
     def sensitivity_separated(row):
-        candidates = np.asarray(row.get("candidate_thresholds", []), float).ravel()
-        if not candidates.size or not np.all(np.isfinite(candidates)) or np.any(candidates<=0):
-            return False
+        values = np.asarray(row.get("candidate_own_thresholds", row.get("candidate_thresholds", [])), float)
+        status = np.asarray(row.get("candidate_status", []), dtype=str)
+        if status.shape == values.shape and values.size:
+            # A threshold above the scanned range is a lower bound larger than the
+            # scan maximum: it is separated from any resolved winner inside the scan.
+            above = np.isin(status, RIGHT_CENSORED)
+            resolved = resolved_threshold_mask(status) & np.isfinite(values) & (values>0)
+            if not np.all(resolved | above) or not np.any(resolved):
+                return False
+            candidates = np.where(above, np.inf, values).ravel()
+        else:
+            candidates = values.ravel()
+            if not candidates.size or not np.all(np.isfinite(candidates)) or np.any(candidates<=0):
+                return False
         ordered = np.sort(candidates)
-        return bool(allowance<1 and (ordered.size==1 or ordered[0]*(1+allowance)<ordered[1]*(1-allowance)))
+        return bool(allowance<1 and np.isfinite(ordered[0]) and (ordered.size==1 or ordered[0]*(1+allowance)<ordered[1]*(1-allowance)))
 
     separated_sensitivity = bool(sensitivity_complete and all(sensitivity_separated(row) for row in sensitivity))
     return {"accepted":bool(config["validation"]["enabled"] and numerical_accepted and separated and ranking_preserved and separated_sensitivity),

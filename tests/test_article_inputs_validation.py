@@ -76,7 +76,10 @@ class ArticleInputsValidationTests(unittest.TestCase):
         self.assert_invalid("validation", "exciton_offset_eV", 2.042, "Exciton sensitivity")
         config = load_inputs()
         config["qd"]["pure_dephasing_energy_meV"] = 0
-        validate_inputs(config)  # Lifetime broadening alone is mathematically allowed.
+        # Lifetime broadening alone is mathematically allowed, but a T2 of ~4.9 ns
+        # cannot decay before the common population read time of the article run.
+        with self.assertRaisesRegex(ValueError, "population_read_fs"):
+            validate_inputs(config)
         config["qd"]["population_decay_energy_neV"] = 0
         with self.assertRaisesRegex(ValueError, "Gamma2"):
             validate_inputs(config)
