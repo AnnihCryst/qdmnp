@@ -1,0 +1,7 @@
+# LaTeX build products
+*.aux
+*.log
+*.out
+*.pdf
+*.toc
+*.synctex.gz
