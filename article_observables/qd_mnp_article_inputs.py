@@ -55,7 +55,7 @@ def validate_inputs(config: dict) -> None:
     if type(config.get("schema_version")) is not int or config["schema_version"] != 1:
         raise ValueError("Unsupported ARTICLE_INPUTS schema_version.")
     required = {
-        "geometry": "mnp_count c_nm a_nm qd_radius_nm reference_surface_gap_nm min_surface_gap_nm gaps_nm channels",
+        "geometry": "mnp_count c_nm a_nm qd_radius_nm reference_surface_gap_nm locality_advisory_gap_nm gaps_nm channels",
         "qd": "transition_energy_eV effective_dipole_debye population_decay_energy_neV pure_dephasing_energy_meV dipole_convention background_relative_permittivity",
         "medium": "relative_permittivity",
         "pulse": "carrier_energy_eV intensity_fwhm_fs target_population fluence_min_J_cm2 fluence_max_J_cm2 fluence_points max_fluence_points max_fluence_extensions carrier_scan_eV population_read_fs max_population_decay_fraction refine_threshold threshold_root_xtol_sqrt_J_cm2 threshold_root_rtol max_fluence_midpoint_population_error max_isolated_pulse_area_step_rad",
@@ -100,7 +100,7 @@ def validate_inputs(config: dict) -> None:
         number("pulse", key, positive=True)
 
     for section, keys in {
-        "geometry": "c_nm a_nm qd_radius_nm reference_surface_gap_nm min_surface_gap_nm",
+        "geometry": "c_nm a_nm qd_radius_nm reference_surface_gap_nm locality_advisory_gap_nm",
         "qd": "transition_energy_eV effective_dipole_debye background_relative_permittivity",
         "medium": "relative_permittivity",
         "pulse": "carrier_energy_eV intensity_fwhm_fs target_population fluence_min_J_cm2 fluence_max_J_cm2 population_read_fs max_population_decay_fraction",
@@ -167,8 +167,13 @@ def validate_inputs(config: dict) -> None:
     if (s["max_points"] < s["points"] or p["max_fluence_points"] < p["fluence_points"]
             or n["max_spatial_order"] < n["spatial_order"]):
         raise ValueError("Invalid grid refinement limits.")
-    if any(str(channel).startswith("side") for channel in g["channels"]) and n["max_spatial_order"] > 80:
-        raise ValueError("Side channels use the equatorial kernel, which supports spatial orders <= 80.")
+    # Read the ceiling from the kernel instead of repeating it, so raising the
+    # kernel's declared limit cannot silently disagree with this check.
+    from qd_mnp_spheroid_equatorial import MAX_SUPPORTED_EQUATORIAL_SPATIAL_DEGREE
+    if (any(str(channel).startswith("side") for channel in g["channels"])
+            and n["max_spatial_order"] > MAX_SUPPORTED_EQUATORIAL_SPATIAL_DEGREE):
+        raise ValueError("Side channels use the equatorial kernel, which supports spatial orders <= "
+                         f"{MAX_SUPPORTED_EQUATORIAL_SPATIAL_DEGREE}.")
     if (not isinstance(m["mode_candidates"], list) or not m["mode_candidates"]
             or any(type(x) is not int or x < 2 for x in m["mode_candidates"])):
         raise ValueError("Multi-mode candidates must be integers >=2.")
@@ -228,15 +233,19 @@ def validate_inputs(config: dict) -> None:
         raise ValueError(
             f"pulse.population_read_fs={p['population_read_fs']:g} fs leaves a coherence tail ~{residual:.2g} for the "
             f"slowest declared dephasing variant, above 0.8*numerics.tail_ratio_tolerance; increase the read time.")
-    # A positive, declared lower gap bound is a modelling assumption (local
-    # continuum response, no tunnelling); it is not implied by the grid.
-    if not any(gap >= g["min_surface_gap_nm"] for gap in g["gaps_nm"]):
-        raise ValueError("No sampled gap satisfies geometry.min_surface_gap_nm.")
+    # The locality gap is a declared modelling caveat (local continuum response,
+    # no tunnelling, point QD), reported beside every result. It deliberately
+    # does NOT filter the gap grid: the optimum has to be found by the model, so
+    # the grid must reach below it for the edge/interior question to be decidable.
+    if not config.get("smoke", False) and not any(gap < g["locality_advisory_gap_nm"] for gap in g["gaps_nm"]):
+        raise ValueError(
+            "geometry.gaps_nm must sample below geometry.locality_advisory_gap_nm; otherwise an optimum at "
+            "the advisory gap cannot be distinguished from an optimum imposed by the grid.")
     counts = quasistatic_gap_counts(config)
     # The technical smoke grid deliberately has two gaps; production needs three.
     if not config.get("smoke", False) and min(counts.values()) < 3:
         raise ValueError(
-            "Each QD placement needs at least three gaps >= min_surface_gap_nm with k_m R <= "
+            "Each QD placement needs at least three gaps with k_m R <= "
             f"validation.max_k_R_for_selection (near, transition, far); found {counts}."
         )
     if v["enabled"]:
@@ -293,11 +302,11 @@ def center_distance_nm(config: dict, channel: str, gap_nm: float) -> float:
 
 
 def quasistatic_gap_counts(config: dict) -> dict:
-    """Number of admissible gaps (>= g_min and within the k_m R cutoff) per placement."""
+    """Number of admissible gaps (within the k_m R cutoff) per placement."""
     g, v = config["geometry"], config["validation"]
     k = medium_wavenumber_per_nm(config, upper_study_energy_eV(config))
-    return {placement: sum(1 for gap in g["gaps_nm"] if gap >= g["min_surface_gap_nm"]
-                           and k*center_distance_nm(config, placement, gap) <= v["max_k_R_for_selection"])
+    return {placement: sum(1 for gap in g["gaps_nm"]
+                           if k*center_distance_nm(config, placement, gap) <= v["max_k_R_for_selection"])
             for placement in ("axis", "side")}
 
 
@@ -436,7 +445,7 @@ def unit_audit(config: dict) -> dict:
         "upper_study_energy_eV": upper_study_energy_eV(config),
         "k_R_tip_at_upper_study_energy": [k_upper*center_distance_nm(config, "axis", gap) for gap in g["gaps_nm"]],
         "k_R_side_at_upper_study_energy": [k_upper*center_distance_nm(config, "side", gap) for gap in g["gaps_nm"]],
-        "min_surface_gap_nm": g["min_surface_gap_nm"],
+        "locality_advisory_gap_nm": g["locality_advisory_gap_nm"],
         # Dipole-field lower bound of r_QD |grad E|/|E| = 3 r_QD / R; the near
         # field of the spheroid (FQS) varies faster, so the real value is larger.
         "point_qd_field_variation_lower_bound": {

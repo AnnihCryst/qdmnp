@@ -52,12 +52,20 @@ class RecommendationRankingTests(unittest.TestCase):
         self.assertTrue(self.assess()["accepted"])
         self.assertFalse(self.assess(numerical_accepted=False)["accepted"])
 
-    def test_nearby_gap_in_same_channel_counts_as_indistinguishable_competitor(self):
+    def test_nearby_gap_in_same_channel_widens_the_claim_to_a_range(self):
         self.master["threshold_fluence_j_cm2"][1, 0, 1] = 1.05e-5
+        outcome = self.assess()
+        self.assertEqual(len(outcome["indistinguishable_grid_candidates"]), 2)
+        # No unique gap may be claimed; the contiguous plateau may be.
+        self.assertTrue(outcome["recommendation_is_a_range"])
+        self.assertEqual(outcome["recommended_gap_range_nm"], [1., 10.])
+        self.assertTrue(outcome["accepted"])
+
+    def test_indistinguishable_competitor_on_another_channel_blocks_the_verdict(self):
+        self.master["threshold_fluence_j_cm2"][1, 3, 1] = 1.05e-5
         outcome = self.assess()
         self.assertFalse(outcome["accepted"])
         self.assertFalse(outcome["selected_candidate_separated"])
-        self.assertEqual(len(outcome["indistinguishable_grid_candidates"]), 2)
 
     def test_changed_or_missing_sensitivity_check_prevents_positive_verdict(self):
         self.records[-1]["best_configuration_unchanged"] = False
@@ -157,3 +165,63 @@ class ArtifactRefinementTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ResolutionPlateauTests(unittest.TestCase):
+    """Removing the declared gap bound exposed a saturating threshold profile.
+
+    Adjacent gaps then fall inside the numerical allowance, so no single gap can
+    be claimed. The defensible claim is the plateau, provided it is one
+    contiguous region on one channel and everything outside is worse than the
+    winner beyond the allowance.
+    """
+
+    setUp = RecommendationRankingTests.setUp
+
+    def plateau_master(self, best_row, gaps=(0.5, 0.75, 1.0, 10.0)):
+        master = deepcopy(self.master)
+        master["gap_nm"] = np.array(gaps, float)
+        shape = (2, 5, len(gaps))
+        master["threshold_fluence_j_cm2"] = np.full(shape, 4e-5)
+        master["threshold_status"] = np.full(shape, "resolved", dtype="U32")
+        master["threshold_fluence_j_cm2"][1, 0] = best_row
+        self.selection = dict(self.selection, best_gap_nm=float(gaps[0]),
+                              selection_allowed_by_declared_retardation_cutoffs=np.ones((5, len(gaps)), bool))
+        return master
+
+    def test_saturating_profile_is_certified_as_a_range(self):
+        # 1.35 and 1.478 differ by 9.5 %, inside the two-sided 5 % allowance.
+        master = self.plateau_master([1.350e-6, 1.478e-6, 1.62e-6, 4e-5])
+        out = assess_recommendation_ranking(master, self.selection, self.records, self.config,
+                                            numerical_accepted=True)
+        self.assertTrue(out["accepted"])
+        self.assertTrue(out["selected_candidate_separated"])
+        self.assertTrue(out["recommendation_is_a_range"])
+        self.assertEqual(out["recommended_gap_range_nm"], [0.5, 0.75])
+        self.assertTrue(out["plateau_is_one_contiguous_region_on_the_best_channel"])
+
+    def test_a_clearly_separated_winner_is_still_a_single_point(self):
+        master = self.plateau_master([1.0e-6, 1.62e-6, 2.3e-6, 4e-5])
+        out = assess_recommendation_ranking(master, self.selection, self.records, self.config,
+                                            numerical_accepted=True)
+        self.assertTrue(out["accepted"])
+        self.assertFalse(out["recommendation_is_a_range"])
+        self.assertEqual(out["recommended_gap_range_nm"], [0.5, 0.5])
+
+    def test_a_tie_on_another_channel_is_not_a_plateau(self):
+        master = self.plateau_master([1.350e-6, 1.62e-6, 2.3e-6, 4e-5])
+        # A second channel ties with the winner: the placement claim is unsafe.
+        master["threshold_fluence_j_cm2"][1, 3, 2] = 1.36e-6
+        out = assess_recommendation_ranking(master, self.selection, self.records, self.config,
+                                            numerical_accepted=True)
+        self.assertFalse(out["plateau_is_one_contiguous_region_on_the_best_channel"])
+        self.assertFalse(out["selected_candidate_separated"])
+        self.assertFalse(out["accepted"])
+
+    def test_a_plateau_with_a_hole_is_not_one_region(self):
+        # 0.5 and 1.0 tie with the winner while 0.75 in between does not.
+        master = self.plateau_master([1.350e-6, 1.62e-6, 1.38e-6, 4e-5])
+        out = assess_recommendation_ranking(master, self.selection, self.records, self.config,
+                                            numerical_accepted=True)
+        self.assertFalse(out["plateau_is_one_contiguous_region_on_the_best_channel"])
+        self.assertFalse(out["accepted"])

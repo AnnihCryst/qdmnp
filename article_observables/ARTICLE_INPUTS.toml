@@ -19,12 +19,18 @@ reference_surface_gap_nm = 1.0
 # energy (2.234 eV) k_m R <= 0.49 for the tip channels and <= 0.41 for the
 # side channels at 12 nm. Gaps of 20 and 50 nm (k_m R up to 1.14) cannot
 # establish DD/FQS agreement because both models omit retardation there.
-gaps_nm = [1.0, 2.0, 3.0, 5.0, 7.0, 10.0, 12.0]
-# Declared lower bound for recommendations (design assumption, not a result):
+# The grid reaches below the locality advisory so that the edge/interior
+# question is decided by the model. Measured on the tip channel: the weak-field
+# gain at the fixed carrier peaks near 1.25-1.5 nm (25.25 at 1 nm, 25.47 at
+# 1.5 nm, 23.41 at 2 nm) because the hybrid resonance shifts off the carrier,
+# while the 20 fs threshold keeps falling monotonically and saturates
+# (1.62e-6 at 1 nm, 1.35e-6 at 0.5 nm, 1.22e-6 at 0.2 nm J/cm^2).
+gaps_nm = [0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 5.0, 7.0, 10.0, 12.0]
+# Declared caveat, REPORTED beside every result and never applied as a filter:
 # below ~1 nm the local continuum response of gold, the absence of tunnelling
 # and the ligand-free point QD are no longer defensible. It does NOT certify the
 # point-QD approximation; units.json reports the field-variation indicator.
-min_surface_gap_nm = 1.0
+locality_advisory_gap_nm = 1.0
 channels = ["axis_long", "axis_trans", "side_long", "side_trans_radial", "side_trans_tangential"]
 
 [qd]
@@ -108,9 +114,12 @@ max_observable_gain_relative_error = 0.10
 
 [numerics]
 spatial_order = 80
-# The side (equatorial) kernel supports orders <= 80; spatial refinement of the
-# threshold is checked against order 40 instead (see run_article.validation).
-max_spatial_order = 80
+# Sub-nanometre gaps need more spatial orders on the side placement: at order 80
+# the half-order indicator of side_trans_radial is 7.6e-6 at 1 nm but 2.3e-5 at
+# 0.75 nm, above spatial_rtol. The equatorial kernel itself converges to machine
+# precision well past that (relative change < 3e-13 between orders 160 and 320
+# at a 0.2 nm gap), so the runner may refine up to this ceiling.
+max_spatial_order = 160
 spatial_rtol = 2.0e-5
 modal_audit_points = 2001
 max_modal_nrms = 0.03

@@ -111,18 +111,26 @@ class FluenceRangeTests(unittest.TestCase):
 
 
 class SelectionAndPreflightTests(unittest.TestCase):
-    def test_min_gap_excludes_closer_winner_and_flags_boundary_optimum(self):
-        config = load_inputs()
-        config["geometry"]["min_surface_gap_nm"] = 2.0
+    def _selection_data(self, config, gaps, best_profile):
         channels = config["geometry"]["channels"]
-        gaps = np.array([1.0, 2.0, 3.0])
-        values = np.full((2, 5, 3), 4e-5)
-        values[1, 0] = [1e-6, 2e-6, 3e-6]
-        data = {"channel_id": np.array(channels), "gap_nm": gaps, "threshold_fluence_j_cm2": values,
+        values = np.full((2, 5, gaps.size), 4e-5)
+        values[1, 0] = best_profile
+        return {"channel_id": np.array(channels), "gap_nm": gaps, "threshold_fluence_j_cm2": values,
                 "threshold_status": np.full(values.shape, "resolved_refined", dtype="U32"),
-                "absolute_threshold_discrepancy_dd_vs_fqs": np.full((5, 3), .5)}
+                "absolute_threshold_discrepancy_dd_vs_fqs": np.full((5, gaps.size), .5)}
+
+    def test_locality_advisory_reports_but_never_excludes_a_closer_winner(self):
+        config = load_inputs()
+        config["geometry"]["locality_advisory_gap_nm"] = 2.0
+        gaps = np.array([1.0, 2.0, 3.0])
+        data = self._selection_data(config, gaps, [1e-6, 2e-6, 3e-6])
         chosen = runner.select_scenarios(data, config)
-        self.assertEqual((chosen["best_channel"], chosen["best_gap_nm"]), ("axis_long", 2.0))
+        # The advisory no longer filters: the 1 nm winner is selected and flagged.
+        self.assertEqual((chosen["best_channel"], chosen["best_gap_nm"]), ("axis_long", 1.0))
+        self.assertEqual(chosen["locality_advisory_gap_nm"], 2.0)
+        self.assertTrue(chosen["best_gap_below_locality_advisory"])
+        self.assertEqual(chosen["best_gap_optimum_kind"], "at_smallest_sampled_gap")
+        self.assertAlmostEqual(chosen["threshold_gain_below_locality_advisory"], 2.0)
         self.assertTrue(chosen["best_gap_at_lower_admissible_bound"])
         self.assertEqual(chosen["far_gap_role"], "largest_admissible_gap_without_dd_agreement")
         self.assertEqual(chosen["threshold_dd_validity_status"], "not_established_within_validity")
@@ -130,6 +138,18 @@ class SelectionAndPreflightTests(unittest.TestCase):
         chosen = runner.select_scenarios(data, config)
         self.assertEqual(chosen["far_gap_role"], "dd_fqs_threshold_agreement")
         self.assertEqual(chosen["threshold_dd_validity_gap_nm"], 2.0)
+
+    def test_interior_optimum_is_reported_as_the_model_s_own_answer(self):
+        config = load_inputs()
+        config["geometry"]["locality_advisory_gap_nm"] = 1.0
+        gaps = np.array([0.5, 1.0, 2.0, 3.0])
+        data = self._selection_data(config, gaps, [3e-6, 1e-6, 2e-6, 4e-6])
+        chosen = runner.select_scenarios(data, config)
+        self.assertEqual(chosen["best_gap_nm"], 1.0)
+        self.assertEqual(chosen["best_gap_optimum_kind"], "interior")
+        self.assertFalse(chosen["best_gap_below_locality_advisory"])
+        # Going below the advisory costs rather than gains here.
+        self.assertAlmostEqual(chosen["threshold_gain_below_locality_advisory"], 1/3)
 
     def test_preflight_gaps_stay_admissible_and_follow_the_dd_transition(self):
         config = load_inputs()
@@ -195,8 +215,12 @@ class QuasiStaticValidityTests(unittest.TestCase):
         config = load_inputs()
         counts = quasistatic_gap_counts(config)
         self.assertEqual(counts, {"axis": len(config["geometry"]["gaps_nm"]), "side": len(config["geometry"]["gaps_nm"])})
-        config["geometry"]["gaps_nm"] = [1.0, 20.0, 50.0]
+        config["geometry"]["gaps_nm"] = [0.5, 20.0, 50.0]
         with self.assertRaisesRegex(ValueError, "three gaps"):
+            validate_inputs(config)
+        # A grid that never reaches below the advisory cannot decide the question.
+        config["geometry"]["gaps_nm"] = [1.0, 2.0, 3.0]
+        with self.assertRaisesRegex(ValueError, "must sample below"):
             validate_inputs(config)
 
 

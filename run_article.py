@@ -728,9 +728,9 @@ class ArticleRun:
                 else:
                     record = {"label": item["label"], "artifact": str(outcome),
                               **compare_thresholds(baseline, outcome, required_channels=required)}
-                    below = [g for g in item["gaps"] if g < self.config["geometry"]["min_surface_gap_nm"]]
+                    below = [g for g in item["gaps"] if g < self.config["geometry"]["locality_advisory_gap_nm"]]
                     if below:
-                        record["gaps_below_min_surface_gap_nm"] = below
+                        record["gaps_below_locality_advisory_gap_nm"] = below
             if "carrier_energy_eV" in item:
                 record["carrier_energy_eV"] = item["carrier_energy_eV"]
             record.update(item.get("extra", {}))
@@ -1001,13 +1001,19 @@ class ArticleRun:
 
 
 def retardation_selection_mask(config: dict, channels, gaps) -> tuple[np.ndarray, np.ndarray]:
-    """k_m R per channel/gap and the admissible set: k_m R, k_m c cutoffs and g >= g_min."""
+    """k_m R per channel/gap and the admissible set from the k_m R and k_m c cutoffs.
+
+    Admissibility is decided only by the quasi-static cutoffs, which bound the
+    model's own numerical validity. The declared locality gap
+    (geometry.locality_advisory_gap_nm) is reported next to the result and never
+    removes a gap from the search, so an optimum is found by the model rather
+    than fixed by the assumption.
+    """
     g, v = config["geometry"], config["validation"]
     gaps = np.asarray(gaps, float)
     k = medium_wavenumber_per_nm(config, upper_study_energy_eV(config))
     kR = np.array([[k*center_distance_nm(config, str(ch), gap) for gap in gaps] for ch in channels], float)
     allowed = (kR <= v["max_k_R_for_selection"]) & (k*g["c_nm"] <= v["max_k_c_for_selection"])
-    allowed &= gaps[None, :] >= g["min_surface_gap_nm"]
     return kR, allowed
 
 
@@ -1042,6 +1048,22 @@ def select_scenarios(data: dict, config: dict) -> dict:
     control = controls[channels[ci]]
     control_index = channels.index(control)
     best_gap = float(gaps[gi])
+    # An interior optimum is the model's own answer; an optimum at either end of
+    # the sampled admissible range only bounds it and must be reported as such.
+    usable = np.flatnonzero(allowed[ci] & resolved[ci])
+    if not candidates or usable.size < 3:
+        optimum_kind = "not_determined"
+    elif gi == usable[0]:
+        optimum_kind = "at_smallest_sampled_gap"
+    elif gi == usable[-1]:
+        optimum_kind = "at_largest_sampled_gap"
+    else:
+        optimum_kind = "interior"
+    # How much of the optimum needs the region the locality assumption doubts.
+    advisory = float(g["locality_advisory_gap_nm"])
+    above = [j for j in usable if gaps[j] >= advisory]
+    gain_below = (float(thresholds[ci, min(above)]/thresholds[ci, usable[0]])
+                  if above and usable.size and gaps[usable[0]] < advisory else None)
     return {"best_channel": channels[ci], "best_gap_nm": best_gap, "runner_up_channel":channels[rci],
             "runner_up_gap_nm":float(gaps[rgi]), "control_channel":control, "far_gap_nm":far,
             "resolved_threshold_selected": bool(candidates), "selection_is_illustration_only":not bool(candidates),
@@ -1051,8 +1073,11 @@ def select_scenarios(data: dict, config: dict) -> dict:
             "far_gap_role": "dd_fqs_threshold_agreement" if far_agrees else "largest_admissible_gap_without_dd_agreement",
             "threshold_dd_validity_gap_nm": boundary, "threshold_dd_validity_status": boundary_status,
             "threshold_dd_validity_supporting_points": support,
-            "min_surface_gap_nm": float(g["min_surface_gap_nm"]),
+            "locality_advisory_gap_nm": float(g["locality_advisory_gap_nm"]),
+            "threshold_gain_below_locality_advisory": gain_below,
+            "best_gap_below_locality_advisory": bool(best_gap < g["locality_advisory_gap_nm"]),
             "best_gap_at_lower_admissible_bound": bool(candidates) and bool(usable_gaps.size) and np.isclose(best_gap, usable_gaps[0]),
+            "best_gap_optimum_kind": optimum_kind,
             "best_channel_gap_profile": [{"gap_nm": float(gap), "threshold_J_cm2": float(thresholds[ci, j]) if resolved[ci, j] else None,
                                           "status": statuses[ci, j], "admissible": bool(allowed[ci, j])} for j, gap in enumerate(gaps)],
             "control_threshold_status_at_best_gap": statuses[control_index, gi],
@@ -1072,7 +1097,7 @@ def choose_preflight_gaps(gaps, allowed, discrepancy, tolerance):
     gaps = np.asarray(gaps, float)
     common = gaps[np.all(np.asarray(allowed, bool), axis=0)]
     if not common.size:
-        raise StageError("No gap is admissible for every channel; revise gaps_nm, min_surface_gap_nm or the k_m R cutoff.")
+        raise StageError("No gap is admissible for every channel; revise gaps_nm or the k_m R cutoff.")
     near, far, middle = float(common[0]), float(common[-1]), common[1:-1]
     if not middle.size:
         return sorted({near, far}), "fewer than three admissible gaps: near and far only"
@@ -1180,9 +1205,32 @@ def recommendation_notes(state: dict, audit: dict) -> list[str]:
     """Plain statements that must accompany any recommendation drawn from this run."""
     notes = []
     selection = state.get("selection", {})
-    if selection.get("best_gap_at_lower_admissible_bound"):
-        notes.append(f"Лучший зазор совпадает с нижней допустимой границей g_min = {selection.get('min_surface_gap_nm')} нм: "
-                     "это краевой, а не внутренний оптимум; рекомендация — «как можно ближе, но не ближе g_min».")
+    ranking = state.get("ranking_validation", {})
+    span = ranking.get("recommended_gap_range_nm")
+    if ranking.get("recommendation_is_a_range") and span:
+        notes.append(f"Порог насыщается: зазоры {span[0]}–{span[1]} нм неразличимы в пределах численного допуска "
+                     f"{ranking.get('relative_numerical_allowance')}, поэтому рекомендуется диапазон, а не одна точка; "
+                     "всё вне этого диапазона отделено от победителя.")
+    kind, best = selection.get("best_gap_optimum_kind"), selection.get("best_gap_nm")
+    advisory = selection.get("locality_advisory_gap_nm")
+    if kind == "interior":
+        notes.append(f"Оптимальный зазор {best} нм — внутренний оптимум просканированного допустимого диапазона: "
+                     "он найден моделью, а не задан нижней границей сетки.")
+    elif kind == "at_smallest_sampled_gap":
+        notes.append(f"Лучший зазор {best} нм совпадает с наименьшим просканированным допустимым зазором: "
+                     "это краевой, а не внутренний оптимум; сетку зазоров нужно продлить вниз.")
+    elif kind == "at_largest_sampled_gap":
+        notes.append(f"Лучший зазор {best} нм совпадает с наибольшим просканированным допустимым зазором: "
+                     "это краевой, а не внутренний оптимум; сетку зазоров нужно продлить вверх.")
+    gain = selection.get("threshold_gain_below_locality_advisory")
+    if gain is not None:
+        notes.append(f"Ниже объявленного порога локальности {advisory} нм порог падает ещё лишь в {gain:.2f} раза "
+                     f"(от {advisory} нм до наименьшего просканированного зазора): профиль монотонный, но насыщающийся, "
+                     "поэтому краевой характер оптимума не означает заметного выигрыша от дальнейшего сближения.")
+    if selection.get("best_gap_below_locality_advisory"):
+        notes.append(f"Выбранный зазор {best} нм меньше объявленного порога локальности "
+                     f"{advisory} нм: ниже него локальный континуальный отклик золота, отсутствие туннелирования "
+                     "и точечная КТ без лигандной оболочки не защитимы; значение остаётся расчётным, а не рекомендуемым.")
     if selection.get("far_gap_role") == "largest_admissible_gap_without_dd_agreement":
         notes.append("Дальний случай рис. 6 — наибольший допустимый зазор без согласия DD/FQS по порогу; "
                      "граница применимости DD в допустимой по k_m R области не установлена.")
@@ -1322,15 +1370,24 @@ def assess_recommendation_ranking(master, selection, records, config, *, numeric
     # A right bound or a missed first-lobe target cannot beat a resolved target
     # inside this same scan. Left bounds and failed curves can conceal a winner.
     uncertain = allowed & ~resolved & ~np.isin(statuses, ("right_censored", "not_reached_first_lobe"))
-    alternatives = allowed & resolved
-    alternatives[ci,gi] = False
-    separated = bool(winner_resolved and not np.any(uncertain) and allowance<1
-                     and np.all(values[alternatives]*(1-allowance)>winner*(1+allowance)))
-    equivalent = []
-    if winner_resolved:
-        for aci, agi in zip(*np.where(allowed & resolved & (values*(1-allowance)<=winner*(1+allowance)))):
-            equivalent.append({"channel":channels[aci], "gap_nm":float(gaps[agi]),
-                               "threshold_J_cm2":float(values[aci,agi])})
+    # Candidates the scan cannot tell apart from the winner form a resolution
+    # plateau. Where the threshold saturates there is no unique best gap, and the
+    # defensible claim is the plateau itself rather than an arbitrary point in
+    # it; the claim stays safe as long as everything OUTSIDE the plateau is worse
+    # than the winner beyond the allowance. Requiring separation from the
+    # plateau's own edge instead would be unsatisfiable on any smooth profile
+    # once the grid is fine enough.
+    plateau = allowed & resolved & (values*(1-allowance)<=winner*(1+allowance))
+    equivalent = [{"channel":channels[aci], "gap_nm":float(gaps[agi]), "threshold_J_cm2":float(values[aci,agi])}
+                  for aci, agi in zip(*np.where(plateau))] if winner_resolved else []
+    plateau_gaps = sorted(float(gaps[agi]) for aci, agi in zip(*np.where(plateau)) if aci == ci)
+    indices = sorted(int(agi) for aci, agi in zip(*np.where(plateau)) if aci == ci)
+    # A plateau that jumps channels or skips a gap is not one flat region.
+    plateau_is_one_region = bool(winner_resolved and np.all(np.where(plateau)[0] == ci)
+                                 and indices == list(range(indices[0], indices[-1]+1)) and gi in indices)
+    outside = allowed & resolved & ~plateau
+    separated = bool(winner_resolved and plateau_is_one_region and not np.any(uncertain) and allowance<1
+                     and np.all(values[outside]*(1-allowance)>winner*(1+allowance)))
     expected_sensitivity = {name+"_"+suffix for name in ("gap", "c", "a", "exciton", "gamma1", "dephasing") for suffix in ("low", "high")}
     # Laser detuning is controllable: by default the carrier scan informs the choice
     # of E_L (carrier_scan_summary) while uncontrolled sample inputs gate robustness.
@@ -1370,6 +1427,10 @@ def assess_recommendation_ranking(master, selection, records, config, *, numeric
             "relative_numerical_allowance":allowance,
             "allowance_definition":"max(declared threshold tolerance, observed refinement changes); conservative resolution allowance, not a statistical confidence interval",
             "indistinguishable_grid_candidates":equivalent,
+            "recommended_gap_range_nm":[plateau_gaps[0], plateau_gaps[-1]] if plateau_gaps else None,
+            "recommendation_is_a_range":bool(len(plateau_gaps)>1),
+            "plateau_is_one_contiguous_region_on_the_best_channel":plateau_is_one_region,
+            "separation_definition":"every candidate outside the resolution plateau is worse than the winner by more than the allowance",
             "unresolved_potential_competitor_count":int(np.count_nonzero(uncertain)),
             "scope":"configured discrete candidates and one-parameter sensitivity cases only; no global or ensemble optimum"}
 

@@ -46,7 +46,14 @@ EquatorialInteractionModel = Literal[
     "spheroid_equatorial_full",
 ]
 
-MAX_SUPPORTED_EQUATORIAL_SPATIAL_DEGREE = 80
+# The log-domain recurrences below are guarded against double-precision
+# overflow by _exp_nonnegative, so this cap is a declared ceiling rather than
+# the numerical limit. It was verified by direct construction that the modal
+# response K stays finite and converges to machine precision at every order up
+# to 320, including a QD 0.2 nm from the equatorial surface (relative change
+# below 3e-13 between orders 160 and 320). Raised from 80, which was too low to
+# resolve the side placement at sub-nanometre gaps.
+MAX_SUPPORTED_EQUATORIAL_SPATIAL_DEGREE = 320
 _LOG_TWO = float(np.log(2.0))
 _LOG_PI = float(np.log(np.pi))
 _LOG_FLOAT_MAX = float(np.log(np.finfo(float).max))
