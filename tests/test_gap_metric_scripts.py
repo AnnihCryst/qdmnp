@@ -12,7 +12,7 @@ import numpy as np
 
 matplotlib.use("Agg")
 
-from article_observables.qd_mnp_gap_metrics_common import (
+from qdmnp.observables.gap_metrics_common import (
     MODEL_IDS,
     SCHEMA_NAME,
     SCHEMA_VERSION,

@@ -1,5 +1,8 @@
-﻿.venv/
+.venv/
 __pycache__/
 *.py[cod]
 /results/ 
 /articles/
+*.egg-info/
+build/
+dist/

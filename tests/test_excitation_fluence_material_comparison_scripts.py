@@ -8,9 +8,9 @@ from unittest.mock import patch
 
 import numpy as np
 
-from article_observables import qd_mnp_calculate_excitation_fluence_material_comparison as calculate
-from article_observables import qd_mnp_plot_excitation_fluence_material_comparison as plot
-from article_observables.qd_mnp_material_modes_artifact import atomic_write_npz
+from qdmnp.observables import calculate_excitation_fluence_material_comparison as calculate
+from qdmnp.observables import plot_excitation_fluence_material_comparison as plot
+from qdmnp.observables.material_modes_artifact import atomic_write_npz
 
 
 def _branch_payload(scale: float) -> dict[str, np.ndarray]:
@@ -218,10 +218,10 @@ class ExcitationFluenceMaterialComparisonTests(unittest.TestCase):
             elif isinstance(node, ast.ImportFrom) and node.module:
                 imported.append(node.module)
         forbidden = (
-            "qd_mnp_rational_fit",
-            "qd_mnp_full_qs_model",
-            "qd_mnp_spheroid_green",
-            "qd_mnp_calculate_excitation_fluence",
+            "qdmnp.rational_fit",
+            "qdmnp.full_qs_model",
+            "qdmnp.spheroid_green",
+            "calculate_excitation_fluence",
             "scipy",
         )
         self.assertFalse(any(name.startswith(forbidden) for name in imported))

@@ -22,11 +22,11 @@ import unittest
 
 import numpy as np
 
-from qd_mnp_spheroid_equatorial import (
+from qdmnp.spheroid_equatorial import (
     EquatorialSpheroidGeometry,
     EquatorialSpheroidGreenInteraction,
 )
-from qd_mnp_spheroid_green import ProlateSpheroidGeometry, SpheroidGreenInteraction
+from qdmnp.spheroid_green import ProlateSpheroidGeometry, SpheroidGreenInteraction
 
 
 EPS_M = 1.0

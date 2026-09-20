@@ -13,9 +13,9 @@ import matplotlib
 matplotlib.use("Agg")
 import numpy as np
 
-from article_observables import qd_mnp_calculate_material_dispersion_comparison as calc
-from article_observables import qd_mnp_plot_material_dispersion_comparison as plot
-from qd_mnp_rational_fit import AU_ENERGY_EV
+from qdmnp.observables import calculate_material_dispersion_comparison as calc
+from qdmnp.observables import plot_material_dispersion_comparison as plot
+from qdmnp.rational_fit import AU_ENERGY_EV
 
 
 class MaterialDispersionMetricTests(unittest.TestCase):
@@ -192,8 +192,8 @@ class MaterialDispersionWorkflowTests(unittest.TestCase):
             elif isinstance(node, ast.ImportFrom) and node.module:
                 imported_roots.add(node.module.split(".")[0])
         self.assertNotIn("scipy", imported_roots)
-        self.assertNotIn("qd_mnp_rational_fit", imported_roots)
-        self.assertNotIn("qd_mnp_full_qs_model", imported_roots)
+        self.assertNotIn("qdmnp.rational_fit", imported_roots)
+        self.assertNotIn("qdmnp.full_qs_model", imported_roots)
 
     def test_cli_rejects_comparisons_that_are_not_one_versus_many(self) -> None:
         args = calc.parse_args(["--one-modes", "2"])

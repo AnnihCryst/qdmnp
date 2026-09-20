@@ -4,8 +4,8 @@ import unittest
 
 import numpy as np
 
-from qd_mnp_params import make_params_with_overrides as make_shared_params
-from qd_mnp_rational_fit import (
+from qdmnp.params import make_params_with_overrides as make_shared_params
+from qdmnp.rational_fit import (
     HybridSolveResult,
     MaterialDispersion,
     au_to_eV,

@@ -12,12 +12,12 @@ import unittest
 
 import numpy as np
 
-from qd_mnp_linear_spectrum import linear_coupled_alpha_au
-from qd_mnp_pulse_absorption_sweep import (
+from qdmnp.linear_spectrum import linear_coupled_alpha_au
+from qdmnp.pulse_absorption_sweep import (
     spectral_cross_sections_cm2,
     spectral_effective_alpha_au,
 )
-from qd_mnp_rational_fit import (
+from qdmnp.rational_fit import (
     GaussianPulse,
     HybridQDPlasmonModel,
     eV_to_au,

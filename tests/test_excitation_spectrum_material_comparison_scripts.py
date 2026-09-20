@@ -12,7 +12,7 @@ import numpy as np
 
 matplotlib.use("Agg")
 
-from article_observables.qd_mnp_calculate_excitation_spectrum_material_comparison import (
+from qdmnp.observables.calculate_excitation_spectrum_material_comparison import (
     SCHEMA_NAME,
     SCHEMA_VERSION,
     _validate_args,
@@ -20,8 +20,8 @@ from article_observables.qd_mnp_calculate_excitation_spectrum_material_compariso
     extract_fwhm_feature,
     parse_args,
 )
-from article_observables.qd_mnp_material_modes_artifact import atomic_write_npz
-from article_observables.qd_mnp_plot_excitation_spectrum_material_comparison import (
+from qdmnp.observables.material_modes_artifact import atomic_write_npz
+from qdmnp.observables.plot_excitation_spectrum_material_comparison import (
     plot_artifact,
 )
 
@@ -211,14 +211,16 @@ class SpectrumMaterialPlotTests(unittest.TestCase):
     def test_plotter_reads_saved_data_without_solver_imports(self) -> None:
         plotter_path = (
             Path(__file__).resolve().parents[1]
-            / "article_observables"
-            / "qd_mnp_plot_excitation_spectrum_material_comparison.py"
+            / "src"
+            / "qdmnp"
+            / "observables"
+            / "plot_excitation_spectrum_material_comparison.py"
         )
         source = plotter_path.read_text(encoding="utf-8")
         self.assertNotIn("import scipy", source)
-        self.assertNotIn("qd_mnp_full_qs_model", source)
-        self.assertNotIn("qd_mnp_rational_fit", source)
-        self.assertNotIn("qd_mnp_spheroid_green", source)
+        self.assertNotIn("qdmnp.full_qs_model", source)
+        self.assertNotIn("qdmnp.rational_fit", source)
+        self.assertNotIn("qdmnp.spheroid_green", source)
 
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

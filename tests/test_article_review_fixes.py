@@ -7,12 +7,12 @@ from unittest.mock import patch
 
 import numpy as np
 
-import run_article as runner
-from article_observables.qd_mnp_article_inputs import (
+from qdmnp import pipeline as runner
+from qdmnp.observables.article_inputs import (
     load_inputs, model_error_estimates, quasistatic_gap_counts, validate_inputs,
 )
-from article_observables.qd_mnp_gap_metrics_common import dd_validity_assessment, dd_validity_distance
-from article_observables.qd_mnp_spectral_features import extract_feature
+from qdmnp.observables.gap_metrics_common import dd_validity_assessment, dd_validity_distance
+from qdmnp.observables.spectral_features import extract_feature
 
 
 def threshold_scan(channels, gaps, fqs, status=None, isolated=6e-5, isolated_status="resolved_refined"):

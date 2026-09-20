@@ -13,13 +13,13 @@ import matplotlib
 matplotlib.use("Agg")
 import numpy as np
 
-from article_observables.qd_mnp_calculate_population_dynamics import (
+from qdmnp.observables.calculate_population_dynamics import (
     CHANNELS,
     _surface_gap_separation_nm,
     calculate_population_dynamics,
     parse_args as parse_calculation_args,
 )
-from article_observables.qd_mnp_plot_population_dynamics import (
+from qdmnp.observables.plot_population_dynamics import (
     load_population_artifact,
     plot_population_dynamics,
 )
@@ -163,7 +163,7 @@ class PopulationDynamicsScriptTests(unittest.TestCase):
             matplotlib.pyplot.close(built)
 
         plot_source = Path(
-            "article_observables/qd_mnp_plot_population_dynamics.py"
+            "src/qdmnp/observables/plot_population_dynamics.py"
         ).read_text(encoding="utf-8")
         imported_roots = {
             alias.name.split(".")[0]
@@ -222,7 +222,7 @@ class PopulationDynamicsScriptTests(unittest.TestCase):
 
 
 def artifact_script_name() -> str:
-    return "article_observables/qd_mnp_calculate_population_dynamics.py"
+    return "src/qdmnp/observables/calculate_population_dynamics.py"
 
 
 if __name__ == "__main__":

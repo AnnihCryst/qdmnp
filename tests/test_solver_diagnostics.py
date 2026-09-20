@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import numpy as np
 
-from qd_mnp_rational_fit import (
+from qdmnp.rational_fit import (
     DEBYE_C_M,
     GaussianPulse,
     dipole_si_to_au,
@@ -129,7 +129,7 @@ class SolverDiagnosticsTests(unittest.TestCase):
         model = make_zero_mode_model()
         pulse = make_test_pulse()
         with patch(
-            "qd_mnp_rational_fit.np.trapezoid",
+            "qdmnp.rational_fit.np.trapezoid",
             side_effect=[-1.0, 1.0],
         ):
             with self.assertRaisesRegex(RuntimeError, "negative.*external-field work"):

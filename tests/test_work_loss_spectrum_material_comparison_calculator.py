@@ -8,7 +8,7 @@ import unittest
 
 import numpy as np
 
-from article_observables.qd_mnp_calculate_work_loss_spectrum_material_comparison import (
+from qdmnp.observables.calculate_work_loss_spectrum_material_comparison import (
     BRANCH_IDS,
     SCHEMA_NAME,
     _fourier_integral_grid,
@@ -18,11 +18,11 @@ from article_observables.qd_mnp_calculate_work_loss_spectrum_material_comparison
     parse_args,
     spectral_effective_alpha_grid,
 )
-from article_observables.qd_mnp_calculate_work_loss_fluence import (
+from qdmnp.observables.calculate_work_loss_fluence import (
     spectral_effective_alpha_au,
 )
-from qd_mnp_rational_fit import GaussianPulse, au_to_eV, eV_to_au, fs_to_au
-from article_observables.qd_mnp_work_spectrum_metrics import delta_window_diagnostics
+from qdmnp.rational_fit import GaussianPulse, au_to_eV, eV_to_au, fs_to_au
+from qdmnp.observables.work_spectrum_metrics import delta_window_diagnostics
 
 
 class WorkLossSpectrumFourierTests(unittest.TestCase):
@@ -223,8 +223,10 @@ class WorkLossSpectrumCalculationTests(unittest.TestCase):
         cls.payload, cls.metadata = calculate_payload(
             cls.args,
             generator_path=Path(__file__).resolve().parents[1]
-            / "article_observables"
-            / "qd_mnp_calculate_work_loss_spectrum_material_comparison.py",
+            / "src"
+            / "qdmnp"
+            / "observables"
+            / "calculate_work_loss_spectrum_material_comparison.py",
         )
 
     def test_real_fqs_payload_has_expected_axes_and_identities(self) -> None:
@@ -288,7 +290,7 @@ class WorkLossSpectrumArgumentTests(unittest.TestCase):
                 "2.00",
             ]
         )
-        from article_observables.qd_mnp_calculate_work_loss_spectrum_material_comparison import (
+        from qdmnp.observables.calculate_work_loss_spectrum_material_comparison import (
             _validate_args,
         )
 

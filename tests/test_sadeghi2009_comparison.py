@@ -6,8 +6,8 @@ import unittest
 
 import numpy as np
 
-from qd_mnp_rational_fit import AU_TIME_S, au_to_nm, nm_to_au
-from qd_mnp_sadeghi2009_comparison import (
+from qdmnp.rational_fit import AU_TIME_S, au_to_nm, nm_to_au
+from qdmnp.verification.sadeghi2009_comparison import (
     MEV_TO_NS_INV,
     Sadeghi2009Profile,
     build_sadeghi_adapter,

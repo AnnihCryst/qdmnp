@@ -7,8 +7,8 @@ from unittest.mock import Mock, patch
 
 import numpy as np
 
-from article_observables import qd_mnp_gap_metrics_common as gap
-from article_observables.qd_mnp_threshold_metrics import threshold_from_curve
+from qdmnp.observables import gap_metrics_common as gap
+from qdmnp.observables.threshold_metrics import threshold_from_curve
 
 
 @dataclass

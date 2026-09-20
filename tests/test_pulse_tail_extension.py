@@ -6,8 +6,8 @@ from unittest.mock import patch
 
 import numpy as np
 
-import qd_mnp_pulse_absorption_sweep as sweep
-from qd_mnp_rational_fit import DipoleCrossSections, fs_to_au
+from qdmnp import pulse_absorption_sweep as sweep
+from qdmnp.rational_fit import DipoleCrossSections, fs_to_au
 from tests._fixtures import make_zero_mode_model
 
 

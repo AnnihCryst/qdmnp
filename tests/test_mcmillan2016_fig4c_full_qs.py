@@ -11,7 +11,7 @@ import unittest
 
 import numpy as np
 
-from literature_reproductions.mcmillan2016_common import (
+from qdmnp.verification.literature_reproductions.mcmillan2016_common import (
     FIT_WINDOW_EV,
     au_to_fs,
     build_paper_matched_model,

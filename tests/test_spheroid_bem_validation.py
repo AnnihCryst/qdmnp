@@ -15,11 +15,11 @@ from qd_mnp_bem_validation import (
     run_nested_bem_convergence,
     solve_spheroid_bem,
 )
-from qd_mnp_spheroid_equatorial import (
+from qdmnp.spheroid_equatorial import (
     EquatorialSpheroidGeometry,
     EquatorialSpheroidGreenInteraction,
 )
-from qd_mnp_spheroid_green import ProlateSpheroidGeometry, SpheroidGreenInteraction
+from qdmnp.spheroid_green import ProlateSpheroidGeometry, SpheroidGreenInteraction
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]

@@ -19,8 +19,8 @@ import numpy as np
 from scipy.constants import c as C_SI
 from scipy.constants import epsilon_0
 
-import qd_mnp_linear_spectrum as spectrum
-from qd_mnp_rational_fit import (
+from qdmnp import linear_spectrum as spectrum
+from qdmnp.rational_fit import (
     AU_DIPOLE_C_M,
     AU_FIELD_V_M,
     AU_TIME_S,

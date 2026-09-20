@@ -6,7 +6,7 @@ import numpy as np
 from scipy.constants import c as C_SI
 from scipy.constants import epsilon_0
 
-from qd_mnp_rational_fit import AU_TIME_S, field_au_to_si
+from qdmnp.rational_fit import AU_TIME_S, field_au_to_si
 from tests._fixtures import make_test_pulse, make_zero_mode_model
 
 

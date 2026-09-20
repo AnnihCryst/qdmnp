@@ -1,7 +1,7 @@
 [project]
 name = "qd-mnp"
-version = "2.1.0"
-description = "Квазистатическая дипольная модель гибридной системы КТ–МНЧ с плазмонными модами"
+version = "3.0.0"
+description = "Квазистатическая модель гибридной системы КТ–МНЧ: ядра, наблюдаемые и конвейер расчёта статьи"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
@@ -9,3 +9,15 @@ dependencies = [
     "scipy>=1.16",
     "matplotlib>=3.10.6",
 ]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+# src layout: `uv sync` installs the project itself, so `import qdmnp` resolves
+# in the test suite and in every calculator subprocess without path juggling.
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]

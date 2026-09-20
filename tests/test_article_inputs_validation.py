@@ -2,7 +2,7 @@
 
 import unittest
 
-from article_observables.qd_mnp_article_inputs import load_inputs, validate_inputs
+from qdmnp.observables.article_inputs import load_inputs, validate_inputs
 
 
 class ArticleInputsValidationTests(unittest.TestCase):

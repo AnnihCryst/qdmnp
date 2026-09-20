@@ -12,10 +12,10 @@ from unittest.mock import patch
 
 import numpy as np
 
-import run_article as runner
-from article_observables.qd_mnp_article_inputs import load_inputs, physical_arguments, unit_audit, validate_inputs
-from article_observables.qd_mnp_article_fit_cache import material_fit_cache, fit_key
-from qd_mnp_rational_fit import HybridQDPlasmonModel, make_params_with_overrides
+from qdmnp import pipeline as runner
+from qdmnp.observables.article_inputs import load_inputs, physical_arguments, unit_audit, validate_inputs
+from qdmnp.observables.article_fit_cache import material_fit_cache, fit_key
+from qdmnp.rational_fit import HybridQDPlasmonModel, make_params_with_overrides
 
 
 class ArticleInputTests(unittest.TestCase):

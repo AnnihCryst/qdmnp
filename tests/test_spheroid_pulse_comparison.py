@@ -11,7 +11,7 @@ from unittest.mock import patch
 import matplotlib.pyplot as plt
 import numpy as np
 
-from qd_mnp_spheroid_pulse_comparison import (
+from qdmnp.spheroid_pulse_comparison import (
     _create_unique_run_dir,
     parse_args,
     run_pulse_comparison,
@@ -373,7 +373,7 @@ class SpheroidPulseComparisonTests(unittest.TestCase):
         with TemporaryDirectory() as directory:
             fixed = Path(directory) / "20260101_000000"
             with patch(
-                "qd_mnp_spheroid_pulse_comparison.timestamped_run_dir",
+                "qdmnp.spheroid_pulse_comparison.timestamped_run_dir",
                 return_value=fixed,
             ):
                 first = _create_unique_run_dir(directory)

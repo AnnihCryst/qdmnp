@@ -4,7 +4,7 @@ import unittest
 
 import numpy as np
 
-from qd_mnp_modal_reduction import modal_measure_sha256, reduce_positive_dark_measure
+from qdmnp.modal_reduction import modal_measure_sha256, reduce_positive_dark_measure
 
 
 def _bright_response(energies: np.ndarray) -> np.ndarray:

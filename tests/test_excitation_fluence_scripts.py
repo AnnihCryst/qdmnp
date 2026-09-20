@@ -13,7 +13,7 @@ import numpy as np
 
 matplotlib.use("Agg")
 
-from article_observables.qd_mnp_calculate_excitation_fluence import (
+from qdmnp.observables.calculate_excitation_fluence import (
     HYBRID_CHANNELS,
     _channel_center_distance_nm,
     _resolved_settings,
@@ -21,7 +21,7 @@ from article_observables.qd_mnp_calculate_excitation_fluence import (
     parse_args as parse_calculation_args,
     write_excitation_artifact,
 )
-from article_observables.qd_mnp_plot_excitation_fluence import (
+from qdmnp.observables.plot_excitation_fluence import (
     load_excitation_artifact,
     plot_excitation_comparison,
     plot_excitation_fluence,
@@ -217,7 +217,7 @@ class ExcitationFluenceScriptTests(unittest.TestCase):
             self.assertGreater(figure.stat().st_size, 0)
 
         plot_source = Path(
-            "article_observables/qd_mnp_plot_excitation_fluence.py"
+            "src/qdmnp/observables/plot_excitation_fluence.py"
         ).read_text(encoding="utf-8")
         imported_roots = {
             alias.name.split(".")[0]

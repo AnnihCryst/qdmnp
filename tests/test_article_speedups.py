@@ -7,10 +7,10 @@ from unittest.mock import patch
 
 import numpy as np
 
-from article_observables import qd_mnp_gap_metrics_common as gm
-from article_observables.qd_mnp_dd_pulse import solve_dd_with_resolution
-from article_observables.qd_mnp_parallel import resolve_workers
-from article_observables.qd_mnp_threshold_metrics import threshold_from_curve
+from qdmnp.observables import gap_metrics_common as gm
+from qdmnp.observables.dd_pulse import solve_dd_with_resolution
+from qdmnp.observables.parallel import resolve_workers
+from qdmnp.observables.threshold_metrics import threshold_from_curve
 
 AREA = 203.3  # isolated pulse area per sqrt(J/cm^2), production scenario
 F_MIN, F_MAX = 5e-10, 2e-4

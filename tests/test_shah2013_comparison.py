@@ -13,14 +13,14 @@ from unittest.mock import patch
 
 import numpy as np
 
-from qd_mnp_rational_fit import (
+from qdmnp.rational_fit import (
     HybridQDPlasmonModel,
     au_to_eV,
     au_to_nm,
     eV_to_au,
     field_au_to_si,
 )
-from qd_mnp_shah2013_comparison import (
+from qdmnp.verification.shah2013_comparison import (
     Shah2013Profile,
     build_native_dimer_model,
     build_shah_params,

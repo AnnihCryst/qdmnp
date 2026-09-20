@@ -4,9 +4,9 @@ import unittest
 
 import numpy as np
 
-from article_observables.qd_mnp_gap_metrics_common import extract_feature
-from article_observables.qd_mnp_calculate_excitation_spectrum_material_comparison import extract_fwhm_feature
-from article_observables.qd_mnp_spectral_features import sampling_diagnostics
+from qdmnp.observables.gap_metrics_common import extract_feature
+from qdmnp.observables.calculate_excitation_spectrum_material_comparison import extract_fwhm_feature
+from qdmnp.observables.spectral_features import sampling_diagnostics
 
 
 def lorentzian(energy, center=2.0, hwhm=0.02):

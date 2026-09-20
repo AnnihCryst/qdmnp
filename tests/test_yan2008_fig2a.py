@@ -9,7 +9,7 @@ import unittest
 import matplotlib.pyplot as plt
 import numpy as np
 
-from literature_reproductions.yan2008_fig2a import (
+from qdmnp.verification.literature_reproductions.yan2008_fig2a import (
     CSV_FILENAME,
     METADATA_FILENAME,
     PLOT_FILENAME,

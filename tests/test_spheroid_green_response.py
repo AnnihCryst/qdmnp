@@ -5,9 +5,9 @@ import unittest
 
 import numpy as np
 
-from qd_mnp_linear_spectrum import linear_coupled_alpha_au
-from qd_mnp_rational_fit import HybridQDPlasmonModel, make_default_params, nm_to_au
-from qd_mnp_spheroid_green import (
+from qdmnp.linear_spectrum import linear_coupled_alpha_au
+from qdmnp.rational_fit import HybridQDPlasmonModel, make_default_params, nm_to_au
+from qdmnp.spheroid_green import (
     LegacyDipoleInteraction,
     MAX_SUPPORTED_SPATIAL_DEGREE,
     ProlateSpheroidGeometry,

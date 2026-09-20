@@ -5,8 +5,8 @@ import unittest
 
 import numpy as np
 
-from article_observables.qd_mnp_article_fit_identity import compare_fit_coefficients
-from article_observables.qd_mnp_article_inputs import load_inputs, validate_inputs
+from qdmnp.observables.article_fit_identity import compare_fit_coefficients
+from qdmnp.observables.article_inputs import load_inputs, validate_inputs
 
 
 # Four distinguishable material models, so swapping branch/channel axes cannot

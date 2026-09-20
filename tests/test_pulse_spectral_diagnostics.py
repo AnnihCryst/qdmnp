@@ -5,7 +5,7 @@ import unittest
 
 import numpy as np
 
-from qd_mnp_pulse_absorption_sweep import (
+from qdmnp.pulse_absorption_sweep import (
     response_tail_ratio,
     spectral_absorption_cross_section_cm2,
     spectral_cross_sections_cm2,

@@ -13,13 +13,13 @@ import warnings
 
 import numpy as np
 
-from qd_mnp_linear_spectrum import (
+from qdmnp.linear_spectrum import (
     MODAL_OBSERVABLE_LOCAL_RELATIVE_ERROR_LIMIT,
     MODAL_OBSERVABLE_NORMALIZED_MAX_ERROR_LIMIT,
     compute_spectrum,
     qd_linear_polarizability_au,
 )
-from qd_mnp_rational_fit import (
+from qdmnp.rational_fit import (
     GaussianPulse,
     HybridQDPlasmonModel,
     RationalLorentzFit,

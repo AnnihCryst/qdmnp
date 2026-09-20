@@ -13,7 +13,7 @@ matplotlib.use("Agg")
 import numpy as np
 from scipy.integrate import solve_ivp
 
-from article_observables.qd_mnp_calculate_work_loss_fluence import (
+from qdmnp.observables.calculate_work_loss_fluence import (
     ARTICLE_CHANNELS,
     GRID_AUDIT_OBSERVABLES,
     PUBLICATION_GRID,
@@ -26,11 +26,11 @@ from article_observables.qd_mnp_calculate_work_loss_fluence import (
     pulse_for_fluence,
     resolved_center_distance_nm,
 )
-from article_observables.qd_mnp_plot_work_loss_fluence import (
+from qdmnp.observables.plot_work_loss_fluence import (
     load_work_loss_artifact,
     plot_work_loss_fluence,
 )
-from qd_mnp_rational_fit import AU_ENERGY_J, GaussianPulse, eV_to_au, fs_to_au
+from qdmnp.rational_fit import AU_ENERGY_J, GaussianPulse, eV_to_au, fs_to_au
 
 
 class WorkLossFluenceGeometryTests(unittest.TestCase):
@@ -51,7 +51,7 @@ class WorkLossFluenceGeometryTests(unittest.TestCase):
 
     def test_cli_presets_resolve_to_publication_and_diagnostic_grids(self) -> None:
         with patch(
-            "article_observables.qd_mnp_calculate_work_loss_fluence."
+            "qdmnp.observables.calculate_work_loss_fluence."
             "calculate_work_loss_fluence",
             return_value=Path("unused.npz"),
         ) as mocked:

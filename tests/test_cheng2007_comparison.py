@@ -7,7 +7,7 @@ import unittest
 
 import numpy as np
 
-from qd_mnp_cheng2007_comparison import (
+from qdmnp.verification.cheng2007_comparison import (
     Cheng2007Profile,
     MAX_MODAL_AUDIT_LOSS_CHANNEL_ERROR,
     MAX_MODAL_AUDIT_RELATIVE_ERROR,
@@ -24,7 +24,7 @@ from qd_mnp_cheng2007_comparison import (
     zero_feedback_area_population,
     zero_feedback_period_pi_units,
 )
-from qd_mnp_rational_fit import (
+from qdmnp.rational_fit import (
     AU_DIPOLE_C_M,
     AU_TIME_S,
     DEBYE_C_M,

@@ -6,7 +6,7 @@ import unittest
 
 import numpy as np
 
-from qd_mnp_rational_fit import dipole_si_to_au
+from qdmnp.rational_fit import dipole_si_to_au
 from tests._fixtures import make_zero_mode_model
 
 

@@ -9,7 +9,7 @@ from types import SimpleNamespace
 
 import numpy as np
 
-from qd_mnp_rational_fit import (
+from qdmnp.rational_fit import (
     GaussianPulse,
     HybridQDPlasmonModel,
     HybridSystemParams,

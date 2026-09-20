@@ -7,8 +7,8 @@ import unittest
 
 import numpy as np
 
-from article_observables.qd_mnp_article_inputs import load_inputs
-from run_article import (
+from qdmnp.observables.article_inputs import load_inputs
+from qdmnp.pipeline import (
     assess_recommendation_ranking, compare_spectral_refinement, compare_thresholds,
 )
 

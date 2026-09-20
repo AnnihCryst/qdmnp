@@ -5,13 +5,13 @@ import unittest
 
 import numpy as np
 
-from qd_mnp_full_qs_model import FullQSSpheroidPulseModel
-from qd_mnp_rational_fit import (
+from qdmnp.full_qs_model import FullQSSpheroidPulseModel
+from qdmnp.rational_fit import (
     HybridQDPlasmonModel,
     eV_to_au,
     make_default_params,
 )
-from qd_mnp_spheroid_equatorial import (
+from qdmnp.spheroid_equatorial import (
     MAX_SUPPORTED_EQUATORIAL_SPATIAL_DEGREE,
     EquatorialSpheroidGeometry,
     EquatorialSpheroidGreenInteraction,

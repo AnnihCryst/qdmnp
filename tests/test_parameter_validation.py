@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import numpy as np
 
-from qd_mnp_rational_fit import (
+from qdmnp.rational_fit import (
     HybridQDPlasmonModel,
     HybridSystemParams,
     RationalLorentzFit,
@@ -14,7 +14,7 @@ from qd_mnp_rational_fit import (
     make_default_params,
     nm_to_au,
 )
-from qd_mnp_params import make_params_with_overrides
+from qdmnp.params import make_params_with_overrides
 
 
 def _dummy_fit() -> RationalLorentzFit:

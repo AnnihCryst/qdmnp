@@ -10,7 +10,7 @@ import unittest
 
 import numpy as np
 
-from qd_mnp_pulse_absorption_sweep import save_artifact_run
+from qdmnp.pulse_absorption_sweep import save_artifact_run
 from tests._fixtures import make_zero_mode_model
 
 

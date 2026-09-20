@@ -11,8 +11,8 @@ import matplotlib
 matplotlib.use("Agg")
 import numpy as np
 
-from article_observables.qd_mnp_material_modes_artifact import atomic_write_npz
-from article_observables.qd_mnp_plot_work_loss_spectrum_material_comparison import (
+from qdmnp.observables.material_modes_artifact import atomic_write_npz
+from qdmnp.observables.plot_work_loss_spectrum_material_comparison import (
     SCHEMA_NAME,
     create_work_loss_spectrum_figure,
     load_work_loss_spectrum_artifact,
@@ -146,14 +146,16 @@ class WorkLossSpectrumPlotterTests(unittest.TestCase):
     def test_plotter_uses_saved_npz_without_solver_imports(self) -> None:
         plotter = (
             Path(__file__).resolve().parents[1]
-            / "article_observables"
-            / "qd_mnp_plot_work_loss_spectrum_material_comparison.py"
+            / "src"
+            / "qdmnp"
+            / "observables"
+            / "plot_work_loss_spectrum_material_comparison.py"
         )
         source = plotter.read_text(encoding="utf-8")
         self.assertNotIn("import scipy", source)
-        self.assertNotIn("qd_mnp_full_qs_model", source)
-        self.assertNotIn("qd_mnp_rational_fit", source)
-        self.assertNotIn("qd_mnp_spheroid_green", source)
+        self.assertNotIn("qdmnp.full_qs_model", source)
+        self.assertNotIn("qdmnp.rational_fit", source)
+        self.assertNotIn("qdmnp.spheroid_green", source)
 
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

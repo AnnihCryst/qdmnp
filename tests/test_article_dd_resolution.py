@@ -6,7 +6,7 @@ from unittest.mock import Mock
 
 import numpy as np
 
-from article_observables.qd_mnp_dd_pulse import solve_dd_with_resolution
+from qdmnp.observables.dd_pulse import solve_dd_with_resolution
 
 
 def make_model(*, observed_frequency=1.0):

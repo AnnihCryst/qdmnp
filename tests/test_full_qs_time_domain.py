@@ -7,12 +7,12 @@ from unittest.mock import patch
 import numpy as np
 from scipy.sparse.linalg import ArpackNoConvergence, eigs as scipy_sparse_eigs
 
-from qd_mnp_full_qs_model import (
+from qdmnp.full_qs_model import (
     FullQSSpheroidPulseModel,
     build_positive_dark_reduction,
 )
-from qd_mnp_pulse_absorption_sweep import spectral_effective_alpha_au
-from qd_mnp_rational_fit import (
+from qdmnp.pulse_absorption_sweep import spectral_effective_alpha_au
+from qdmnp.rational_fit import (
     AU_ENERGY_J,
     GaussianPulse,
     HybridQDPlasmonModel,
@@ -20,12 +20,12 @@ from qd_mnp_rational_fit import (
     fs_to_au,
     make_default_params,
 )
-from qd_mnp_spheroid_green import (
+from qdmnp.spheroid_green import (
     SpheroidGreenInteraction,
     qd_linear_polarizability_from_params,
     solve_linear_hybrid_response,
 )
-from qd_mnp_spheroid_equatorial import EquatorialSpheroidGreenInteraction
+from qdmnp.spheroid_equatorial import EquatorialSpheroidGreenInteraction
 
 
 def _one_material_pole_model(*, spatial_orders: int = 2) -> FullQSSpheroidPulseModel:
@@ -478,7 +478,7 @@ class FullQSTransferRealizationTests(unittest.TestCase):
             np.asarray([-1.0e-4 + 0.08j]),
             np.ones((326, 1), dtype=complex),
         )
-        with patch("qd_mnp_full_qs_model.eigs", side_effect=partial):
+        with patch("qdmnp.full_qs_model.eigs", side_effect=partial):
             with self.assertRaisesRegex(RuntimeError, "partial ARPACK spectrum"):
                 FullQSSpheroidPulseModel(
                     bright,
@@ -514,7 +514,7 @@ class FullQSTransferRealizationTests(unittest.TestCase):
                 )
             return scipy_sparse_eigs(*args, **kwargs)
 
-        with patch("qd_mnp_full_qs_model.eigs", side_effect=fail_only_lr):
+        with patch("qdmnp.full_qs_model.eigs", side_effect=fail_only_lr):
             model = FullQSSpheroidPulseModel(
                 bright,
                 SpheroidGreenInteraction.from_params(

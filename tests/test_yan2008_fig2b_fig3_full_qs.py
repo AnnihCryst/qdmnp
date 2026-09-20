@@ -5,7 +5,7 @@ import unittest
 
 import numpy as np
 
-from literature_reproductions.yan2008_fig2b_fig3_full_qs import (
+from qdmnp.verification.literature_reproductions.yan2008_fig2b_fig3_full_qs import (
     GAMMA2_MEV,
     PAPER_RASTER_ANCHORS,
     TRANSITION_DIPOLE_DEBYE,
@@ -18,13 +18,13 @@ from literature_reproductions.yan2008_fig2b_fig3_full_qs import (
     validate_periodic_time_ode,
     yan_profiles,
 )
-from qd_mnp_full_qs_model import FullQSSpheroidPulseModel
-from qd_mnp_rational_fit import (
+from qdmnp.full_qs_model import FullQSSpheroidPulseModel
+from qdmnp.rational_fit import (
     HybridQDPlasmonModel,
     eV_to_au,
     make_default_params,
 )
-from qd_mnp_spheroid_green import SpheroidGreenInteraction
+from qdmnp.spheroid_green import SpheroidGreenInteraction
 
 
 class YanMaterialAndPaperSpectrumTests(unittest.TestCase):

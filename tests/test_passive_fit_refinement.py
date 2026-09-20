@@ -1,4 +1,4 @@
-﻿"""Independent checks for opt-in passive fitting, units, and cache rejection."""
+"""Independent checks for opt-in passive fitting, units, and cache rejection."""
 import argparse
 from dataclasses import asdict
 import tempfile
@@ -6,10 +6,10 @@ from pathlib import Path
 import unittest
 from unittest.mock import patch
 import numpy as np
-from qd_mnp_passive_fit import PassiveFitRefinement, lorentz_values_jacobian, positive_lorentz_candidate
-from qd_mnp_rational_fit import HybridQDPlasmonModel, make_default_params
-from article_observables.qd_mnp_article_fit_cache import material_fit_cache, fit_key
-from article_observables.qd_mnp_fit_options import parse_fit_refinement
+from qdmnp.passive_fit import PassiveFitRefinement, lorentz_values_jacobian, positive_lorentz_candidate
+from qdmnp.rational_fit import HybridQDPlasmonModel, make_default_params
+from qdmnp.observables.article_fit_cache import material_fit_cache, fit_key
+from qdmnp.observables.fit_options import parse_fit_refinement
 
 
 class PassiveRefinementTests(unittest.TestCase):

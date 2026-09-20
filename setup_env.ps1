@@ -66,14 +66,15 @@ try {
     Write-Host ''
     Write-Host '[3/3] Окружение готово.' -ForegroundColor Green
     Write-Host ''
-    Write-Host 'Запуск скриптов проекта (примеры из README):'
+    Write-Host 'Запуск расчёта:'
     Write-Host ''
-    Write-Host '  .\.venv\Scripts\python.exe qd_mnp_linear_spectrum.py --energy-min-ev 2.0 --energy-max-ev 2.08 --target-ev 2.042'
-    Write-Host '  .\.venv\Scripts\python.exe qd_mnp_fano_scan.py --top 10'
+    Write-Host '  .\.venv\Scripts\python.exe scripts\run_article.py --dry-run'
+    Write-Host '  .\.venv\Scripts\python.exe scripts\run_article.py --smoke'
+    Write-Host '  .\.venv\Scripts\python.exe scripts\run_article.py'
     Write-Host ''
-    Write-Host 'Либо короче, через uv:'
+    Write-Host 'Тесты:'
     Write-Host ''
-    Write-Host '  uv run qd_mnp_linear_spectrum.py --energy-min-ev 2.0 --energy-max-ev 2.08 --target-ev 2.042'
+    Write-Host '  .\.venv\Scripts\python.exe -m unittest discover -s tests'
     Write-Host ''
 }
 finally {
