@@ -74,6 +74,12 @@ generate_spheroid_bem_fixtures.py элементов и генератор ег�
 - `docs/ARTICLE_RESULTS_PLAN.md` — план расчётов и состав рисунков;
 - `docs/ARTICLE_PIPELINE_VALIDATION.md` — протокол проверок и их результаты;
 - `docs/PASSIVE_FIT_REFINEMENT.md` — подгонка дисперсии золота.
+- [docs/MANUSCRIPT_REVIEW.md](docs/MANUSCRIPT_REVIEW.md) — сверка текста статьи
+  с реализацией, источники экспериментальных рекомендаций и объём проверки.
+
+Статья собирается из [manuscript/main.tex](manuscript/main.tex). Включены
+аннотация, введение, модель, результаты, обсуждение с экспериментальными
+рекомендациями, заключение и список использованных источников.
 
 ## Область применимости
 

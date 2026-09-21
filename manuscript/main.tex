@@ -1,5 +1,5 @@
-% Manuscript skeleton. Only the Methods section is written so far; the other
-% sections are placeholders that keep the page budget visible while drafting.
+% Compile from manuscript/: pdflatex main.tex (twice).
+% The bibliography contains the sources used in this version, not a full review.
 \documentclass[12pt,a4paper]{article}
 
 \usepackage[utf8]{inputenc}
@@ -18,21 +18,26 @@
 \sisetup{output-decimal-marker={,}, exponent-product=\cdot}
 \DeclareSIUnit{\debye}{D}
 
-\title{Возбуждение коллоидной квантовой точки вблизи золотого сфероида:
-когда допустимы дипольное приближение и одноосцилляторная дисперсия}
+\title{Импульсное возбуждение коллоидной квантовой точки вблизи золотого
+сфероида: влияние геометрии и дисперсии на нелинейный отклик}
 \author{}
 \date{}
 
 \begin{document}
 \maketitle
 
-\section{Введение}
-[не написано]
+\input{abstract}
+
+\input{introduction}
 
 \input{methods}
 
 \input{results}
 
 \input{discussion}
+
+\input{conclusion}
+
+\input{references}
 
 \end{document}
