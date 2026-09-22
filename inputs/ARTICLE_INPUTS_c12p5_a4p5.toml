@@ -1,0 +1,144 @@
+# Geometry comparison with ARTICLE_INPUTS.toml: one QD and one gold spheroid.
+# Semi-axes c=12.5 nm, a=b=4.5 nm; full dimensions 25 x 9 x 9 nm.
+# Size reference: Grevtseva et al. (2021), DOI 10.17308/kcmf.2021.23/3294.
+# Matching the nanorod bounding dimensions does not establish optical equivalence.
+# All other physical inputs match the baseline.
+# FQS material-error gates are relaxed explicitly; see docs/NEW_GEOMETRY_RUN.md.
+# source_url/source_local below describe the baseline QD parameters, not this shape.
+# Run: python scripts/run_article.py --config inputs/ARTICLE_INPUTS_c12p5_a4p5.toml
+schema_version = 1
+scenario = "article_single_mnp_c12p5_a4p5"
+source_url = "https://arxiv.org/pdf/1304.4538"
+source_local = "shah2013_agent/article.md"
+
+[geometry]
+mnp_count = 1
+c_nm = 12.5
+a_nm = 4.5
+qd_radius_nm = 2.0
+reference_surface_gap_nm = 1.0
+gaps_nm = [0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 5.0, 7.0, 10.0, 12.0]
+locality_advisory_gap_nm = 1.0
+channels = ["axis_long", "axis_trans", "side_long", "side_trans_radial", "side_trans_tangential"]
+
+[qd]
+transition_energy_eV = 2.042
+effective_dipole_debye = 13.9
+population_decay_energy_neV = 268.0
+pure_dephasing_energy_meV = 1.27
+dipole_convention = "effective_external"
+background_relative_permittivity = 6.0
+
+[medium]
+relative_permittivity = 2.25
+
+[pulse]
+carrier_energy_eV = 2.042
+intensity_fwhm_fs = 20.0
+target_population = 0.5
+fluence_min_J_cm2 = 5.0e-10
+fluence_max_J_cm2 = 2.0e-4
+fluence_points = 65
+max_fluence_points = 257
+max_fluence_extensions = 2
+refine_threshold = true
+threshold_root_xtol_sqrt_J_cm2 = 1.0e-14
+threshold_root_rtol = 1.0e-5
+max_fluence_midpoint_population_error = 0.02
+max_isolated_pulse_area_step_rad = 0.25
+carrier_scan_eV = [2.002, 2.042, 2.082]
+population_read_fs = 3600.0
+max_population_decay_fraction = 0.01
+
+[material]
+table = "native_gold_johnson_christy"
+fit_min_eV = 0.8
+fit_max_eV = 3.5
+mode_candidates = [12]
+validation_modes = 13
+seed = 12345
+max_bright_nrms = 0.025
+max_bright_pointwise_error = 0.05
+
+[material.refinement]
+focus_center_eV = 2.042
+focus_half_width_eV = 0.0075
+focus_relative_error = 0.0025
+pole_bound_factor = 4.0
+
+[spectrum]
+min_eV = 1.85
+max_eV = 2.234
+feature_center_eV = 2.042
+feature_half_window_eV = 0.17
+points = 4001
+max_points = 16001
+max_step_over_width = 0.05
+max_coarsening_change = 0.05
+max_window_change = 0.05
+max_observable_nrms = 0.05
+max_observable_shift_over_gamma0 = 0.10
+max_observable_width_relative_error = 0.10
+max_observable_gain_relative_error = 0.10
+
+[numerics]
+spatial_order = 80
+max_spatial_order = 160
+spatial_rtol = 2.0e-5
+modal_audit_points = 2001
+# Baseline: 0.03 / 0.08. Measured nominal maxima: 0.08176 / 0.16420.
+max_modal_nrms = 0.10
+max_modal_relative_error = 0.20
+method = "DOP853"
+rtol = 1.0e-7
+atol = 1.0e-9
+points_per_fastest_cycle = 8
+step_frequency_policy = "excited_band"
+dark_reduction = "all"
+tail_ratio_tolerance = 1.0e-2
+tail_window_fraction = 0.05
+max_spectral_leakage = 1.0e-3
+dd_tolerance = 0.10
+threshold_relative_tolerance = 0.05
+weak_field_max_population = 0.01
+weak_field_relative_tolerance = 0.02
+max_weak_field_refinements = 3
+threshold_search = "bracket"
+bracket_max_area_step_rad = 0.35
+workers = 0
+
+[validation]
+enabled = true
+gap_offset_nm = 0.2
+shape_relative_offset = 0.05
+shape_check_mode_candidates = [12, 13]
+# Allow additional fit error during the +/-5% shape sensitivity checks.
+shape_check_max_modal_nrms = 0.12
+shape_check_max_modal_relative_error = 0.25
+shape_check_spatial_rtol = 1.0e-4
+carrier_scan_in_ranking = false
+exciton_offset_eV = 0.005
+population_decay_relative_offset = 0.20
+dephasing_relative_offset = 0.20
+max_k_c_for_selection = 0.30
+max_k_R_for_selection = 0.50
+
+[work_spectrum]
+enabled = true
+min_eV = 1.90
+max_eV = 2.18
+points = 8001
+max_points = 16001
+post_fs = 12000.0
+max_delta_window_relative_change = 0.001
+max_delta_window_absolute_change_cm2 = 0.0
+
+[model_error_estimates]
+drude_plasma_energy_eV = 9.0
+drude_damping_energy_eV = 0.07
+fermi_velocity_m_s = 1.40e6
+surface_scattering_A = [0.3, 1.0]
+
+[output]
+directory = "results/article_single_mnp_c12p5_a4p5"
+dpi = 180

@@ -1847,6 +1847,26 @@ class HybridQDPlasmonModel:
                 build_spread_start(base_n, alpha_med + 0.5 * alpha_scale, 0.30, 0.07),
                 build_spread_start(base_n, alpha_med - 0.5 * alpha_scale, 0.85, 0.35),
             ]
+            if base_n == 1:
+                # linspace(-.5, .5, 1) in build_spread_start gives only -.5:
+                # all spread starts lie below the tabulated loss peak. Add
+                # starts around that peak to avoid a poor low-frequency
+                # minimum (notably for elongated spheroids, transverse N=1).
+                # Keep the same objective, bounds, and candidate selection.
+                for frequency_ratio in (0.8, 1.0, 1.2):
+                    for damping_ratio in (0.03, 0.1, 0.3):
+                        w_guess = np.clip(
+                            omega_peak * frequency_ratio,
+                            1.02 * omega_lo_scalar, omega_hi_scalar / 1.02,
+                        )
+                        g_guess = np.clip(
+                            omega_peak * damping_ratio,
+                            1.05 * gamma_lo_scalar, gamma_hi_scalar / 1.05,
+                        )
+                        f_guess = max(float(np.max(alpha_true.imag)) * g_guess * w_guess, 1e-8)
+                        base_starts.append(np.array([
+                            physical_alpha_inf, f_guess, np.log(w_guess), np.log(g_guess),
+                        ]))
             if base_n == 4:
                 for frequency_ratios in (
                     (0.75, 0.93, 1.11, 1.37),

@@ -19,6 +19,7 @@ from qdmnp.rational_fit import (
     eV_to_au,
     fs_to_au,
     make_default_params,
+    make_params_with_overrides,
 )
 from qdmnp.spheroid_green import (
     SpheroidGreenInteraction,
@@ -98,6 +99,44 @@ def _one_material_pole_side_model(
 
 
 class FullQSTransferRealizationTests(unittest.TestCase):
+    def test_one_pole_fit_is_stable_for_elongated_spheroid_transverse_channels(self):
+        # The old one-pole starts all put the oscillator below the loss
+        # peak. For this shape they converged to a poor local minimum whose
+        # transformed spatial modes had growing, rather than decaying, poles.
+        for placement, alignment in (("axis", None), ("side", "radial")):
+            with self.subTest(placement=placement):
+                params = make_params_with_overrides(
+                    c_nm=12.5, a_nm=4.5,
+                    r_nm=(12.5 if placement == "axis" else 4.5) + 2.0 + 0.5,
+                    qd_radius_nm=2.0, eps_m=2.25, eps_qd=6.0,
+                    d_debye=13.9, omega0_ev=2.042,
+                    gamma_population_mev=0.000268,
+                    gamma2_coherence_mev=1.270134,
+                    qd_dipole_convention="effective_external",
+                    orientation="trans", qd_placement=placement,
+                    side_transverse_alignment=alignment,
+                )
+                bright = HybridQDPlasmonModel(
+                    params, orientation="trans", n_modes=1,
+                    fit_window_eV=(0.8, 3.5),
+                    max_fit_normalized_rms=None,
+                    max_fit_pointwise_relative_error=None,
+                    radiative_consistency_policy="ignore", verbose=False,
+                )
+                # This deliberately coarse comparator is not required to
+                # meet the multi-pole accuracy gates, but must be causal.
+                self.assertLess(bright.fit.normalized_rms_alpha, 0.5)
+                self.assertLess(bright.fit.normalized_rms_inv_alpha, 0.5)
+                kernel_type = (SpheroidGreenInteraction if placement == "axis"
+                               else EquatorialSpheroidGreenInteraction)
+                kernel = kernel_type.from_params(params, orientation="trans", n_max=6)
+                full = FullQSSpheroidPulseModel(
+                    bright, kernel, fit_quality_policy="ignore",
+                    spatial_convergence_policy="ignore", modal_audit_points=201,
+                )
+                self.assertTrue(full.coupled_stability.stable)
+                self.assertLess(float(np.max(full.modal_poles_au.real)), 0.0)
+
     def test_positive_dark_reduction_preserves_frequency_response(self) -> None:
         params = replace(
             make_default_params("long"),
