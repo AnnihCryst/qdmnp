@@ -1,0 +1,2592 @@
+{
+  "scope": "conditional single-MNP local-QS recommendations, not Shah dimer reproduction or PL quantum yield",
+  "numerically_checked_recommendation": true,
+  "smoke": false,
+  "interpretation": [
+    "Порог насыщается: зазоры 0.5–0.75 нм неразличимы в пределах численного допуска 0.05, поэтому рекомендуется диапазон, а не одна точка; всё вне этого диапазона отделено от победителя.",
+    "Лучший зазор 0.5 нм совпадает с наименьшим просканированным допустимым зазором: это краевой, а не внутренний оптимум; сетку зазоров нужно продлить вниз.",
+    "Ниже объявленного порога локальности 1.0 нм порог падает ещё лишь в 1.20 раза (от 1.0 нм до наименьшего просканированного зазора): профиль монотонный, но насыщающийся, поэтому краевой характер оптимума не означает заметного выигрыша от дальнейшего сближения.",
+    "Выбранный зазор 0.5 нм меньше объявленного порога локальности 1.0 нм: ниже него локальный континуальный отклик золота, отсутствие туннелирования и точечная КТ без лигандной оболочки не защитимы; значение остаётся расчётным, а не рекомендуемым.",
+    "Дальний случай рис. 6 — наибольший допустимый зазор без согласия DD/FQS по порогу; граница применимости DD в допустимой по k_m R области не установлена.",
+    "Точечная КТ: r_QD|∇E|/|E| ≥ 0.34 уже для дипольного поля у выбранного зазора (не ≪ 1).",
+    "Лучшая проверенная несущая: 2.042 эВ; рисунки построены при заранее заданной несущей.",
+    "Не учтённые моделью эффекты (оценка для продольной поляризуемости на несущей): запаздывание ×1.29 для |α|², сдвиг LSPR -21 мэВ; поверхностное затухание ×0.83…×0.95. Абсолютные усиления и пороги имеют систематическую неопределённость этого порядка; сравнение DD/FQS — нет."
+  ],
+  "units": {
+    "source": "https://arxiv.org/pdf/1304.4538",
+    "scope": "one-MNP adaptation; intrinsic QD decay, no imported dimer Purcell rate",
+    "api_arguments": {
+      "c-nm": 15.0,
+      "a-nm": 10.0,
+      "qd-radius-nm": 2.0,
+      "eps-m": 2.25,
+      "eps-qd": 6.0,
+      "d-debye": 13.9,
+      "omega0-ev": 2.042,
+      "gamma-population-mev": 0.000268,
+      "gamma2-coherence-mev": 1.270134,
+      "qd-dipole-convention": "effective_external"
+    },
+    "definitions": {
+      "gamma2": "total coherence rate = gamma_phi + gamma1/2",
+      "rates": "energy/hbar, angular frequency; no factor 2*pi",
+      "fluence": "incident J/cm^2; 1 J/cm^2 = 1e4 J/m^2",
+      "pulse_width": "intensity FWHM, not field FWHM or sigma"
+    },
+    "SI": {
+      "c_m": 1.5000000000000002e-08,
+      "a_m": 1e-08,
+      "qd_radius_m": 2e-09,
+      "qd_dipole_C_m": 4.6365396e-29,
+      "exciton_energy_J": 3.2716446866279995e-19,
+      "omega0_rad_s": 3102344128568154.0,
+      "gamma1_s_inverse": 407163676.0314718,
+      "gamma_phi_s_inverse": 1929469658805.855,
+      "Gamma2_s_inverse": 1929673240643.8706,
+      "T1_ns": 2.456014764742189,
+      "T2_fs": 518.2224528678917,
+      "pulse_sigma_field_fs": 12.011224087864502,
+      "pulse_intensity_spectral_fwhm_eV": 0.09124755243427299
+    },
+    "atomic_units": {
+      "c_bohr": 283.4589188861674,
+      "d_e_bohr": 5.468679189292196,
+      "omega0": 0.07504211588270679,
+      "gamma1": 9.848818343078297e-09,
+      "Gamma2": 4.667656357226645e-05
+    },
+    "reference_tip_center_distance_nm": 18.0,
+    "reference_tip_surface_gap_nm": 1.0,
+    "reference_fluence_J_cm2": 1e-07,
+    "reference_field_V_m": 4857396.424938238,
+    "reference_peak_intensity_W_cm2": 4697186.393498256,
+    "own_population_decay_fraction_at_read": 0.0014647154893661747,
+    "k_c_at_carrier": 0.23283688775380557,
+    "k_R_tip_at_carrier": [
+      0.27164303571277315,
+      0.27552365050866995,
+      0.2794042653045667,
+      0.2871654948963602,
+      0.2949267244881537,
+      0.3104491836717408,
+      0.34149410203891484,
+      0.37253902040608894,
+      0.41910639795685,
+      0.4501513163240241
+    ],
+    "k_R_side_at_carrier": [
+      0.19403073979483795,
+      0.19791135459073472,
+      0.2017919693866315,
+      0.209553198978425,
+      0.21731442857021852,
+      0.23283688775380557,
+      0.26388180612097967,
+      0.2949267244881537,
+      0.34149410203891484,
+      0.37253902040608894
+    ],
+    "upper_study_energy_eV": 2.234,
+    "k_R_tip_at_upper_study_energy": [
+      0.2971843985222014,
+      0.30142988992966147,
+      0.30567538133712147,
+      0.3141663641520415,
+      0.3226573469669615,
+      0.33963931259680163,
+      0.3736032438564818,
+      0.4075671751161619,
+      0.4585130720056822,
+      0.49247700326536237
+    ],
+    "k_R_side_at_upper_study_energy": [
+      0.21227457037300101,
+      0.21652006178046104,
+      0.22076555318792104,
+      0.2292565360028411,
+      0.23774751881776113,
+      0.25472948444760124,
+      0.28869341570728135,
+      0.3226573469669615,
+      0.3736032438564818,
+      0.4075671751161619
+    ],
+    "locality_advisory_gap_nm": 1.0,
+    "point_qd_field_variation_lower_bound": {
+      "axis": [
+        0.34285714285714286,
+        0.3380281690140845,
+        0.3333333333333333,
+        0.32432432432432434,
+        0.3157894736842105,
+        0.3,
+        0.2727272727272727,
+        0.25,
+        0.2222222222222222,
+        0.20689655172413793
+      ],
+      "side": [
+        0.48,
+        0.47058823529411764,
+        0.46153846153846156,
+        0.4444444444444444,
+        0.42857142857142855,
+        0.4,
+        0.35294117647058826,
+        0.3157894736842105,
+        0.2727272727272727,
+        0.25
+      ]
+    },
+    "model_error_estimates": {
+      "scope": "diagnostic indicators only; not used by any solver or acceptance gate",
+      "retardation_method": "Meier-Wokaun long-wavelength correction, l = semi-axis along E",
+      "surface_damping_method": "Drude term with hbar*gamma -> hbar*gamma + A*hbar*v_F/L_eff, L_eff = 4V/S",
+      "effective_path_length_nm": 14.85543039219114,
+      "carrier_energy_eV": 2.042,
+      "long": {
+        "depolarization_factor": 0.23298145831360964,
+        "lspr_quasistatic_eV": 2.157965,
+        "lspr_retardation_estimate_eV": 2.136635,
+        "lspr_shift_meV": -21.32999999999985,
+        "alpha_squared_ratio_retardation_at_carrier": 1.2931954137124644,
+        "surface_damping": [
+          {
+            "A": 0.3,
+            "added_damping_meV": 18.6092906513633,
+            "alpha_squared_ratio_at_carrier": 0.9488069060290328,
+            "alpha_squared_ratio_with_retardation": 1.20928248834976
+          },
+          {
+            "A": 1.0,
+            "added_damping_meV": 62.03096883787766,
+            "alpha_squared_ratio_at_carrier": 0.8334015672048979,
+            "alpha_squared_ratio_with_retardation": 1.0291976378597658
+          }
+        ]
+      },
+      "trans": {
+        "depolarization_factor": 0.3835092708431952,
+        "lspr_quasistatic_eV": 2.379905,
+        "lspr_retardation_estimate_eV": 2.368295,
+        "lspr_shift_meV": -11.61000000000012,
+        "alpha_squared_ratio_retardation_at_carrier": 1.1276354491568137,
+        "surface_damping": [
+          {
+            "A": 0.3,
+            "added_damping_meV": 18.6092906513633,
+            "alpha_squared_ratio_at_carrier": 0.9926370366362083,
+            "alpha_squared_ratio_with_retardation": 1.118421835555976
+          },
+          {
+            "A": 1.0,
+            "added_damping_meV": 62.03096883787766,
+            "alpha_squared_ratio_at_carrier": 0.9737340654012714,
+            "alpha_squared_ratio_with_retardation": 1.0948696581451527
+          }
+        ]
+      }
+    },
+    "applicability": "point QD/local electrostatics only; finite-QD field variation, nonlocality, and ensemble effects are not certified"
+  },
+  "results": {
+    "prefit_materials": {
+      "count": 30,
+      "elapsed_s": 1266.2299819,
+      "fits": [
+        {
+          "c_nm": 15.0,
+          "a_nm": 10.0,
+          "orientation": "long",
+          "n_modes": 1,
+          "nrms_alpha": 0.7223751819435703,
+          "nrms_inverse_alpha": 0.5281960368631231,
+          "max_alpha_error": 0.9021064358440437
+        },
+        {
+          "c_nm": 15.0,
+          "a_nm": 10.0,
+          "orientation": "trans",
+          "n_modes": 1,
+          "nrms_alpha": 0.4314383216412616,
+          "nrms_inverse_alpha": 0.36494280833558224,
+          "max_alpha_error": 0.5725431211251606
+        },
+        {
+          "c_nm": 15.0,
+          "a_nm": 10.0,
+          "orientation": "long",
+          "n_modes": 12,
+          "nrms_alpha": 0.024750034038493587,
+          "nrms_inverse_alpha": 0.02475002919741403,
+          "max_alpha_error": 0.04963800053637737
+        },
+        {
+          "c_nm": 15.0,
+          "a_nm": 10.0,
+          "orientation": "trans",
+          "n_modes": 12,
+          "nrms_alpha": 0.02375109851780543,
+          "nrms_inverse_alpha": 0.018011536356306434,
+          "max_alpha_error": 0.049503760256830176
+        },
+        {
+          "c_nm": 15.0,
+          "a_nm": 10.0,
+          "orientation": "long",
+          "n_modes": 13,
+          "nrms_alpha": 0.024749999827266698,
+          "nrms_inverse_alpha": 0.021516156287783438,
+          "max_alpha_error": 0.04951057886669681
+        },
+        {
+          "c_nm": 15.0,
+          "a_nm": 10.0,
+          "orientation": "trans",
+          "n_modes": 13,
+          "nrms_alpha": 0.021166948828993566,
+          "nrms_inverse_alpha": 0.016106909145140094,
+          "max_alpha_error": 0.04950239223566023
+        },
+        {
+          "c_nm": 14.25,
+          "a_nm": 10.0,
+          "orientation": "long",
+          "n_modes": 1,
+          "nrms_alpha": 0.695500132464992,
+          "nrms_inverse_alpha": 0.5160924718221623,
+          "max_alpha_error": 0.8710005836850355
+        },
+        {
+          "c_nm": 14.25,
+          "a_nm": 10.0,
+          "orientation": "trans",
+          "n_modes": 1,
+          "nrms_alpha": 0.4399418519652064,
+          "nrms_inverse_alpha": 0.37055003662297903,
+          "max_alpha_error": 0.582185131299049
+        },
+        {
+          "c_nm": 14.25,
+          "a_nm": 10.0,
+          "orientation": "long",
+          "n_modes": 12,
+          "nrms_alpha": 0.0247500165546524,
+          "nrms_inverse_alpha": 0.023974255198354912,
+          "max_alpha_error": 0.04950017405470016
+        },
+        {
+          "c_nm": 14.25,
+          "a_nm": 10.0,
+          "orientation": "trans",
+          "n_modes": 12,
+          "nrms_alpha": 0.024063356104059186,
+          "nrms_inverse_alpha": 0.018198713309445134,
+          "max_alpha_error": 0.04950390125359147
+        },
+        {
+          "c_nm": 14.25,
+          "a_nm": 10.0,
+          "orientation": "long",
+          "n_modes": 13,
+          "nrms_alpha": 0.02308734979348844,
+          "nrms_inverse_alpha": 0.020954619772266588,
+          "max_alpha_error": 0.047076226359085135
+        },
+        {
+          "c_nm": 14.25,
+          "a_nm": 10.0,
+          "orientation": "trans",
+          "n_modes": 13,
+          "nrms_alpha": 0.021457314880526795,
+          "nrms_inverse_alpha": 0.016328775579317792,
+          "max_alpha_error": 0.049501852855274385
+        },
+        {
+          "c_nm": 15.0,
+          "a_nm": 9.5,
+          "orientation": "long",
+          "n_modes": 1,
+          "nrms_alpha": 0.7486273798544965,
+          "nrms_inverse_alpha": 0.539109736917476,
+          "max_alpha_error": 0.9315957259077721
+        },
+        {
+          "c_nm": 15.0,
+          "a_nm": 9.5,
+          "orientation": "trans",
+          "n_modes": 1,
+          "nrms_alpha": 0.4234088721085728,
+          "nrms_inverse_alpha": 0.3596024625973034,
+          "max_alpha_error": 0.5634355447649768
+        },
+        {
+          "c_nm": 15.0,
+          "a_nm": 9.5,
+          "orientation": "long",
+          "n_modes": 12,
+          "nrms_alpha": 0.02480122641273561,
+          "nrms_inverse_alpha": 0.024777299982701863,
+          "max_alpha_error": 0.0545252923785294
+        },
+        {
+          "c_nm": 15.0,
+          "a_nm": 9.5,
+          "orientation": "trans",
+          "n_modes": 12,
+          "nrms_alpha": 0.023468390732135674,
+          "nrms_inverse_alpha": 0.017843955193048995,
+          "max_alpha_error": 0.04950365239052933
+        },
+        {
+          "c_nm": 15.0,
+          "a_nm": 9.5,
+          "orientation": "long",
+          "n_modes": 13,
+          "nrms_alpha": 0.02475001936312696,
+          "nrms_inverse_alpha": 0.023138473991754074,
+          "max_alpha_error": 0.049549347827138525
+        },
+        {
+          "c_nm": 15.0,
+          "a_nm": 9.5,
+          "orientation": "trans",
+          "n_modes": 13,
+          "nrms_alpha": 0.02350813042678765,
+          "nrms_inverse_alpha": 0.017853008492493425,
+          "max_alpha_error": 0.04950266142961549
+        },
+        {
+          "c_nm": 15.75,
+          "a_nm": 10.0,
+          "orientation": "long",
+          "n_modes": 1,
+          "nrms_alpha": 0.7473655394959554,
+          "nrms_inverse_alpha": 0.5386075755773274,
+          "max_alpha_error": 0.9302135526980231
+        },
+        {
+          "c_nm": 15.75,
+          "a_nm": 10.0,
+          "orientation": "trans",
+          "n_modes": 1,
+          "nrms_alpha": 0.4237899828884821,
+          "nrms_inverse_alpha": 0.3598569681319356,
+          "max_alpha_error": 0.5638681129081964
+        },
+        {
+          "c_nm": 15.75,
+          "a_nm": 10.0,
+          "orientation": "long",
+          "n_modes": 12,
+          "nrms_alpha": 0.024789458391207258,
+          "nrms_inverse_alpha": 0.024772668267859847,
+          "max_alpha_error": 0.05412238062477309
+        },
+        {
+          "c_nm": 15.75,
+          "a_nm": 10.0,
+          "orientation": "trans",
+          "n_modes": 12,
+          "nrms_alpha": 0.02344621800516858,
+          "nrms_inverse_alpha": 0.017845885373616047,
+          "max_alpha_error": 0.04950345513886383
+        },
+        {
+          "c_nm": 15.75,
+          "a_nm": 10.0,
+          "orientation": "long",
+          "n_modes": 13,
+          "nrms_alpha": 0.02475000893870138,
+          "nrms_inverse_alpha": 0.023177089487775148,
+          "max_alpha_error": 0.04955692000388201
+        },
+        {
+          "c_nm": 15.75,
+          "a_nm": 10.0,
+          "orientation": "trans",
+          "n_modes": 13,
+          "nrms_alpha": 0.023473063077959933,
+          "nrms_inverse_alpha": 0.017848739648559202,
+          "max_alpha_error": 0.04950215207943672
+        },
+        {
+          "c_nm": 15.0,
+          "a_nm": 10.5,
+          "orientation": "long",
+          "n_modes": 1,
+          "nrms_alpha": 0.6968213064477539,
+          "nrms_inverse_alpha": 0.5167082039693499,
+          "max_alpha_error": 0.87254113499185
+        },
+        {
+          "c_nm": 15.0,
+          "a_nm": 10.5,
+          "orientation": "trans",
+          "n_modes": 1,
+          "nrms_alpha": 0.4395156016443491,
+          "nrms_inverse_alpha": 0.370270113743167,
+          "max_alpha_error": 0.5817018331791568
+        },
+        {
+          "c_nm": 15.0,
+          "a_nm": 10.5,
+          "orientation": "long",
+          "n_modes": 12,
+          "nrms_alpha": 0.024750003725705256,
+          "nrms_inverse_alpha": 0.023427778903587944,
+          "max_alpha_error": 0.04954412668841407
+        },
+        {
+          "c_nm": 15.0,
+          "a_nm": 10.5,
+          "orientation": "trans",
+          "n_modes": 12,
+          "nrms_alpha": 0.024046685801307404,
+          "nrms_inverse_alpha": 0.01818935519461398,
+          "max_alpha_error": 0.049503893798653185
+        },
+        {
+          "c_nm": 15.0,
+          "a_nm": 10.5,
+          "orientation": "long",
+          "n_modes": 13,
+          "nrms_alpha": 0.024509379501063053,
+          "nrms_inverse_alpha": 0.02083938499646108,
+          "max_alpha_error": 0.04718016398753416
+        },
+        {
+          "c_nm": 15.0,
+          "a_nm": 10.5,
+          "orientation": "trans",
+          "n_modes": 13,
+          "nrms_alpha": 0.021472519726583417,
+          "nrms_inverse_alpha": 0.01631142638374372,
+          "max_alpha_error": 0.04950199608296327
+        }
+      ]
+    },
+    "material_modes": 12,
+    "material_artifact": "C:\\qdmnp\\results\\article_shah_single\\data\\fig01_material_df2938e23c.npz",
+    "spectral_master": "C:\\qdmnp\\results\\article_shah_single\\data\\fig02_master_52d4018a47.npz",
+    "energy_points": 4001,
+    "spatial_order": 160,
+    "preflight_gap_choice": {
+      "gaps_nm": [
+        0.5,
+        10.0,
+        12.0
+      ],
+      "rule": "transition = admissible gap whose worst-channel delta_spec is closest to the DD tolerance"
+    },
+    "preflight": [
+      "C:\\qdmnp\\results\\article_shah_single\\data\\preflight_g0.5_a6e8649e65.npz",
+      "C:\\qdmnp\\results\\article_shah_single\\data\\preflight_g10.0_8c91344c99.npz",
+      "C:\\qdmnp\\results\\article_shah_single\\data\\preflight_g12.0_54929530d9.npz"
+    ],
+    "material_coefficient_identity": {
+      "C:\\qdmnp\\results\\article_shah_single\\data\\preflight_g0.5_a6e8649e65.npz": {
+        "accepted": true,
+        "coefficient_sets_checked": 10,
+        "fits": [
+          {
+            "orientation": "long",
+            "modes": 1,
+            "sha256": "516f1ff86a8cbbf4fb9a995085f7e0bf7e0012d1cccab2690be378b34ddc1b26"
+          },
+          {
+            "orientation": "trans",
+            "modes": 1,
+            "sha256": "050152b64b09109071743ddd0e5dae0febc107e3e484423194e81c31d5be2737"
+          },
+          {
+            "orientation": "long",
+            "modes": 1,
+            "sha256": "516f1ff86a8cbbf4fb9a995085f7e0bf7e0012d1cccab2690be378b34ddc1b26"
+          },
+          {
+            "orientation": "trans",
+            "modes": 1,
+            "sha256": "050152b64b09109071743ddd0e5dae0febc107e3e484423194e81c31d5be2737"
+          },
+          {
+            "orientation": "trans",
+            "modes": 1,
+            "sha256": "050152b64b09109071743ddd0e5dae0febc107e3e484423194e81c31d5be2737"
+          },
+          {
+            "orientation": "long",
+            "modes": 12,
+            "sha256": "b0b4a8e8aed9b1b237da9266ceb9c7c98cce09715f4796219fef51bb94fcf66e"
+          },
+          {
+            "orientation": "trans",
+            "modes": 12,
+            "sha256": "5447b3063034fc7dbbd37bf57b024ecbd534881b2f352a2bac068f52d5b0b52c"
+          },
+          {
+            "orientation": "long",
+            "modes": 12,
+            "sha256": "b0b4a8e8aed9b1b237da9266ceb9c7c98cce09715f4796219fef51bb94fcf66e"
+          },
+          {
+            "orientation": "trans",
+            "modes": 12,
+            "sha256": "5447b3063034fc7dbbd37bf57b024ecbd534881b2f352a2bac068f52d5b0b52c"
+          },
+          {
+            "orientation": "trans",
+            "modes": 12,
+            "sha256": "5447b3063034fc7dbbd37bf57b024ecbd534881b2f352a2bac068f52d5b0b52c"
+          }
+        ]
+      },
+      "C:\\qdmnp\\results\\article_shah_single\\data\\preflight_g10.0_8c91344c99.npz": {
+        "accepted": true,
+        "coefficient_sets_checked": 10,
+        "fits": [
+          {
+            "orientation": "long",
+            "modes": 1,
+            "sha256": "516f1ff86a8cbbf4fb9a995085f7e0bf7e0012d1cccab2690be378b34ddc1b26"
+          },
+          {
+            "orientation": "trans",
+            "modes": 1,
+            "sha256": "050152b64b09109071743ddd0e5dae0febc107e3e484423194e81c31d5be2737"
+          },
+          {
+            "orientation": "long",
+            "modes": 1,
+            "sha256": "516f1ff86a8cbbf4fb9a995085f7e0bf7e0012d1cccab2690be378b34ddc1b26"
+          },
+          {
+            "orientation": "trans",
+            "modes": 1,
+            "sha256": "050152b64b09109071743ddd0e5dae0febc107e3e484423194e81c31d5be2737"
+          },
+          {
+            "orientation": "trans",
+            "modes": 1,
+            "sha256": "050152b64b09109071743ddd0e5dae0febc107e3e484423194e81c31d5be2737"
+          },
+          {
+            "orientation": "long",
+            "modes": 12,
+            "sha256": "b0b4a8e8aed9b1b237da9266ceb9c7c98cce09715f4796219fef51bb94fcf66e"
+          },
+          {
+            "orientation": "trans",
+            "modes": 12,
+            "sha256": "5447b3063034fc7dbbd37bf57b024ecbd534881b2f352a2bac068f52d5b0b52c"
+          },
+          {
+            "orientation": "long",
+            "modes": 12,
+            "sha256": "b0b4a8e8aed9b1b237da9266ceb9c7c98cce09715f4796219fef51bb94fcf66e"
+          },
+          {
+            "orientation": "trans",
+            "modes": 12,
+            "sha256": "5447b3063034fc7dbbd37bf57b024ecbd534881b2f352a2bac068f52d5b0b52c"
+          },
+          {
+            "orientation": "trans",
+            "modes": 12,
+            "sha256": "5447b3063034fc7dbbd37bf57b024ecbd534881b2f352a2bac068f52d5b0b52c"
+          }
+        ]
+      },
+      "C:\\qdmnp\\results\\article_shah_single\\data\\preflight_g12.0_54929530d9.npz": {
+        "accepted": true,
+        "coefficient_sets_checked": 10,
+        "fits": [
+          {
+            "orientation": "long",
+            "modes": 1,
+            "sha256": "516f1ff86a8cbbf4fb9a995085f7e0bf7e0012d1cccab2690be378b34ddc1b26"
+          },
+          {
+            "orientation": "trans",
+            "modes": 1,
+            "sha256": "050152b64b09109071743ddd0e5dae0febc107e3e484423194e81c31d5be2737"
+          },
+          {
+            "orientation": "long",
+            "modes": 1,
+            "sha256": "516f1ff86a8cbbf4fb9a995085f7e0bf7e0012d1cccab2690be378b34ddc1b26"
+          },
+          {
+            "orientation": "trans",
+            "modes": 1,
+            "sha256": "050152b64b09109071743ddd0e5dae0febc107e3e484423194e81c31d5be2737"
+          },
+          {
+            "orientation": "trans",
+            "modes": 1,
+            "sha256": "050152b64b09109071743ddd0e5dae0febc107e3e484423194e81c31d5be2737"
+          },
+          {
+            "orientation": "long",
+            "modes": 12,
+            "sha256": "b0b4a8e8aed9b1b237da9266ceb9c7c98cce09715f4796219fef51bb94fcf66e"
+          },
+          {
+            "orientation": "trans",
+            "modes": 12,
+            "sha256": "5447b3063034fc7dbbd37bf57b024ecbd534881b2f352a2bac068f52d5b0b52c"
+          },
+          {
+            "orientation": "long",
+            "modes": 12,
+            "sha256": "b0b4a8e8aed9b1b237da9266ceb9c7c98cce09715f4796219fef51bb94fcf66e"
+          },
+          {
+            "orientation": "trans",
+            "modes": 12,
+            "sha256": "5447b3063034fc7dbbd37bf57b024ecbd534881b2f352a2bac068f52d5b0b52c"
+          },
+          {
+            "orientation": "trans",
+            "modes": 12,
+            "sha256": "5447b3063034fc7dbbd37bf57b024ecbd534881b2f352a2bac068f52d5b0b52c"
+          }
+        ]
+      },
+      "C:\\qdmnp\\results\\article_shah_single\\data\\fig03_master_a146b63990.npz": {
+        "accepted": true,
+        "coefficient_sets_checked": 50,
+        "fits": [
+          {
+            "orientation": "long",
+            "modes": 12,
+            "sha256": "b0b4a8e8aed9b1b237da9266ceb9c7c98cce09715f4796219fef51bb94fcf66e"
+          },
+          {
+            "orientation": "long",
+            "modes": 12,
+            "sha256": "b0b4a8e8aed9b1b237da9266ceb9c7c98cce09715f4796219fef51bb94fcf66e"
+          },
+          {
+            "orientation": "long",
+            "modes": 12,
+            "sha256": "b0b4a8e8aed9b1b237da9266ceb9c7c98cce09715f4796219fef51bb94fcf66e"
+          },
+          {
+            "orientation": "long",
+            "modes": 12,
+            "sha256": "b0b4a8e8aed9b1b237da9266ceb9c7c98cce09715f4796219fef51bb94fcf66e"
+          },
+          {
+            "orientation": "long",
+            "modes": 12,
+            "sha256": "b0b4a8e8aed9b1b237da9266ceb9c7c98cce09715f4796219fef51bb94fcf66e"
+          },
+          {
+            "orientation": "long",
+            "modes": 12,
+            "sha256": "b0b4a8e8aed9b1b237da9266ceb9c7c98cce09715f4796219fef51bb94fcf66e"
+          },
+          {
+            "orientation": "long",
+            "modes": 12,
+            "sha256": "b0b4a8e8aed9b1b237da9266ceb9c7c98cce09715f4796219fef51bb94fcf66e"
+          },
+          {
+            "orientation": "long",
+            "modes": 12,
+            "sha256": "b0b4a8e8aed9b1b237da9266ceb9c7c98cce09715f4796219fef51bb94fcf66e"
+          },
+          {
+            "orientation": "long",
+            "modes": 12,
+            "sha256": "b0b4a8e8aed9b1b237da9266ceb9c7c98cce09715f4796219fef51bb94fcf66e"
+          },
+          {
+            "orientation": "long",
+            "modes": 12,
+            "sha256": "b0b4a8e8aed9b1b237da9266ceb9c7c98cce09715f4796219fef51bb94fcf66e"
+          },
+          {
+            "orientation": "trans",
+            "modes": 12,
+            "sha256": "5447b3063034fc7dbbd37bf57b024ecbd534881b2f352a2bac068f52d5b0b52c"
+          },
+          {
+            "orientation": "trans",
+            "modes": 12,
+            "sha256": "5447b3063034fc7dbbd37bf57b024ecbd534881b2f352a2bac068f52d5b0b52c"
+          },
+          {
+            "orientation": "trans",
+            "modes": 12,
+            "sha256": "5447b3063034fc7dbbd37bf57b024ecbd534881b2f352a2bac068f52d5b0b52c"
+          },
+          {
+            "orientation": "trans",
+            "modes": 12,
+            "sha256": "5447b3063034fc7dbbd37bf57b024ecbd534881b2f352a2bac068f52d5b0b52c"
+          },
+          {
+            "orientation": "trans",
+            "modes": 12,
+            "sha256": "5447b3063034fc7dbbd37bf57b024ecbd534881b2f352a2bac068f52d5b0b52c"
+          },
+          {
+            "orientation": "trans",
+            "modes": 12,
+            "sha256": "5447b3063034fc7dbbd37bf57b024ecbd534881b2f352a2bac068f52d5b0b52c"
+          },
+          {
+            "orientation": "trans",
+            "modes": 12,
+            "sha256": "5447b3063034fc7dbbd37bf57b024ecbd534881b2f352a2bac068f52d5b0b52c"
+          },
+          {
+            "orientation": "trans",
+            "modes": 12,
+            "sha256": "5447b3063034fc7dbbd37bf57b024ecbd534881b2f352a2bac068f52d5b0b52c"
+          },
+          {
+            "orientation": "trans",
+            "modes": 12,
+            "sha256": "5447b3063034fc7dbbd37bf57b024ecbd534881b2f352a2bac068f52d5b0b52c"
+          },
+          {
+            "orientation": "trans",
+            "modes": 12,
+            "sha256": "5447b3063034fc7dbbd37bf57b024ecbd534881b2f352a2bac068f52d5b0b52c"
+          },
+          {
+            "orientation": "long",
+            "modes": 12,
+            "sha256": "b0b4a8e8aed9b1b237da9266ceb9c7c98cce09715f4796219fef51bb94fcf66e"
+          },
+          {
+            "orientation": "long",
+            "modes": 12,
+            "sha256": "b0b4a8e8aed9b1b237da9266ceb9c7c98cce09715f4796219fef51bb94fcf66e"
+          },
+          {
+            "orientation": "long",
+            "modes": 12,
+            "sha256": "b0b4a8e8aed9b1b237da9266ceb9c7c98cce09715f4796219fef51bb94fcf66e"
+          },
+          {
+            "orientation": "long",
+            "modes": 12,
+            "sha256": "b0b4a8e8aed9b1b237da9266ceb9c7c98cce09715f4796219fef51bb94fcf66e"
+          },
+          {
+            "orientation": "long",
+            "modes": 12,
+            "sha256": "b0b4a8e8aed9b1b237da9266ceb9c7c98cce09715f4796219fef51bb94fcf66e"
+          },
+          {
+            "orientation": "long",
+            "modes": 12,
+            "sha256": "b0b4a8e8aed9b1b237da9266ceb9c7c98cce09715f4796219fef51bb94fcf66e"
+          },
+          {
+            "orientation": "long",
+            "modes": 12,
+            "sha256": "b0b4a8e8aed9b1b237da9266ceb9c7c98cce09715f4796219fef51bb94fcf66e"
+          },
+          {
+            "orientation": "long",
+            "modes": 12,
+            "sha256": "b0b4a8e8aed9b1b237da9266ceb9c7c98cce09715f4796219fef51bb94fcf66e"
+          },
+          {
+            "orientation": "long",
+            "modes": 12,
+            "sha256": "b0b4a8e8aed9b1b237da9266ceb9c7c98cce09715f4796219fef51bb94fcf66e"
+          },
+          {
+            "orientation": "long",
+            "modes": 12,
+            "sha256": "b0b4a8e8aed9b1b237da9266ceb9c7c98cce09715f4796219fef51bb94fcf66e"
+          },
+          {
+            "orientation": "trans",
+            "modes": 12,
+            "sha256": "5447b3063034fc7dbbd37bf57b024ecbd534881b2f352a2bac068f52d5b0b52c"
+          },
+          {
+            "orientation": "trans",
+            "modes": 12,
+            "sha256": "5447b3063034fc7dbbd37bf57b024ecbd534881b2f352a2bac068f52d5b0b52c"
+          },
+          {
+            "orientation": "trans",
+            "modes": 12,
+            "sha256": "5447b3063034fc7dbbd37bf57b024ecbd534881b2f352a2bac068f52d5b0b52c"
+          },
+          {
+            "orientation": "trans",
+            "modes": 12,
+            "sha256": "5447b3063034fc7dbbd37bf57b024ecbd534881b2f352a2bac068f52d5b0b52c"
+          },
+          {
+            "orientation": "trans",
+            "modes": 12,
+            "sha256": "5447b3063034fc7dbbd37bf57b024ecbd534881b2f352a2bac068f52d5b0b52c"
+          },
+          {
+            "orientation": "trans",
+            "modes": 12,
+            "sha256": "5447b3063034fc7dbbd37bf57b024ecbd534881b2f352a2bac068f52d5b0b52c"
+          },
+          {
+            "orientation": "trans",
+            "modes": 12,
+            "sha256": "5447b3063034fc7dbbd37bf57b024ecbd534881b2f352a2bac068f52d5b0b52c"
+          },
+          {
+            "orientation": "trans",
+            "modes": 12,
+            "sha256": "5447b3063034fc7dbbd37bf57b024ecbd534881b2f352a2bac068f52d5b0b52c"
+          },
+          {
+            "orientation": "trans",
+            "modes": 12,
+            "sha256": "5447b3063034fc7dbbd37bf57b024ecbd534881b2f352a2bac068f52d5b0b52c"
+          },
+          {
+            "orientation": "trans",
+            "modes": 12,
+            "sha256": "5447b3063034fc7dbbd37bf57b024ecbd534881b2f352a2bac068f52d5b0b52c"
+          },
+          {
+            "orientation": "trans",
+            "modes": 12,
+            "sha256": "5447b3063034fc7dbbd37bf57b024ecbd534881b2f352a2bac068f52d5b0b52c"
+          },
+          {
+            "orientation": "trans",
+            "modes": 12,
+            "sha256": "5447b3063034fc7dbbd37bf57b024ecbd534881b2f352a2bac068f52d5b0b52c"
+          },
+          {
+            "orientation": "trans",
+            "modes": 12,
+            "sha256": "5447b3063034fc7dbbd37bf57b024ecbd534881b2f352a2bac068f52d5b0b52c"
+          },
+          {
+            "orientation": "trans",
+            "modes": 12,
+            "sha256": "5447b3063034fc7dbbd37bf57b024ecbd534881b2f352a2bac068f52d5b0b52c"
+          },
+          {
+            "orientation": "trans",
+            "modes": 12,
+            "sha256": "5447b3063034fc7dbbd37bf57b024ecbd534881b2f352a2bac068f52d5b0b52c"
+          },
+          {
+            "orientation": "trans",
+            "modes": 12,
+            "sha256": "5447b3063034fc7dbbd37bf57b024ecbd534881b2f352a2bac068f52d5b0b52c"
+          },
+          {
+            "orientation": "trans",
+            "modes": 12,
+            "sha256": "5447b3063034fc7dbbd37bf57b024ecbd534881b2f352a2bac068f52d5b0b52c"
+          },
+          {
+            "orientation": "trans",
+            "modes": 12,
+            "sha256": "5447b3063034fc7dbbd37bf57b024ecbd534881b2f352a2bac068f52d5b0b52c"
+          },
+          {
+            "orientation": "trans",
+            "modes": 12,
+            "sha256": "5447b3063034fc7dbbd37bf57b024ecbd534881b2f352a2bac068f52d5b0b52c"
+          },
+          {
+            "orientation": "trans",
+            "modes": 12,
+            "sha256": "5447b3063034fc7dbbd37bf57b024ecbd534881b2f352a2bac068f52d5b0b52c"
+          }
+        ]
+      },
+      "C:\\qdmnp\\results\\article_shah_single\\data\\fig05_material_fluence_88db0a39f6.npz": {
+        "accepted": true,
+        "coefficient_sets_checked": 10,
+        "fits": [
+          {
+            "orientation": "long",
+            "modes": 1,
+            "sha256": "516f1ff86a8cbbf4fb9a995085f7e0bf7e0012d1cccab2690be378b34ddc1b26"
+          },
+          {
+            "orientation": "trans",
+            "modes": 1,
+            "sha256": "050152b64b09109071743ddd0e5dae0febc107e3e484423194e81c31d5be2737"
+          },
+          {
+            "orientation": "long",
+            "modes": 1,
+            "sha256": "516f1ff86a8cbbf4fb9a995085f7e0bf7e0012d1cccab2690be378b34ddc1b26"
+          },
+          {
+            "orientation": "trans",
+            "modes": 1,
+            "sha256": "050152b64b09109071743ddd0e5dae0febc107e3e484423194e81c31d5be2737"
+          },
+          {
+            "orientation": "trans",
+            "modes": 1,
+            "sha256": "050152b64b09109071743ddd0e5dae0febc107e3e484423194e81c31d5be2737"
+          },
+          {
+            "orientation": "long",
+            "modes": 12,
+            "sha256": "b0b4a8e8aed9b1b237da9266ceb9c7c98cce09715f4796219fef51bb94fcf66e"
+          },
+          {
+            "orientation": "trans",
+            "modes": 12,
+            "sha256": "5447b3063034fc7dbbd37bf57b024ecbd534881b2f352a2bac068f52d5b0b52c"
+          },
+          {
+            "orientation": "long",
+            "modes": 12,
+            "sha256": "b0b4a8e8aed9b1b237da9266ceb9c7c98cce09715f4796219fef51bb94fcf66e"
+          },
+          {
+            "orientation": "trans",
+            "modes": 12,
+            "sha256": "5447b3063034fc7dbbd37bf57b024ecbd534881b2f352a2bac068f52d5b0b52c"
+          },
+          {
+            "orientation": "trans",
+            "modes": 12,
+            "sha256": "5447b3063034fc7dbbd37bf57b024ecbd534881b2f352a2bac068f52d5b0b52c"
+          }
+        ]
+      },
+      "C:\\qdmnp\\results\\article_shah_single\\data\\fig06_dynamics_near_e25fe98a0c.npz": {
+        "accepted": true,
+        "coefficient_sets_checked": 4,
+        "fits": [
+          {
+            "orientation": "long",
+            "modes": 12,
+            "sha256": "b0b4a8e8aed9b1b237da9266ceb9c7c98cce09715f4796219fef51bb94fcf66e"
+          },
+          {
+            "orientation": "trans",
+            "modes": 12,
+            "sha256": "5447b3063034fc7dbbd37bf57b024ecbd534881b2f352a2bac068f52d5b0b52c"
+          },
+          {
+            "orientation": "long",
+            "modes": 12,
+            "sha256": "b0b4a8e8aed9b1b237da9266ceb9c7c98cce09715f4796219fef51bb94fcf66e"
+          },
+          {
+            "orientation": "trans",
+            "modes": 12,
+            "sha256": "5447b3063034fc7dbbd37bf57b024ecbd534881b2f352a2bac068f52d5b0b52c"
+          }
+        ]
+      },
+      "C:\\qdmnp\\results\\article_shah_single\\data\\fig06_dynamics_far_504ad2a576.npz": {
+        "accepted": true,
+        "coefficient_sets_checked": 4,
+        "fits": [
+          {
+            "orientation": "long",
+            "modes": 12,
+            "sha256": "b0b4a8e8aed9b1b237da9266ceb9c7c98cce09715f4796219fef51bb94fcf66e"
+          },
+          {
+            "orientation": "trans",
+            "modes": 12,
+            "sha256": "5447b3063034fc7dbbd37bf57b024ecbd534881b2f352a2bac068f52d5b0b52c"
+          },
+          {
+            "orientation": "long",
+            "modes": 12,
+            "sha256": "b0b4a8e8aed9b1b237da9266ceb9c7c98cce09715f4796219fef51bb94fcf66e"
+          },
+          {
+            "orientation": "trans",
+            "modes": 12,
+            "sha256": "5447b3063034fc7dbbd37bf57b024ecbd534881b2f352a2bac068f52d5b0b52c"
+          }
+        ]
+      },
+      "C:\\qdmnp\\results\\article_shah_single\\data\\supp01_work_spectrum_68f8b73d8d.npz": {
+        "accepted": true,
+        "coefficient_sets_checked": 2,
+        "fits": [
+          {
+            "orientation": "long",
+            "modes": 1,
+            "sha256": "516f1ff86a8cbbf4fb9a995085f7e0bf7e0012d1cccab2690be378b34ddc1b26"
+          },
+          {
+            "orientation": "long",
+            "modes": 12,
+            "sha256": "b0b4a8e8aed9b1b237da9266ceb9c7c98cce09715f4796219fef51bb94fcf66e"
+          }
+        ]
+      }
+    },
+    "fluence_range_decision": {
+      "extend_min": false,
+      "extend_max": false,
+      "extensions": 0
+    },
+    "threshold_master": "C:\\qdmnp\\results\\article_shah_single\\data\\fig03_master_a146b63990.npz",
+    "fluence_points": 65,
+    "fluence_min": 5e-10,
+    "fluence_max": 0.0002,
+    "selection": {
+      "best_channel": "axis_long",
+      "best_gap_nm": 0.5,
+      "runner_up_channel": "side_trans_radial",
+      "runner_up_gap_nm": 0.5,
+      "control_channel": "axis_trans",
+      "far_gap_nm": 12.0,
+      "resolved_threshold_selected": true,
+      "selection_is_illustration_only": false,
+      "far_point_satisfies_threshold_DD_tolerance": false,
+      "far_gap_role": "largest_admissible_gap_without_dd_agreement",
+      "threshold_dd_validity_gap_nm": null,
+      "threshold_dd_validity_status": "not_established_within_validity",
+      "threshold_dd_validity_supporting_points": 0,
+      "locality_advisory_gap_nm": 1.0,
+      "threshold_gain_below_locality_advisory": 1.2000542610110196,
+      "best_gap_below_locality_advisory": true,
+      "best_gap_at_lower_admissible_bound": true,
+      "best_gap_optimum_kind": "at_smallest_sampled_gap",
+      "best_channel_gap_profile": [
+        {
+          "gap_nm": 0.5,
+          "threshold_J_cm2": 1.350025563523652e-06,
+          "status": "resolved_refined",
+          "admissible": true
+        },
+        {
+          "gap_nm": 0.75,
+          "threshold_J_cm2": 1.478019163695814e-06,
+          "status": "resolved_refined",
+          "admissible": true
+        },
+        {
+          "gap_nm": 1.0,
+          "threshold_J_cm2": 1.6201039299803616e-06,
+          "status": "resolved_refined",
+          "admissible": true
+        },
+        {
+          "gap_nm": 1.5,
+          "threshold_J_cm2": 1.9433539985479648e-06,
+          "status": "resolved_refined",
+          "admissible": true
+        },
+        {
+          "gap_nm": 2.0,
+          "threshold_J_cm2": 2.3164265808373283e-06,
+          "status": "resolved_refined",
+          "admissible": true
+        },
+        {
+          "gap_nm": 3.0,
+          "threshold_J_cm2": 3.2084078233878057e-06,
+          "status": "resolved_refined",
+          "admissible": true
+        },
+        {
+          "gap_nm": 5.0,
+          "threshold_J_cm2": 5.558192850970005e-06,
+          "status": "resolved_refined",
+          "admissible": true
+        },
+        {
+          "gap_nm": 7.0,
+          "threshold_J_cm2": 8.584699964763881e-06,
+          "status": "resolved_refined",
+          "admissible": true
+        },
+        {
+          "gap_nm": 10.0,
+          "threshold_J_cm2": 1.4023597829349995e-05,
+          "status": "resolved_refined",
+          "admissible": true
+        },
+        {
+          "gap_nm": 12.0,
+          "threshold_J_cm2": 1.7949390572130035e-05,
+          "status": "resolved_refined",
+          "admissible": true
+        }
+      ],
+      "control_threshold_status_at_best_gap": "right_censored",
+      "point_qd_field_variation_lower_bound_at_best": 0.34285714285714286,
+      "k_c_at_upper_study_energy": 0.25472948444760124,
+      "k_R_by_channel_gap": [
+        [
+          0.2971843985222014,
+          0.30142988992966147,
+          0.30567538133712147,
+          0.3141663641520415,
+          0.3226573469669615,
+          0.33963931259680163,
+          0.3736032438564818,
+          0.4075671751161619,
+          0.4585130720056822,
+          0.49247700326536237
+        ],
+        [
+          0.2971843985222014,
+          0.30142988992966147,
+          0.30567538133712147,
+          0.3141663641520415,
+          0.3226573469669615,
+          0.33963931259680163,
+          0.3736032438564818,
+          0.4075671751161619,
+          0.4585130720056822,
+          0.49247700326536237
+        ],
+        [
+          0.21227457037300101,
+          0.21652006178046104,
+          0.22076555318792104,
+          0.2292565360028411,
+          0.23774751881776113,
+          0.25472948444760124,
+          0.28869341570728135,
+          0.3226573469669615,
+          0.3736032438564818,
+          0.4075671751161619
+        ],
+        [
+          0.21227457037300101,
+          0.21652006178046104,
+          0.22076555318792104,
+          0.2292565360028411,
+          0.23774751881776113,
+          0.25472948444760124,
+          0.28869341570728135,
+          0.3226573469669615,
+          0.3736032438564818,
+          0.4075671751161619
+        ],
+        [
+          0.21227457037300101,
+          0.21652006178046104,
+          0.22076555318792104,
+          0.2292565360028411,
+          0.23774751881776113,
+          0.25472948444760124,
+          0.28869341570728135,
+          0.3226573469669615,
+          0.3736032438564818,
+          0.4075671751161619
+        ]
+      ],
+      "selection_allowed_by_declared_retardation_cutoffs": [
+        [
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true
+        ],
+        [
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true
+        ],
+        [
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true
+        ],
+        [
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true
+        ],
+        [
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true,
+          true
+        ]
+      ],
+      "physical_scope": "conditional point-QD/local-QS result; declared k cutoffs do not validate finite-QD or nonlocal physics"
+    },
+    "validation": [
+      {
+        "label": "carrier_2.002",
+        "artifact": "C:\\qdmnp\\results\\article_shah_single\\data\\check_carrier_2.002_34ea5e3354.npz",
+        "accepted": true,
+        "resolved_pairs_complete": true,
+        "all_pairs_resolved": false,
+        "required_channels": [
+          "axis_long",
+          "side_trans_radial"
+        ],
+        "max_relative_threshold_change": 1.385322614280851,
+        "isolated_relative_threshold_change": 1.385322614280851,
+        "nonrequired_max_relative_threshold_change": null,
+        "nonrequired_pairs_consistent": true,
+        "channels": [
+          "axis_long",
+          "side_trans_radial",
+          "axis_trans"
+        ],
+        "gaps_nm": [
+          0.5
+        ],
+        "candidate_thresholds": [
+          [
+            2.5352660092712834e-06
+          ],
+          [
+            1.8419461225265643e-05
+          ],
+          [
+            null
+          ]
+        ],
+        "candidate_own_thresholds": [
+          [
+            2.5352660092712834e-06
+          ],
+          [
+            1.8419461225265643e-05
+          ],
+          [
+            null
+          ]
+        ],
+        "isolated_threshold": 0.00014710800856641135,
+        "candidate_status": [
+          [
+            "resolved_refined"
+          ],
+          [
+            "resolved_refined"
+          ],
+          [
+            "right_censored"
+          ]
+        ],
+        "best_channel_unchanged": true,
+        "best_configuration_unchanged": true,
+        "gaps_below_locality_advisory_gap_nm": [
+          0.5
+        ],
+        "carrier_energy_eV": 2.002
+      },
+      {
+        "label": "carrier_2.042",
+        "artifact": "C:\\qdmnp\\results\\article_shah_single\\data\\fig03_master_a146b63990.npz",
+        "derived_from_master": true,
+        "accepted": true,
+        "resolved_pairs_complete": true,
+        "all_pairs_resolved": false,
+        "required_channels": [
+          "axis_long",
+          "side_trans_radial"
+        ],
+        "max_relative_threshold_change": 0.0,
+        "isolated_relative_threshold_change": 0.0,
+        "nonrequired_max_relative_threshold_change": null,
+        "nonrequired_pairs_consistent": true,
+        "channels": [
+          "axis_long",
+          "side_trans_radial",
+          "axis_trans"
+        ],
+        "gaps_nm": [
+          0.5
+        ],
+        "candidate_thresholds": [
+          [
+            1.350025563523652e-06
+          ],
+          [
+            8.500551982954797e-06
+          ],
+          [
+            null
+          ]
+        ],
+        "candidate_own_thresholds": [
+          [
+            1.350025563523652e-06
+          ],
+          [
+            8.500551982954797e-06
+          ],
+          [
+            null
+          ]
+        ],
+        "isolated_threshold": 6.167216446349033e-05,
+        "candidate_status": [
+          [
+            "resolved_refined"
+          ],
+          [
+            "resolved_refined"
+          ],
+          [
+            "right_censored"
+          ]
+        ],
+        "best_channel_unchanged": true,
+        "best_configuration_unchanged": true,
+        "carrier_energy_eV": 2.042
+      },
+      {
+        "label": "carrier_2.082",
+        "artifact": "C:\\qdmnp\\results\\article_shah_single\\data\\check_carrier_2.082_57c1d44d84.npz",
+        "accepted": false,
+        "resolved_pairs_complete": false,
+        "all_pairs_resolved": false,
+        "required_channels": [
+          "axis_long",
+          "side_trans_radial"
+        ],
+        "max_relative_threshold_change": null,
+        "isolated_relative_threshold_change": 1.314249318338483,
+        "nonrequired_max_relative_threshold_change": null,
+        "nonrequired_pairs_consistent": true,
+        "channels": [
+          "axis_long",
+          "side_trans_radial",
+          "axis_trans"
+        ],
+        "gaps_nm": [
+          0.5
+        ],
+        "candidate_thresholds": [
+          [
+            null
+          ],
+          [
+            null
+          ],
+          [
+            null
+          ]
+        ],
+        "candidate_own_thresholds": [
+          [
+            null
+          ],
+          [
+            null
+          ],
+          [
+            null
+          ]
+        ],
+        "isolated_threshold": 0.0001427247645700913,
+        "candidate_status": [
+          [
+            "not_reached_first_lobe"
+          ],
+          [
+            "not_reached_first_lobe"
+          ],
+          [
+            "right_censored"
+          ]
+        ],
+        "best_channel_unchanged": false,
+        "best_configuration_unchanged": false,
+        "gaps_below_locality_advisory_gap_nm": [
+          0.5
+        ],
+        "carrier_energy_eV": 2.082
+      },
+      {
+        "label": "higher_N",
+        "artifact": "C:\\qdmnp\\results\\article_shah_single\\data\\check_higher_N_8b49a5af01.npz",
+        "accepted": true,
+        "resolved_pairs_complete": true,
+        "all_pairs_resolved": false,
+        "required_channels": [
+          "axis_long",
+          "side_trans_radial"
+        ],
+        "max_relative_threshold_change": 0.0002883303153904393,
+        "isolated_relative_threshold_change": 0.0,
+        "nonrequired_max_relative_threshold_change": null,
+        "nonrequired_pairs_consistent": true,
+        "channels": [
+          "axis_long",
+          "side_trans_radial",
+          "axis_trans"
+        ],
+        "gaps_nm": [
+          0.5
+        ],
+        "candidate_thresholds": [
+          [
+            1.349636310227136e-06
+          ],
+          [
+            8.501662826058043e-06
+          ],
+          [
+            null
+          ]
+        ],
+        "candidate_own_thresholds": [
+          [
+            1.349636310227136e-06
+          ],
+          [
+            8.501662826058043e-06
+          ],
+          [
+            null
+          ]
+        ],
+        "isolated_threshold": 6.167216446349033e-05,
+        "candidate_status": [
+          [
+            "resolved_refined"
+          ],
+          [
+            "resolved_refined"
+          ],
+          [
+            "right_censored"
+          ]
+        ],
+        "best_channel_unchanged": true,
+        "best_configuration_unchanged": true,
+        "gaps_below_locality_advisory_gap_nm": [
+          0.5
+        ]
+      },
+      {
+        "label": "fluence_refined",
+        "artifact": "C:\\qdmnp\\results\\article_shah_single\\data\\check_fluence_refined_1ba9bfdad4.npz",
+        "accepted": true,
+        "resolved_pairs_complete": true,
+        "all_pairs_resolved": false,
+        "required_channels": [
+          "axis_long",
+          "side_trans_radial"
+        ],
+        "max_relative_threshold_change": 4.00505736686263e-06,
+        "isolated_relative_threshold_change": 4.00505736686263e-06,
+        "nonrequired_max_relative_threshold_change": null,
+        "nonrequired_pairs_consistent": true,
+        "channels": [
+          "axis_long",
+          "side_trans_radial",
+          "axis_trans"
+        ],
+        "gaps_nm": [
+          0.5
+        ],
+        "candidate_thresholds": [
+          [
+            1.350025563523652e-06
+          ],
+          [
+            8.500551982954797e-06
+          ],
+          [
+            null
+          ]
+        ],
+        "candidate_own_thresholds": [
+          [
+            1.350025563523652e-06
+          ],
+          [
+            8.500551982954797e-06
+          ],
+          [
+            null
+          ]
+        ],
+        "isolated_threshold": 6.167241146404695e-05,
+        "candidate_status": [
+          [
+            "resolved_refined"
+          ],
+          [
+            "resolved_refined"
+          ],
+          [
+            "right_censored"
+          ]
+        ],
+        "best_channel_unchanged": true,
+        "best_configuration_unchanged": true,
+        "gaps_below_locality_advisory_gap_nm": [
+          0.5
+        ]
+      },
+      {
+        "label": "spatial_refined",
+        "artifact": "C:\\qdmnp\\results\\article_shah_single\\data\\check_spatial_refined_8d3475f38f.npz",
+        "accepted": true,
+        "resolved_pairs_complete": true,
+        "all_pairs_resolved": false,
+        "required_channels": [
+          "axis_long",
+          "side_trans_radial"
+        ],
+        "max_relative_threshold_change": 3.552713678800501e-15,
+        "isolated_relative_threshold_change": 0.0,
+        "nonrequired_max_relative_threshold_change": null,
+        "nonrequired_pairs_consistent": true,
+        "channels": [
+          "axis_long",
+          "side_trans_radial",
+          "axis_trans"
+        ],
+        "gaps_nm": [
+          0.5
+        ],
+        "candidate_thresholds": [
+          [
+            1.350025563523647e-06
+          ],
+          [
+            8.500551982954771e-06
+          ],
+          [
+            null
+          ]
+        ],
+        "candidate_own_thresholds": [
+          [
+            1.350025563523647e-06
+          ],
+          [
+            8.500551982954771e-06
+          ],
+          [
+            null
+          ]
+        ],
+        "isolated_threshold": 6.167216446349033e-05,
+        "candidate_status": [
+          [
+            "resolved_refined"
+          ],
+          [
+            "resolved_refined"
+          ],
+          [
+            "right_censored"
+          ]
+        ],
+        "best_channel_unchanged": true,
+        "best_configuration_unchanged": true,
+        "gaps_below_locality_advisory_gap_nm": [
+          0.5
+        ],
+        "spatial_order_check": {
+          "production_order": 160,
+          "check_order": 320,
+          "direction": "refined",
+          "kernel_order_limit": 320
+        }
+      },
+      {
+        "label": "time_step_refined",
+        "artifact": "C:\\qdmnp\\results\\article_shah_single\\data\\check_time_step_refined_88eb9b41a5.npz",
+        "accepted": true,
+        "resolved_pairs_complete": true,
+        "all_pairs_resolved": false,
+        "required_channels": [
+          "axis_long",
+          "side_trans_radial"
+        ],
+        "max_relative_threshold_change": 3.615604109441506e-07,
+        "isolated_relative_threshold_change": 1.9058952516193273e-07,
+        "nonrequired_max_relative_threshold_change": null,
+        "nonrequired_pairs_consistent": true,
+        "channels": [
+          "axis_long",
+          "side_trans_radial",
+          "axis_trans"
+        ],
+        "gaps_nm": [
+          0.5
+        ],
+        "candidate_thresholds": [
+          [
+            1.3500260183847094e-06
+          ],
+          [
+            8.500555056417866e-06
+          ],
+          [
+            null
+          ]
+        ],
+        "candidate_own_thresholds": [
+          [
+            1.3500260183847094e-06
+          ],
+          [
+            8.500555056417866e-06
+          ],
+          [
+            null
+          ]
+        ],
+        "isolated_threshold": 6.167215270942178e-05,
+        "candidate_status": [
+          [
+            "resolved_refined"
+          ],
+          [
+            "resolved_refined"
+          ],
+          [
+            "right_censored"
+          ]
+        ],
+        "best_channel_unchanged": true,
+        "best_configuration_unchanged": true,
+        "gaps_below_locality_advisory_gap_nm": [
+          0.5
+        ]
+      },
+      {
+        "label": "energy_refined",
+        "artifact": "C:\\qdmnp\\results\\article_shah_single\\data\\check_energy_refined_68e6560bdb.npz",
+        "reference_artifact": "C:\\qdmnp\\results\\article_shah_single\\data\\preflight_g0.5_a6e8649e65.npz",
+        "gap_nm": 0.5,
+        "accepted": true,
+        "spectrum_refinement_max_nrms": 0.0005830790917550569,
+        "gain_refinement_max_relative_change": 0.0008945226550414187,
+        "unique_peak_shift_max_over_isolated_fwhm": 5.578245277902693e-05,
+        "unique_peak_width_max_relative_change": 0.0011209720516279775,
+        "feature_classification_preserved": true,
+        "isolated_feature_accepted": true
+      },
+      {
+        "label": "gap_low",
+        "artifact": "C:\\qdmnp\\results\\article_shah_single\\data\\check_gap_low_658a4f5016.npz",
+        "accepted": true,
+        "resolved_pairs_complete": true,
+        "all_pairs_resolved": false,
+        "required_channels": [
+          "axis_long",
+          "side_trans_radial"
+        ],
+        "max_relative_threshold_change": 0.06752548464592534,
+        "isolated_relative_threshold_change": 0.0,
+        "nonrequired_max_relative_threshold_change": null,
+        "nonrequired_pairs_consistent": true,
+        "channels": [
+          "axis_long",
+          "side_trans_radial",
+          "axis_trans"
+        ],
+        "gaps_nm": [
+          0.3
+        ],
+        "candidate_thresholds": [
+          [
+            1.2588644330623289e-06
+          ],
+          [
+            8.199984448532174e-06
+          ],
+          [
+            null
+          ]
+        ],
+        "candidate_own_thresholds": [
+          [
+            1.2588644330623289e-06
+          ],
+          [
+            8.199984448532174e-06
+          ],
+          [
+            null
+          ]
+        ],
+        "isolated_threshold": 6.167216446349033e-05,
+        "candidate_status": [
+          [
+            "resolved_refined"
+          ],
+          [
+            "resolved_refined"
+          ],
+          [
+            "right_censored"
+          ]
+        ],
+        "best_channel_unchanged": true,
+        "best_configuration_unchanged": true,
+        "gaps_below_locality_advisory_gap_nm": [
+          0.3
+        ]
+      },
+      {
+        "label": "c_low",
+        "artifact": "C:\\qdmnp\\results\\article_shah_single\\data\\check_c_low_47ab6ec7a1.npz",
+        "accepted": true,
+        "resolved_pairs_complete": true,
+        "all_pairs_resolved": false,
+        "required_channels": [
+          "axis_long",
+          "side_trans_radial"
+        ],
+        "max_relative_threshold_change": 0.3284137791816264,
+        "isolated_relative_threshold_change": 0.0,
+        "nonrequired_max_relative_threshold_change": null,
+        "nonrequired_pairs_consistent": true,
+        "channels": [
+          "axis_long",
+          "side_trans_radial",
+          "axis_trans"
+        ],
+        "gaps_nm": [
+          0.5
+        ],
+        "candidate_thresholds": [
+          [
+            1.7933925608322592e-06
+          ],
+          [
+            8.221823908938246e-06
+          ],
+          [
+            null
+          ]
+        ],
+        "candidate_own_thresholds": [
+          [
+            1.7933925608322592e-06
+          ],
+          [
+            8.221823908938246e-06
+          ],
+          [
+            null
+          ]
+        ],
+        "isolated_threshold": 6.167216446349033e-05,
+        "candidate_status": [
+          [
+            "resolved_refined"
+          ],
+          [
+            "resolved_refined"
+          ],
+          [
+            "right_censored"
+          ]
+        ],
+        "best_channel_unchanged": true,
+        "best_configuration_unchanged": true,
+        "gaps_below_locality_advisory_gap_nm": [
+          0.5
+        ],
+        "material_modes_used": 12,
+        "rejected_mode_counts": [],
+        "relaxed_numerical_gates": {
+          "max-modal-normalized-rms": 0.05,
+          "max-modal-relative-error": 0.12,
+          "spatial-convergence-rtol": 0.0001
+        }
+      },
+      {
+        "label": "a_low",
+        "artifact": "C:\\qdmnp\\results\\article_shah_single\\data\\check_a_low_2078fff0e9.npz",
+        "accepted": true,
+        "resolved_pairs_complete": true,
+        "all_pairs_resolved": false,
+        "required_channels": [
+          "axis_long",
+          "side_trans_radial"
+        ],
+        "max_relative_threshold_change": 0.22223534921810328,
+        "isolated_relative_threshold_change": 0.0,
+        "nonrequired_max_relative_threshold_change": null,
+        "nonrequired_pairs_consistent": true,
+        "channels": [
+          "axis_long",
+          "side_trans_radial",
+          "axis_trans"
+        ],
+        "gaps_nm": [
+          0.5
+        ],
+        "candidate_thresholds": [
+          [
+            1.0500021609606064e-06
+          ],
+          [
+            9.067387714116107e-06
+          ],
+          [
+            null
+          ]
+        ],
+        "candidate_own_thresholds": [
+          [
+            1.0500021609606064e-06
+          ],
+          [
+            9.067387714116107e-06
+          ],
+          [
+            null
+          ]
+        ],
+        "isolated_threshold": 6.167216446349033e-05,
+        "candidate_status": [
+          [
+            "resolved_refined"
+          ],
+          [
+            "resolved_refined"
+          ],
+          [
+            "right_censored"
+          ]
+        ],
+        "best_channel_unchanged": true,
+        "best_configuration_unchanged": true,
+        "gaps_below_locality_advisory_gap_nm": [
+          0.5
+        ],
+        "material_modes_used": 13,
+        "rejected_mode_counts": [
+          "N=12"
+        ],
+        "relaxed_numerical_gates": {
+          "max-modal-normalized-rms": 0.05,
+          "max-modal-relative-error": 0.12,
+          "spatial-convergence-rtol": 0.0001
+        }
+      },
+      {
+        "label": "exciton_low",
+        "artifact": "C:\\qdmnp\\results\\article_shah_single\\data\\check_exciton_low_3c85705e0c.npz",
+        "accepted": true,
+        "resolved_pairs_complete": true,
+        "all_pairs_resolved": false,
+        "required_channels": [
+          "axis_long",
+          "side_trans_radial"
+        ],
+        "max_relative_threshold_change": 0.058475752284933735,
+        "isolated_relative_threshold_change": 0.010313582818643585,
+        "nonrequired_max_relative_threshold_change": null,
+        "nonrequired_pairs_consistent": true,
+        "channels": [
+          "axis_long",
+          "side_trans_radial",
+          "axis_trans"
+        ],
+        "gaps_nm": [
+          0.5
+        ],
+        "candidate_thresholds": [
+          [
+            1.428969323954589e-06
+          ],
+          [
+            8.715761232270412e-06
+          ],
+          [
+            null
+          ]
+        ],
+        "candidate_own_thresholds": [
+          [
+            1.428969323954589e-06
+          ],
+          [
+            8.715761232270412e-06
+          ],
+          [
+            null
+          ]
+        ],
+        "isolated_threshold": 6.230822543928954e-05,
+        "candidate_status": [
+          [
+            "resolved_refined"
+          ],
+          [
+            "resolved_refined"
+          ],
+          [
+            "right_censored"
+          ]
+        ],
+        "best_channel_unchanged": true,
+        "best_configuration_unchanged": true,
+        "gaps_below_locality_advisory_gap_nm": [
+          0.5
+        ]
+      },
+      {
+        "label": "gamma1_low",
+        "artifact": "C:\\qdmnp\\results\\article_shah_single\\data\\check_gamma1_low_3f2d71c2ba.npz",
+        "accepted": true,
+        "resolved_pairs_complete": true,
+        "all_pairs_resolved": false,
+        "required_channels": [
+          "axis_long",
+          "side_trans_radial"
+        ],
+        "max_relative_threshold_change": 0.00037577485241246933,
+        "isolated_relative_threshold_change": 0.00037577485241246933,
+        "nonrequired_max_relative_threshold_change": null,
+        "nonrequired_pairs_consistent": true,
+        "channels": [
+          "axis_long",
+          "side_trans_radial",
+          "axis_trans"
+        ],
+        "gaps_nm": [
+          0.5
+        ],
+        "candidate_thresholds": [
+          [
+            1.3495355899162084e-06
+          ],
+          [
+            8.497439401513039e-06
+          ],
+          [
+            null
+          ]
+        ],
+        "candidate_own_thresholds": [
+          [
+            1.3495355899162084e-06
+          ],
+          [
+            8.497439401513039e-06
+          ],
+          [
+            null
+          ]
+        ],
+        "isolated_threshold": 6.16489896149911e-05,
+        "candidate_status": [
+          [
+            "resolved_refined"
+          ],
+          [
+            "resolved_refined"
+          ],
+          [
+            "right_censored"
+          ]
+        ],
+        "best_channel_unchanged": true,
+        "best_configuration_unchanged": true,
+        "gaps_below_locality_advisory_gap_nm": [
+          0.5
+        ]
+      },
+      {
+        "label": "dephasing_low",
+        "artifact": "C:\\qdmnp\\results\\article_shah_single\\data\\check_dephasing_low_b6e65550ce.npz",
+        "accepted": true,
+        "resolved_pairs_complete": true,
+        "all_pairs_resolved": false,
+        "required_channels": [
+          "axis_long",
+          "side_trans_radial"
+        ],
+        "max_relative_threshold_change": 0.018608141973488923,
+        "isolated_relative_threshold_change": 0.006136599563211664,
+        "nonrequired_max_relative_threshold_change": null,
+        "nonrequired_pairs_consistent": true,
+        "channels": [
+          "axis_long",
+          "side_trans_radial",
+          "axis_trans"
+        ],
+        "gaps_nm": [
+          0.5
+        ],
+        "candidate_thresholds": [
+          [
+            1.3751470308775396e-06
+          ],
+          [
+            8.557985646866865e-06
+          ],
+          [
+            null
+          ]
+        ],
+        "candidate_own_thresholds": [
+          [
+            1.3751470308775396e-06
+          ],
+          [
+            8.557985646866865e-06
+          ],
+          [
+            null
+          ]
+        ],
+        "isolated_threshold": 6.129370708598136e-05,
+        "candidate_status": [
+          [
+            "resolved_refined"
+          ],
+          [
+            "resolved_refined"
+          ],
+          [
+            "right_censored"
+          ]
+        ],
+        "best_channel_unchanged": true,
+        "best_configuration_unchanged": true,
+        "gaps_below_locality_advisory_gap_nm": [
+          0.5
+        ]
+      },
+      {
+        "label": "gap_high",
+        "artifact": "C:\\qdmnp\\results\\article_shah_single\\data\\check_gap_high_96cf9cafd9.npz",
+        "accepted": true,
+        "resolved_pairs_complete": true,
+        "all_pairs_resolved": false,
+        "required_channels": [
+          "axis_long",
+          "side_trans_radial"
+        ],
+        "max_relative_threshold_change": 0.07498258711096484,
+        "isolated_relative_threshold_change": 0.0,
+        "nonrequired_max_relative_threshold_change": null,
+        "nonrequired_pairs_consistent": true,
+        "channels": [
+          "axis_long",
+          "side_trans_radial",
+          "axis_trans"
+        ],
+        "gaps_nm": [
+          0.7
+        ],
+        "candidate_thresholds": [
+          [
+            1.4512539729425936e-06
+          ],
+          [
+            8.836169001283103e-06
+          ],
+          [
+            null
+          ]
+        ],
+        "candidate_own_thresholds": [
+          [
+            1.4512539729425936e-06
+          ],
+          [
+            8.836169001283103e-06
+          ],
+          [
+            null
+          ]
+        ],
+        "isolated_threshold": 6.167216446349033e-05,
+        "candidate_status": [
+          [
+            "resolved_refined"
+          ],
+          [
+            "resolved_refined"
+          ],
+          [
+            "right_censored"
+          ]
+        ],
+        "best_channel_unchanged": true,
+        "best_configuration_unchanged": true,
+        "gaps_below_locality_advisory_gap_nm": [
+          0.7
+        ]
+      },
+      {
+        "label": "c_high",
+        "artifact": "C:\\qdmnp\\results\\article_shah_single\\data\\check_c_high_d4c88e34d4.npz",
+        "accepted": true,
+        "resolved_pairs_complete": true,
+        "all_pairs_resolved": false,
+        "required_channels": [
+          "axis_long",
+          "side_trans_radial"
+        ],
+        "max_relative_threshold_change": 0.26162480868527904,
+        "isolated_relative_threshold_change": 0.0,
+        "nonrequired_max_relative_threshold_change": null,
+        "nonrequired_pairs_consistent": true,
+        "channels": [
+          "axis_long",
+          "side_trans_radial",
+          "axis_trans"
+        ],
+        "gaps_nm": [
+          0.5
+        ],
+        "candidate_thresholds": [
+          [
+            9.968253837465405e-07
+          ],
+          [
+            8.765629913198137e-06
+          ],
+          [
+            null
+          ]
+        ],
+        "candidate_own_thresholds": [
+          [
+            9.968253837465405e-07
+          ],
+          [
+            8.765629913198137e-06
+          ],
+          [
+            null
+          ]
+        ],
+        "isolated_threshold": 6.167216446349033e-05,
+        "candidate_status": [
+          [
+            "resolved_refined"
+          ],
+          [
+            "resolved_refined"
+          ],
+          [
+            "right_censored"
+          ]
+        ],
+        "best_channel_unchanged": true,
+        "best_configuration_unchanged": true,
+        "gaps_below_locality_advisory_gap_nm": [
+          0.5
+        ],
+        "material_modes_used": 13,
+        "rejected_mode_counts": [
+          "N=12"
+        ],
+        "relaxed_numerical_gates": {
+          "max-modal-normalized-rms": 0.05,
+          "max-modal-relative-error": 0.12,
+          "spatial-convergence-rtol": 0.0001
+        }
+      },
+      {
+        "label": "a_high",
+        "artifact": "C:\\qdmnp\\results\\article_shah_single\\data\\check_a_high_40f09c7224.npz",
+        "accepted": true,
+        "resolved_pairs_complete": true,
+        "all_pairs_resolved": false,
+        "required_channels": [
+          "axis_long",
+          "side_trans_radial"
+        ],
+        "max_relative_threshold_change": 0.2388765354630864,
+        "isolated_relative_threshold_change": 0.0,
+        "nonrequired_max_relative_threshold_change": null,
+        "nonrequired_pairs_consistent": true,
+        "channels": [
+          "axis_long",
+          "side_trans_radial",
+          "axis_trans"
+        ],
+        "gaps_nm": [
+          0.5
+        ],
+        "candidate_thresholds": [
+          [
+            1.6725149929247828e-06
+          ],
+          [
+            7.980010302337242e-06
+          ],
+          [
+            null
+          ]
+        ],
+        "candidate_own_thresholds": [
+          [
+            1.6725149929247828e-06
+          ],
+          [
+            7.980010302337242e-06
+          ],
+          [
+            null
+          ]
+        ],
+        "isolated_threshold": 6.167216446349033e-05,
+        "candidate_status": [
+          [
+            "resolved_refined"
+          ],
+          [
+            "resolved_refined"
+          ],
+          [
+            "right_censored"
+          ]
+        ],
+        "best_channel_unchanged": true,
+        "best_configuration_unchanged": true,
+        "gaps_below_locality_advisory_gap_nm": [
+          0.5
+        ],
+        "material_modes_used": 12,
+        "rejected_mode_counts": [],
+        "relaxed_numerical_gates": {
+          "max-modal-normalized-rms": 0.05,
+          "max-modal-relative-error": 0.12,
+          "spatial-convergence-rtol": 0.0001
+        }
+      },
+      {
+        "label": "exciton_high",
+        "artifact": "C:\\qdmnp\\results\\article_shah_single\\data\\check_exciton_high_4b8d5cbc3e.npz",
+        "accepted": true,
+        "resolved_pairs_complete": true,
+        "all_pairs_resolved": false,
+        "required_channels": [
+          "axis_long",
+          "side_trans_radial"
+        ],
+        "max_relative_threshold_change": 0.03254523584269964,
+        "isolated_relative_threshold_change": 0.011085023914982894,
+        "nonrequired_max_relative_threshold_change": null,
+        "nonrequired_pairs_consistent": true,
+        "channels": [
+          "axis_long",
+          "side_trans_radial",
+          "axis_trans"
+        ],
+        "gaps_nm": [
+          0.5
+        ],
+        "candidate_thresholds": [
+          [
+            1.3060886631651013e-06
+          ],
+          [
+            8.46994343384475e-06
+          ],
+          [
+            null
+          ]
+        ],
+        "candidate_own_thresholds": [
+          [
+            1.3060886631651013e-06
+          ],
+          [
+            8.46994343384475e-06
+          ],
+          [
+            null
+          ]
+        ],
+        "isolated_threshold": 6.235580188145687e-05,
+        "candidate_status": [
+          [
+            "resolved_refined"
+          ],
+          [
+            "resolved_refined"
+          ],
+          [
+            "right_censored"
+          ]
+        ],
+        "best_channel_unchanged": true,
+        "best_configuration_unchanged": true,
+        "gaps_below_locality_advisory_gap_nm": [
+          0.5
+        ]
+      },
+      {
+        "label": "gamma1_high",
+        "artifact": "C:\\qdmnp\\results\\article_shah_single\\data\\check_gamma1_high_ddccdfdcc8.npz",
+        "accepted": true,
+        "resolved_pairs_complete": true,
+        "all_pairs_resolved": false,
+        "required_channels": [
+          "axis_long",
+          "side_trans_radial"
+        ],
+        "max_relative_threshold_change": 0.0003759555809235149,
+        "isolated_relative_threshold_change": 0.0003759555809235149,
+        "nonrequired_max_relative_threshold_change": null,
+        "nonrequired_pairs_consistent": true,
+        "channels": [
+          "axis_long",
+          "side_trans_radial",
+          "axis_trans"
+        ],
+        "gaps_nm": [
+          0.5
+        ],
+        "candidate_thresholds": [
+          [
+            1.350515766692817e-06
+          ],
+          [
+            8.503666026433762e-06
+          ],
+          [
+            null
+          ]
+        ],
+        "candidate_own_thresholds": [
+          [
+            1.350515766692817e-06
+          ],
+          [
+            8.503666026433762e-06
+          ],
+          [
+            null
+          ]
+        ],
+        "isolated_threshold": 6.169535045790801e-05,
+        "candidate_status": [
+          [
+            "resolved_refined"
+          ],
+          [
+            "resolved_refined"
+          ],
+          [
+            "right_censored"
+          ]
+        ],
+        "best_channel_unchanged": true,
+        "best_configuration_unchanged": true,
+        "gaps_below_locality_advisory_gap_nm": [
+          0.5
+        ]
+      },
+      {
+        "label": "dephasing_high",
+        "artifact": "C:\\qdmnp\\results\\article_shah_single\\data\\check_dephasing_high_9eb82b45bc.npz",
+        "accepted": true,
+        "resolved_pairs_complete": true,
+        "all_pairs_resolved": false,
+        "required_channels": [
+          "axis_long",
+          "side_trans_radial"
+        ],
+        "max_relative_threshold_change": 0.010395941498390293,
+        "isolated_relative_threshold_change": 0.006159741793921869,
+        "nonrequired_max_relative_threshold_change": null,
+        "nonrequired_pairs_consistent": true,
+        "channels": [
+          "axis_long",
+          "side_trans_radial",
+          "axis_trans"
+        ],
+        "gaps_nm": [
+          0.5
+        ],
+        "candidate_thresholds": [
+          [
+            1.3359907767439287e-06
+          ],
+          [
+            8.479144196254825e-06
+          ],
+          [
+            null
+          ]
+        ],
+        "candidate_own_thresholds": [
+          [
+            1.3359907767439287e-06
+          ],
+          [
+            8.479144196254825e-06
+          ],
+          [
+            null
+          ]
+        ],
+        "isolated_threshold": 6.205204907245771e-05,
+        "candidate_status": [
+          [
+            "resolved_refined"
+          ],
+          [
+            "resolved_refined"
+          ],
+          [
+            "right_censored"
+          ]
+        ],
+        "best_channel_unchanged": true,
+        "best_configuration_unchanged": true,
+        "gaps_below_locality_advisory_gap_nm": [
+          0.5
+        ]
+      }
+    ],
+    "carrier_scan_summary": {
+      "rows": [
+        {
+          "carrier_energy_eV": 2.002,
+          "threshold_J_cm2": 2.5352660092712834e-06,
+          "isolated_threshold_J_cm2": 0.00014710800856641135,
+          "ratio_to_isolated": 0.017234044794554794
+        },
+        {
+          "carrier_energy_eV": 2.042,
+          "threshold_J_cm2": 1.350025563523652e-06,
+          "isolated_threshold_J_cm2": 6.167216446349033e-05,
+          "ratio_to_isolated": 0.02189035483460065
+        },
+        {
+          "carrier_energy_eV": 2.082,
+          "threshold_J_cm2": null,
+          "isolated_threshold_J_cm2": 0.0001427247645700913,
+          "ratio_to_isolated": null
+        }
+      ],
+      "best_tested_carrier_eV": 2.042,
+      "best_tested_carrier_is_interior": true,
+      "largest_relative_gain_carrier_eV": 2.002,
+      "note": "figures keep the pre-registered carrier; an edge optimum only bounds the tested range"
+    },
+    "numerical_validation_accepted": true,
+    "ranking_validation": {
+      "accepted": true,
+      "selected_candidate_separated": true,
+      "sensitivity_checks_complete": true,
+      "ranking_preserved_in_tested_sensitivity_cases": true,
+      "selected_candidate_separated_in_sensitivity_cases": true,
+      "relative_numerical_allowance": 0.05,
+      "allowance_definition": "max(declared threshold tolerance, observed refinement changes); conservative resolution allowance, not a statistical confidence interval",
+      "indistinguishable_grid_candidates": [
+        {
+          "channel": "axis_long",
+          "gap_nm": 0.5,
+          "threshold_J_cm2": 1.350025563523652e-06
+        },
+        {
+          "channel": "axis_long",
+          "gap_nm": 0.75,
+          "threshold_J_cm2": 1.478019163695814e-06
+        }
+      ],
+      "recommended_gap_range_nm": [
+        0.5,
+        0.75
+      ],
+      "recommendation_is_a_range": true,
+      "plateau_is_one_contiguous_region_on_the_best_channel": true,
+      "separation_definition": "every candidate outside the resolution plateau is worse than the winner by more than the allowance",
+      "unresolved_potential_competitor_count": 0,
+      "scope": "configured discrete candidates and one-parameter sensitivity cases only; no global or ensemble optimum"
+    },
+    "fig05_fluence_grid_prediction": {
+      "predicted_points": 129,
+      "max_weak_field_gain": 38.04355030586642,
+      "predicted_hybrid_area_step_rad": 0.13834290449285086,
+      "predicted_midpoint_error": 0.004784689805879513,
+      "rule": "dtheta_hybrid = dtheta_isolated*sqrt(max G_exc); midpoint error <= dtheta^2/4; audit remains authoritative"
+    },
+    "fig05_fluence_points": 129,
+    "fluence_material_artifact": "C:\\qdmnp\\results\\article_shah_single\\data\\fig05_material_fluence_88db0a39f6.npz",
+    "selected_fluences": {
+      "linear": 5e-10,
+      "threshold_or_illustration": 1.3500293374109397e-06,
+      "nonlinear_sample": 4.487045648610948e-06,
+      "threshold_status": "resolved"
+    },
+    "weak_field_check": {
+      "accepted": true,
+      "fluence_J_cm2": 5e-10,
+      "max_population": 0.00025135738302123345,
+      "max_relative_change_P_over_F": 2.9215866203429714e-05,
+      "artifacts": [
+        "C:\\qdmnp\\results\\article_shah_single\\data\\check_weak_field_ea1f216998.npz",
+        "C:\\qdmnp\\results\\article_shah_single\\data\\check_weak_field_f75f9ffbb5.npz"
+      ],
+      "includes_isolated_QD": true
+    },
+    "fig03_fig05_threshold_relative_difference": 2.7954191310630705e-06,
+    "supp01_energy_points": 8001
+  },
+  "figures": {
+    "fig01_material": "figures\\fig01_material_2a4d884d1c.png",
+    "fig02a": "figures\\fig02a_b9a1c14bd9.png",
+    "fig02b": "figures\\fig02b_9b3a0a21de.png",
+    "fig02c": "figures\\fig02c_827e67d866.png",
+    "fig02d": "figures\\fig02d_43f3b85e69.png",
+    "fig03a": "figures\\fig03a_476483e9b2.png",
+    "fig03b": "figures\\fig03b_c509b20447.png",
+    "validation_sensitivity": "figures\\validation_sensitivity.png",
+    "validation_carrier": "figures\\validation_carrier.png",
+    "fig04": "figures\\fig04_1db5065a86.png",
+    "fig05": "figures\\fig05_dab96ff222.png",
+    "fig06_near": "figures\\fig06_near_a6c656b1a6.png",
+    "fig06_near_pulse_zoom": "figures\\fig06_near_pulse_zoom_22ce60b62b.png",
+    "fig06_far": "figures\\fig06_far_90c5fc6230.png",
+    "fig06_far_pulse_zoom": "figures\\fig06_far_pulse_zoom_474bf01f16.png",
+    "supp01": "figures\\supp01_f07a40d513.png"
+  }
+}

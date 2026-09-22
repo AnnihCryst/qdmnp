@@ -1,0 +1,210 @@
+{
+  "best_channel": "axis_long",
+  "best_gap_nm": 0.5,
+  "runner_up_channel": "side_trans_radial",
+  "runner_up_gap_nm": 0.5,
+  "control_channel": "axis_trans",
+  "far_gap_nm": 12.0,
+  "resolved_threshold_selected": true,
+  "selection_is_illustration_only": false,
+  "far_point_satisfies_threshold_DD_tolerance": false,
+  "far_gap_role": "largest_admissible_gap_without_dd_agreement",
+  "threshold_dd_validity_gap_nm": null,
+  "threshold_dd_validity_status": "not_established_within_validity",
+  "threshold_dd_validity_supporting_points": 0,
+  "locality_advisory_gap_nm": 1.0,
+  "threshold_gain_below_locality_advisory": 1.2000542610110196,
+  "best_gap_below_locality_advisory": true,
+  "best_gap_at_lower_admissible_bound": true,
+  "best_gap_optimum_kind": "at_smallest_sampled_gap",
+  "best_channel_gap_profile": [
+    {
+      "gap_nm": 0.5,
+      "threshold_J_cm2": 1.350025563523652e-06,
+      "status": "resolved_refined",
+      "admissible": true
+    },
+    {
+      "gap_nm": 0.75,
+      "threshold_J_cm2": 1.478019163695814e-06,
+      "status": "resolved_refined",
+      "admissible": true
+    },
+    {
+      "gap_nm": 1.0,
+      "threshold_J_cm2": 1.6201039299803616e-06,
+      "status": "resolved_refined",
+      "admissible": true
+    },
+    {
+      "gap_nm": 1.5,
+      "threshold_J_cm2": 1.9433539985479648e-06,
+      "status": "resolved_refined",
+      "admissible": true
+    },
+    {
+      "gap_nm": 2.0,
+      "threshold_J_cm2": 2.3164265808373283e-06,
+      "status": "resolved_refined",
+      "admissible": true
+    },
+    {
+      "gap_nm": 3.0,
+      "threshold_J_cm2": 3.2084078233878057e-06,
+      "status": "resolved_refined",
+      "admissible": true
+    },
+    {
+      "gap_nm": 5.0,
+      "threshold_J_cm2": 5.558192850970005e-06,
+      "status": "resolved_refined",
+      "admissible": true
+    },
+    {
+      "gap_nm": 7.0,
+      "threshold_J_cm2": 8.584699964763881e-06,
+      "status": "resolved_refined",
+      "admissible": true
+    },
+    {
+      "gap_nm": 10.0,
+      "threshold_J_cm2": 1.4023597829349995e-05,
+      "status": "resolved_refined",
+      "admissible": true
+    },
+    {
+      "gap_nm": 12.0,
+      "threshold_J_cm2": 1.7949390572130035e-05,
+      "status": "resolved_refined",
+      "admissible": true
+    }
+  ],
+  "control_threshold_status_at_best_gap": "right_censored",
+  "point_qd_field_variation_lower_bound_at_best": 0.34285714285714286,
+  "k_c_at_upper_study_energy": 0.25472948444760124,
+  "k_R_by_channel_gap": [
+    [
+      0.2971843985222014,
+      0.30142988992966147,
+      0.30567538133712147,
+      0.3141663641520415,
+      0.3226573469669615,
+      0.33963931259680163,
+      0.3736032438564818,
+      0.4075671751161619,
+      0.4585130720056822,
+      0.49247700326536237
+    ],
+    [
+      0.2971843985222014,
+      0.30142988992966147,
+      0.30567538133712147,
+      0.3141663641520415,
+      0.3226573469669615,
+      0.33963931259680163,
+      0.3736032438564818,
+      0.4075671751161619,
+      0.4585130720056822,
+      0.49247700326536237
+    ],
+    [
+      0.21227457037300101,
+      0.21652006178046104,
+      0.22076555318792104,
+      0.2292565360028411,
+      0.23774751881776113,
+      0.25472948444760124,
+      0.28869341570728135,
+      0.3226573469669615,
+      0.3736032438564818,
+      0.4075671751161619
+    ],
+    [
+      0.21227457037300101,
+      0.21652006178046104,
+      0.22076555318792104,
+      0.2292565360028411,
+      0.23774751881776113,
+      0.25472948444760124,
+      0.28869341570728135,
+      0.3226573469669615,
+      0.3736032438564818,
+      0.4075671751161619
+    ],
+    [
+      0.21227457037300101,
+      0.21652006178046104,
+      0.22076555318792104,
+      0.2292565360028411,
+      0.23774751881776113,
+      0.25472948444760124,
+      0.28869341570728135,
+      0.3226573469669615,
+      0.3736032438564818,
+      0.4075671751161619
+    ]
+  ],
+  "selection_allowed_by_declared_retardation_cutoffs": [
+    [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ],
+    [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ],
+    [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ],
+    [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ],
+    [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  ],
+  "physical_scope": "conditional point-QD/local-QS result; declared k cutoffs do not validate finite-QD or nonlocal physics"
+}

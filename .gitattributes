@@ -1,0 +1,2 @@
+# Preserve archived results byte-for-byte, including logs and JSON metadata.
+/results/article_single_mnp/** -text whitespace=cr-at-eol

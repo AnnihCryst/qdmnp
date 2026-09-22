@@ -1,7 +1,7 @@
 # Сверка статьи, математических ядер и выполненного расчёта
 
 Дата: 22 сентября 2026 г. Исходное состояние репозитория: `faf375b`.
-Проверен **сохранённый полный прогон** `results/article_shah_single`, а не
+Проверен **сохранённый полный прогон** `results/article_single_mnp`, а не
 только рисунки или старые протоколы. Математические ядра, входные численные
 значения, NPZ и опубликованные в каталоге рукописи PNG не изменены.
 Исправлены описание модели, интерпретация результатов и ссылки на источники.
@@ -31,7 +31,7 @@
 Численная таблица сверки создаётся без новых решений ОДУ:
 
 ```powershell
-.\.venv\Scripts\python.exe -m qdmnp.observables.plot_excitation_gain_gap results\article_shah_single\data\fig02_master_52d4018a47.npz --gain-kind fixed --dpi 200 --output results\manuscript_audit\fig02e.png
+.\.venv\Scripts\python.exe -m qdmnp.observables.plot_excitation_gain_gap results\article_single_mnp\data\fig02_master_52d4018a47.npz --gain-kind fixed --dpi 200 --output results\manuscript_audit\fig02e.png
 .\.venv\Scripts\python.exe scripts\audit_manuscript_results.py --rebuilt-fixed-gain results\manuscript_audit\fig02e.png
 ```
 

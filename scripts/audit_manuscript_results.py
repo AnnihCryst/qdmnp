@@ -168,7 +168,7 @@ def audit(directory, manuscript, extra_figure=None):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--results", type=Path, default=ROOT/"results/article_shah_single")
+    parser.add_argument("--results", type=Path, default=ROOT/"results/article_single_mnp")
     parser.add_argument("--manuscript", type=Path, default=ROOT/"manuscript")
     parser.add_argument("--rebuilt-fixed-gain", type=Path)
     parser.add_argument("--output", type=Path, default=ROOT/"results/manuscript_audit/evidence.json")

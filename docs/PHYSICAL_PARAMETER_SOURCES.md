@@ -2,7 +2,7 @@
 
 Сверка 22 сентября 2026 г. Значения относятся к
 [inputs/ARTICLE_INPUTS.toml](../inputs/ARTICLE_INPUTS.toml) и сохранённому
-прогону `results/article_shah_single`. Численные входы при сверке не менялись.
+прогону `results/article_single_mnp`. Численные входы при сверке не менялись.
 Ссылки добавлены непосредственно к соответствующим утверждениям в
 [методах статьи](../manuscript/methods.tex) и в
 [списке литературы](../manuscript/references.tex).

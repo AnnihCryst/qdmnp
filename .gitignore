@@ -1,7 +1,9 @@
 .venv/
 __pycache__/
 *.py[cod]
-/results/ 
+# Keep the completed article run; ignore scratch and future run directories.
+/results/*
+!/results/article_single_mnp/
 /articles/
 *.egg-info/
 build/

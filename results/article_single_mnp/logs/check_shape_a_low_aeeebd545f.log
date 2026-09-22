@@ -1,0 +1,2 @@
+C:\qdmnp\src\qdmnp\observables\calculate_excitation_spectrum_material_comparison.py:476: RuntimeWarning: The one-oscillator material fit is retained as the deliberately low-accuracy comparison for axis_long: NRMS(alpha)=0.748627, NRMS(1/alpha)=0.53911, max normalized alpha error=0.931596. Passivity and stability were still enforced.
+  _warn_if_one_fit_is_inaccurate(one_bright, spec, args)

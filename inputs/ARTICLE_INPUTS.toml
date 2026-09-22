@@ -1,8 +1,9 @@
-# One-MNP adaptation of Shah et al., Phys. Rev. B 88, 075411 (2013).
+# DD/FQS article scenario: one QD and one gold spheroid.
+# Baseline physical parameters adapted from Shah et al., PRB 88, 075411 (2013).
 # This is a complete runnable scenario, not a reproduction of the Au-QD-Au dimer.
 # Every dimensional key states its unit. No Gaussian/CGS field units are used.
 schema_version = 1
-scenario = "shah_single_mnp"
+scenario = "article_single_mnp"
 source_url = "https://arxiv.org/pdf/1304.4538"
 source_local = "shah2013_agent/article.md"
 
@@ -208,5 +209,5 @@ fermi_velocity_m_s = 1.40e6
 surface_scattering_A = [0.3, 1.0]
 
 [output]
-directory = "results/article_shah_single"
+directory = "results/article_single_mnp"
 dpi = 180

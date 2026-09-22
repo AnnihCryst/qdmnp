@@ -1,0 +1,217 @@
+Building pulse DD/FQS axis_long, gap=0.5 nm ...
+Building pulse DD/FQS axis_long, gap=0.75 nm ...
+Building pulse DD/FQS axis_long, gap=1 nm ...
+Building pulse DD/FQS axis_long, gap=1.5 nm ...
+Building pulse DD/FQS axis_long, gap=2 nm ...
+Building pulse DD/FQS axis_long, gap=3 nm ...
+Building pulse DD/FQS axis_long, gap=5 nm ...
+Building pulse DD/FQS axis_long, gap=7 nm ...
+Building pulse DD/FQS axis_long, gap=10 nm ...
+Building pulse DD/FQS axis_long, gap=12 nm ...
+Building pulse DD/FQS axis_trans, gap=0.5 nm ...
+Building pulse DD/FQS axis_trans, gap=0.75 nm ...
+Building pulse DD/FQS axis_trans, gap=1 nm ...
+Building pulse DD/FQS axis_trans, gap=1.5 nm ...
+Building pulse DD/FQS axis_trans, gap=2 nm ...
+Building pulse DD/FQS axis_trans, gap=3 nm ...
+Building pulse DD/FQS axis_trans, gap=5 nm ...
+Building pulse DD/FQS axis_trans, gap=7 nm ...
+Building pulse DD/FQS axis_trans, gap=10 nm ...
+Building pulse DD/FQS axis_trans, gap=12 nm ...
+Building pulse DD/FQS side_long, gap=0.5 nm ...
+Building pulse DD/FQS side_long, gap=0.75 nm ...
+Building pulse DD/FQS side_long, gap=1 nm ...
+Building pulse DD/FQS side_long, gap=1.5 nm ...
+Building pulse DD/FQS side_long, gap=2 nm ...
+Building pulse DD/FQS side_long, gap=3 nm ...
+Building pulse DD/FQS side_long, gap=5 nm ...
+Building pulse DD/FQS side_long, gap=7 nm ...
+Building pulse DD/FQS side_long, gap=10 nm ...
+Building pulse DD/FQS side_long, gap=12 nm ...
+Building pulse DD/FQS side_trans_radial, gap=0.5 nm ...
+Building pulse DD/FQS side_trans_radial, gap=0.75 nm ...
+Building pulse DD/FQS side_trans_radial, gap=1 nm ...
+Building pulse DD/FQS side_trans_radial, gap=1.5 nm ...
+Building pulse DD/FQS side_trans_radial, gap=2 nm ...
+Building pulse DD/FQS side_trans_radial, gap=3 nm ...
+Building pulse DD/FQS side_trans_radial, gap=5 nm ...
+Building pulse DD/FQS side_trans_radial, gap=7 nm ...
+Building pulse DD/FQS side_trans_radial, gap=10 nm ...
+Building pulse DD/FQS side_trans_radial, gap=12 nm ...
+Building pulse DD/FQS side_trans_tangential, gap=0.5 nm ...
+Building pulse DD/FQS side_trans_tangential, gap=0.75 nm ...
+Building pulse DD/FQS side_trans_tangential, gap=1 nm ...
+Building pulse DD/FQS side_trans_tangential, gap=1.5 nm ...
+Building pulse DD/FQS side_trans_tangential, gap=2 nm ...
+Building pulse DD/FQS side_trans_tangential, gap=3 nm ...
+Building pulse DD/FQS side_trans_tangential, gap=5 nm ...
+Building pulse DD/FQS side_trans_tangential, gap=7 nm ...
+Building pulse DD/FQS side_trans_tangential, gap=10 nm ...
+Building pulse DD/FQS side_trans_tangential, gap=12 nm ...
+[1/65] fluence=5.000000e-10 J/cm^2
+[2/65] fluence=5.904033e-08 J/cm^2
+[3/65] fluence=2.149283e-07 J/cm^2
+[4/65] fluence=4.681640e-07 J/cm^2
+[5/65] fluence=8.187474e-07 J/cm^2
+[6/65] fluence=1.266678e-06 J/cm^2
+[7/65] fluence=1.811957e-06 J/cm^2
+[8/65] fluence=2.454584e-06 J/cm^2
+[9/65] fluence=3.194558e-06 J/cm^2
+[10/65] fluence=4.031879e-06 J/cm^2
+[11/65] fluence=4.966549e-06 J/cm^2
+[12/65] fluence=5.998566e-06 J/cm^2
+[13/65] fluence=7.127931e-06 J/cm^2
+[14/65] fluence=8.354643e-06 J/cm^2
+[15/65] fluence=9.678703e-06 J/cm^2
+[16/65] fluence=1.110011e-05 J/cm^2
+[17/65] fluence=1.261887e-05 J/cm^2
+[18/65] fluence=1.423497e-05 J/cm^2
+[19/65] fluence=1.594842e-05 J/cm^2
+[20/65] fluence=1.775922e-05 J/cm^2
+[21/65] fluence=1.966737e-05 J/cm^2
+[22/65] fluence=2.167286e-05 J/cm^2
+[23/65] fluence=2.377570e-05 J/cm^2
+[24/65] fluence=2.597589e-05 J/cm^2
+[25/65] fluence=2.827343e-05 J/cm^2
+[26/65] fluence=3.066831e-05 J/cm^2
+[27/65] fluence=3.316054e-05 J/cm^2
+[28/65] fluence=3.575012e-05 J/cm^2
+[29/65] fluence=3.843705e-05 J/cm^2
+[30/65] fluence=4.122133e-05 J/cm^2
+[31/65] fluence=4.410295e-05 J/cm^2
+[32/65] fluence=4.708192e-05 J/cm^2
+[33/65] fluence=5.015824e-05 J/cm^2
+[34/65] fluence=5.333190e-05 J/cm^2
+[35/65] fluence=5.660292e-05 J/cm^2
+[36/65] fluence=5.997128e-05 J/cm^2
+[37/65] fluence=6.343699e-05 J/cm^2
+[38/65] fluence=6.700005e-05 J/cm^2
+[39/65] fluence=7.066045e-05 J/cm^2
+[40/65] fluence=7.441820e-05 J/cm^2
+[41/65] fluence=7.827330e-05 J/cm^2
+[42/65] fluence=8.222575e-05 J/cm^2
+[43/65] fluence=8.627554e-05 J/cm^2
+[44/65] fluence=9.042269e-05 J/cm^2
+[45/65] fluence=9.466718e-05 J/cm^2
+[46/65] fluence=9.900902e-05 J/cm^2
+[47/65] fluence=1.034482e-04 J/cm^2
+[48/65] fluence=1.079847e-04 J/cm^2
+[49/65] fluence=1.126186e-04 J/cm^2
+[50/65] fluence=1.173498e-04 J/cm^2
+[51/65] fluence=1.221784e-04 J/cm^2
+[52/65] fluence=1.271043e-04 J/cm^2
+[53/65] fluence=1.321276e-04 J/cm^2
+[54/65] fluence=1.372482e-04 J/cm^2
+[55/65] fluence=1.424662e-04 J/cm^2
+[56/65] fluence=1.477815e-04 J/cm^2
+[57/65] fluence=1.531942e-04 J/cm^2
+[58/65] fluence=1.587042e-04 J/cm^2
+[59/65] fluence=1.643116e-04 J/cm^2
+[60/65] fluence=1.700163e-04 J/cm^2
+[61/65] fluence=1.758183e-04 J/cm^2
+[62/65] fluence=1.817177e-04 J/cm^2
+[63/65] fluence=1.877145e-04 J/cm^2
+[64/65] fluence=1.938086e-04 J/cm^2
+[65/65] fluence=2.000000e-04 J/cm^2
+Threshold search: 100 curves on 30 worker processes.
+[1/100] FQS axis_long, gap=0.5 nm: resolved_refined, F_eta=1.350026e-06 J/cm^2, solves=9
+[2/100] FQS axis_long, gap=0.75 nm: resolved_refined, F_eta=1.478019e-06 J/cm^2, solves=9
+[3/100] FQS axis_long, gap=1 nm: resolved_refined, F_eta=1.620104e-06 J/cm^2, solves=9
+[4/100] FQS axis_long, gap=1.5 nm: resolved_refined, F_eta=1.943354e-06 J/cm^2, solves=9
+[5/100] FQS axis_long, gap=2 nm: resolved_refined, F_eta=2.316427e-06 J/cm^2, solves=9
+[6/100] FQS axis_long, gap=3 nm: resolved_refined, F_eta=3.208408e-06 J/cm^2, solves=9
+[7/100] FQS axis_long, gap=5 nm: resolved_refined, F_eta=5.558193e-06 J/cm^2, solves=9
+[8/100] FQS axis_long, gap=7 nm: resolved_refined, F_eta=8.584700e-06 J/cm^2, solves=9
+[9/100] FQS axis_long, gap=10 nm: resolved_refined, F_eta=1.402360e-05 J/cm^2, solves=9
+[10/100] FQS axis_long, gap=12 nm: resolved_refined, F_eta=1.794939e-05 J/cm^2, solves=9
+[11/100] FQS axis_trans, gap=0.5 nm: right_censored, F_eta=nan J/cm^2, solves=3
+[12/100] FQS axis_trans, gap=0.75 nm: right_censored, F_eta=nan J/cm^2, solves=3
+[13/100] FQS axis_trans, gap=1 nm: right_censored, F_eta=nan J/cm^2, solves=4
+[14/100] FQS axis_trans, gap=1.5 nm: right_censored, F_eta=nan J/cm^2, solves=4
+[15/100] FQS axis_trans, gap=2 nm: right_censored, F_eta=nan J/cm^2, solves=5
+[16/100] FQS axis_trans, gap=3 nm: right_censored, F_eta=nan J/cm^2, solves=6
+[17/100] FQS axis_trans, gap=5 nm: resolved_refined, F_eta=1.363892e-04 J/cm^2, solves=9
+[18/100] FQS axis_trans, gap=7 nm: resolved_refined, F_eta=1.058888e-04 J/cm^2, solves=9
+[19/100] FQS axis_trans, gap=10 nm: resolved_refined, F_eta=8.650093e-05 J/cm^2, solves=9
+[20/100] FQS axis_trans, gap=12 nm: resolved_refined, F_eta=7.993397e-05 J/cm^2, solves=9
+[21/100] FQS side_long, gap=0.5 nm: resolved_refined, F_eta=2.107132e-05 J/cm^2, solves=10
+[22/100] FQS side_long, gap=0.75 nm: resolved_refined, F_eta=2.375855e-05 J/cm^2, solves=10
+[23/100] FQS side_long, gap=1 nm: resolved_refined, F_eta=2.688687e-05 J/cm^2, solves=10
+[24/100] FQS side_long, gap=1.5 nm: resolved_refined, F_eta=3.472332e-05 J/cm^2, solves=10
+[25/100] FQS side_long, gap=2 nm: resolved_refined, F_eta=4.526518e-05 J/cm^2, solves=10
+[26/100] FQS side_long, gap=3 nm: resolved_refined, F_eta=7.894822e-05 J/cm^2, solves=9
+[27/100] FQS side_long, gap=5 nm: right_censored, F_eta=nan J/cm^2, solves=6
+[28/100] FQS side_long, gap=7 nm: right_censored, F_eta=nan J/cm^2, solves=5
+[29/100] FQS side_long, gap=10 nm: right_censored, F_eta=nan J/cm^2, solves=5
+[30/100] FQS side_long, gap=12 nm: right_censored, F_eta=nan J/cm^2, solves=6
+[31/100] FQS side_trans_radial, gap=0.5 nm: resolved_refined, F_eta=8.500552e-06 J/cm^2, solves=9
+[32/100] FQS side_trans_radial, gap=0.75 nm: resolved_refined, F_eta=8.924520e-06 J/cm^2, solves=9
+[33/100] FQS side_trans_radial, gap=1 nm: resolved_refined, F_eta=9.388259e-06 J/cm^2, solves=9
+[34/100] FQS side_trans_radial, gap=1.5 nm: resolved_refined, F_eta=1.040161e-05 J/cm^2, solves=9
+[35/100] FQS side_trans_radial, gap=2 nm: resolved_refined, F_eta=1.149848e-05 J/cm^2, solves=9
+[36/100] FQS side_trans_radial, gap=3 nm: resolved_refined, F_eta=1.386292e-05 J/cm^2, solves=9
+[37/100] FQS side_trans_radial, gap=5 nm: resolved_refined, F_eta=1.896438e-05 J/cm^2, solves=9
+[38/100] FQS side_trans_radial, gap=7 nm: resolved_refined, F_eta=2.415735e-05 J/cm^2, solves=9
+[39/100] FQS side_trans_radial, gap=10 nm: resolved_refined, F_eta=3.141582e-05 J/cm^2, solves=9
+[40/100] FQS side_trans_radial, gap=12 nm: resolved_refined, F_eta=3.565488e-05 J/cm^2, solves=9
+[41/100] FQS side_trans_tangential, gap=0.5 nm: right_censored, F_eta=nan J/cm^2, solves=2
+[42/100] FQS side_trans_tangential, gap=0.75 nm: right_censored, F_eta=nan J/cm^2, solves=2
+[43/100] FQS side_trans_tangential, gap=1 nm: right_censored, F_eta=nan J/cm^2, solves=2
+[44/100] FQS side_trans_tangential, gap=1.5 nm: right_censored, F_eta=nan J/cm^2, solves=3
+[45/100] FQS side_trans_tangential, gap=2 nm: right_censored, F_eta=nan J/cm^2, solves=4
+[46/100] FQS side_trans_tangential, gap=3 nm: right_censored, F_eta=nan J/cm^2, solves=5
+[47/100] FQS side_trans_tangential, gap=5 nm: resolved_refined, F_eta=1.994612e-04 J/cm^2, solves=8
+[48/100] FQS side_trans_tangential, gap=7 nm: resolved_refined, F_eta=1.353204e-04 J/cm^2, solves=9
+[49/100] FQS side_trans_tangential, gap=10 nm: resolved_refined, F_eta=9.983617e-05 J/cm^2, solves=9
+[50/100] FQS side_trans_tangential, gap=12 nm: resolved_refined, F_eta=8.880552e-05 J/cm^2, solves=9
+[51/100] DD axis_long, gap=0.5 nm: resolved_refined, F_eta=3.410268e-06 J/cm^2, solves=9
+[52/100] DD axis_long, gap=0.75 nm: resolved_refined, F_eta=3.637853e-06 J/cm^2, solves=9
+[53/100] DD axis_long, gap=1 nm: resolved_refined, F_eta=3.874972e-06 J/cm^2, solves=9
+[54/100] DD axis_long, gap=1.5 nm: resolved_refined, F_eta=4.377850e-06 J/cm^2, solves=9
+[55/100] DD axis_long, gap=2 nm: resolved_refined, F_eta=4.918767e-06 J/cm^2, solves=9
+[56/100] DD axis_long, gap=3 nm: resolved_refined, F_eta=6.112524e-06 J/cm^2, solves=9
+[57/100] DD axis_long, gap=5 nm: resolved_refined, F_eta=8.915218e-06 J/cm^2, solves=9
+[58/100] DD axis_long, gap=7 nm: resolved_refined, F_eta=1.217308e-05 J/cm^2, solves=9
+[59/100] DD axis_long, gap=10 nm: resolved_refined, F_eta=1.757609e-05 J/cm^2, solves=9
+[60/100] DD axis_long, gap=12 nm: resolved_refined, F_eta=2.129056e-05 J/cm^2, solves=9
+[61/100] DD axis_trans, gap=0.5 nm: right_censored, F_eta=nan J/cm^2, solves=6
+[62/100] DD axis_trans, gap=0.75 nm: resolved_refined, F_eta=1.940639e-04 J/cm^2, solves=9
+[63/100] DD axis_trans, gap=1 nm: resolved_refined, F_eta=1.823599e-04 J/cm^2, solves=9
+[64/100] DD axis_trans, gap=1.5 nm: resolved_refined, F_eta=1.633864e-04 J/cm^2, solves=9
+[65/100] DD axis_trans, gap=2 nm: resolved_refined, F_eta=1.487511e-04 J/cm^2, solves=9
+[66/100] DD axis_trans, gap=3 nm: resolved_refined, F_eta=1.278590e-04 J/cm^2, solves=9
+[67/100] DD axis_trans, gap=5 nm: resolved_refined, F_eta=1.039310e-04 J/cm^2, solves=9
+[68/100] DD axis_trans, gap=7 nm: resolved_refined, F_eta=9.104788e-05 J/cm^2, solves=9
+[69/100] DD axis_trans, gap=10 nm: resolved_refined, F_eta=8.043048e-05 J/cm^2, solves=9
+[70/100] DD axis_trans, gap=12 nm: resolved_refined, F_eta=7.620014e-05 J/cm^2, solves=9
+[71/100] DD side_long, gap=0.5 nm: resolved_refined, F_eta=4.737023e-06 J/cm^2, solves=9
+[72/100] DD side_long, gap=0.75 nm: resolved_refined, F_eta=5.482292e-06 J/cm^2, solves=9
+[73/100] DD side_long, gap=1 nm: resolved_refined, F_eta=6.342761e-06 J/cm^2, solves=9
+[74/100] DD side_long, gap=1.5 nm: resolved_refined, F_eta=8.485682e-06 J/cm^2, solves=9
+[75/100] DD side_long, gap=2 nm: resolved_refined, F_eta=1.135427e-05 J/cm^2, solves=9
+[76/100] DD side_long, gap=3 nm: resolved_refined, F_eta=2.042881e-05 J/cm^2, solves=9
+[77/100] DD side_long, gap=5 nm: resolved_refined, F_eta=6.985806e-05 J/cm^2, solves=10
+[78/100] DD side_long, gap=7 nm: right_censored, F_eta=nan J/cm^2, solves=6
+[79/100] DD side_long, gap=10 nm: right_censored, F_eta=nan J/cm^2, solves=5
+[80/100] DD side_long, gap=12 nm: right_censored, F_eta=nan J/cm^2, solves=5
+[81/100] DD side_trans_radial, gap=0.5 nm: resolved_refined, F_eta=5.027660e-06 J/cm^2, solves=9
+[82/100] DD side_trans_radial, gap=0.75 nm: resolved_refined, F_eta=5.465418e-06 J/cm^2, solves=9
+[83/100] DD side_trans_radial, gap=1 nm: resolved_refined, F_eta=5.923767e-06 J/cm^2, solves=9
+[84/100] DD side_trans_radial, gap=1.5 nm: resolved_refined, F_eta=6.900221e-06 J/cm^2, solves=9
+[85/100] DD side_trans_radial, gap=2 nm: resolved_refined, F_eta=7.952113e-06 J/cm^2, solves=9
+[86/100] DD side_trans_radial, gap=3 nm: resolved_refined, F_eta=1.025660e-05 J/cm^2, solves=9
+[87/100] DD side_trans_radial, gap=5 nm: resolved_refined, F_eta=1.544748e-05 J/cm^2, solves=9
+[88/100] DD side_trans_radial, gap=7 nm: resolved_refined, F_eta=2.096861e-05 J/cm^2, solves=9
+[89/100] DD side_trans_radial, gap=10 nm: resolved_refined, F_eta=2.891265e-05 J/cm^2, solves=9
+[90/100] DD side_trans_radial, gap=12 nm: resolved_refined, F_eta=3.360738e-05 J/cm^2, solves=9
+[91/100] DD side_trans_tangential, gap=0.5 nm: right_censored, F_eta=nan J/cm^2, solves=4
+[92/100] DD side_trans_tangential, gap=0.75 nm: right_censored, F_eta=nan J/cm^2, solves=3
+[93/100] DD side_trans_tangential, gap=1 nm: right_censored, F_eta=nan J/cm^2, solves=3
+[94/100] DD side_trans_tangential, gap=1.5 nm: right_censored, F_eta=nan J/cm^2, solves=2
+[95/100] DD side_trans_tangential, gap=2 nm: right_censored, F_eta=nan J/cm^2, solves=3
+[96/100] DD side_trans_tangential, gap=3 nm: right_censored, F_eta=nan J/cm^2, solves=4
+[97/100] DD side_trans_tangential, gap=5 nm: right_censored, F_eta=nan J/cm^2, solves=6
+[98/100] DD side_trans_tangential, gap=7 nm: resolved_refined, F_eta=1.487511e-04 J/cm^2, solves=9
+[99/100] DD side_trans_tangential, gap=10 nm: resolved_refined, F_eta=1.039310e-04 J/cm^2, solves=9
+[100/100] DD side_trans_tangential, gap=12 nm: resolved_refined, F_eta=9.104788e-05 J/cm^2, solves=9
+Saved DD/FQS threshold-fluence artifact: C:\qdmnp\results\article_shah_single\data\fig03_master_a146b63990.npz

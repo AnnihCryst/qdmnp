@@ -1,0 +1,21 @@
+C:\qdmnp\src\qdmnp\observables\calculate_excitation_spectrum_material_comparison.py:476: RuntimeWarning: The one-oscillator material fit is retained as the deliberately low-accuracy comparison for axis_long: NRMS(alpha)=0.6955, NRMS(1/alpha)=0.516092, max normalized alpha error=0.871001. Passivity and stability were still enforced.
+  _warn_if_one_fit_is_inaccurate(one_bright, spec, args)
+C:\qdmnp\src\qdmnp\observables\calculate_excitation_spectrum_material_comparison.py:328: RuntimeWarning: The transformed common-material realization does not meet the full-QS modal accuracy/passivity gate: max NRMS=0.69543, max relative=0.87038, K NRMS=0.37758, K max relative=0.48571, passive=True.
+  return FullQSSpheroidPulseModel(
+C:\qdmnp\src\qdmnp\observables\calculate_excitation_spectrum_material_comparison.py:476: RuntimeWarning: The one-oscillator material fit is retained as the deliberately low-accuracy comparison for axis_trans: NRMS(alpha)=0.439942, NRMS(1/alpha)=0.37055, max normalized alpha error=0.582185. Passivity and stability were still enforced.
+  _warn_if_one_fit_is_inaccurate(one_bright, spec, args)
+C:\qdmnp\src\qdmnp\observables\calculate_excitation_spectrum_material_comparison.py:328: RuntimeWarning: The transformed common-material realization does not meet the full-QS modal accuracy/passivity gate: max NRMS=0.4398, max relative=0.58176, K NRMS=0.36169, K max relative=0.48994, passive=True.
+  return FullQSSpheroidPulseModel(
+C:\qdmnp\src\qdmnp\observables\calculate_excitation_spectrum_material_comparison.py:476: RuntimeWarning: The one-oscillator material fit is retained as the deliberately low-accuracy comparison for side_long: NRMS(alpha)=0.6955, NRMS(1/alpha)=0.516092, max normalized alpha error=0.871001. Passivity and stability were still enforced.
+  _warn_if_one_fit_is_inaccurate(one_bright, spec, args)
+C:\qdmnp\src\qdmnp\observables\calculate_excitation_spectrum_material_comparison.py:328: RuntimeWarning: The transformed common-material realization does not meet the full-QS modal accuracy/passivity gate: max NRMS=0.69543, max relative=0.87038, K NRMS=0.34635, K max relative=0.46165, passive=True.
+  return FullQSSpheroidPulseModel(
+C:\qdmnp\src\qdmnp\observables\calculate_excitation_spectrum_material_comparison.py:476: RuntimeWarning: The one-oscillator material fit is retained as the deliberately low-accuracy comparison for side_trans_radial: NRMS(alpha)=0.439942, NRMS(1/alpha)=0.37055, max normalized alpha error=0.582185. Passivity and stability were still enforced.
+  _warn_if_one_fit_is_inaccurate(one_bright, spec, args)
+C:\qdmnp\src\qdmnp\observables\calculate_excitation_spectrum_material_comparison.py:328: RuntimeWarning: The transformed common-material realization does not meet the full-QS modal accuracy/passivity gate: max NRMS=0.4884, max relative=0.63629, K NRMS=0.34525, K max relative=0.46887, passive=True.
+  return FullQSSpheroidPulseModel(
+C:\qdmnp\src\qdmnp\observables\calculate_excitation_spectrum_material_comparison.py:476: RuntimeWarning: The one-oscillator material fit is retained as the deliberately low-accuracy comparison for side_trans_tangential: NRMS(alpha)=0.439942, NRMS(1/alpha)=0.37055, max normalized alpha error=0.582185. Passivity and stability were still enforced.
+  _warn_if_one_fit_is_inaccurate(one_bright, spec, args)
+C:\qdmnp\src\qdmnp\observables\calculate_excitation_spectrum_material_comparison.py:328: RuntimeWarning: The transformed common-material realization does not meet the full-QS modal accuracy/passivity gate: max NRMS=0.4398, max relative=0.58176, K NRMS=0.33478, K max relative=0.45785, passive=True.
+  return FullQSSpheroidPulseModel(
+Saved qd_mnp.material_excitation_spectrum_comparison v2: C:\qdmnp\results\article_shah_single\data\check_shape_c_low_d1e3ddd54b.npz
