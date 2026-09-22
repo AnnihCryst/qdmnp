@@ -1,9 +1,8 @@
 .venv/
 __pycache__/
 *.py[cod]
-# Keep the completed article run; ignore scratch and future run directories.
+# Keep generated results local on this calculation branch.
 /results/*
-!/results/article_single_mnp/
 /articles/
 *.egg-info/
 build/
