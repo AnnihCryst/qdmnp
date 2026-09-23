@@ -34,6 +34,7 @@ if str(PACKAGE_ROOT.parent) not in sys.path:
 import numpy as np
 from qdmnp.observables.fit_options import add_fit_refinement_argument
 import scipy
+from scipy.integrate import simpson
 
 from qdmnp.observables.calculate_work_loss_fluence import (
     ARTICLE_CHANNELS,
@@ -41,6 +42,7 @@ from qdmnp.observables.calculate_work_loss_fluence import (
     _bare_mnp_pulse_work_spectral_average,
     _build_channel_model,
     _channel_metadata,
+    _prefix_energy_transfer_cm2,
     _prefix_with_endpoint,
     pulse_for_fluence,
 )
@@ -152,7 +154,13 @@ def _fourier_integral_grid(
     *,
     chunk_size: int = 32,
 ) -> np.ndarray:
-    """Return integral signal(t) exp(+i omega t) dt on a bounded grid."""
+    """Return integral signal(t) exp(+i omega t) dt on a bounded grid.
+
+    Composite Simpson quadrature also handles nonuniform solver output.
+    Trapezoidal error on adaptive steps can overwhelm the Gaussian wings even
+    when the maximum time step resolves the carrier and the ODE is converged.
+    The numerical incident transform is still checked against its exact value.
+    """
 
     time = np.asarray(time_au, dtype=float)
     values = np.asarray(signal, dtype=float)
@@ -176,9 +184,9 @@ def _fourier_integral_grid(
     for start in range(0, energy.size, chunk_size):
         stop = min(start + chunk_size, energy.size)
         phase = np.exp(1j * omega[start:stop, None] * time[None, :])
-        transformed[start:stop] = np.trapezoid(
+        transformed[start:stop] = simpson(
             phase * values[None, :],
-            time,
+            x=time,
             axis=1,
         )
     return transformed
@@ -273,9 +281,6 @@ def _spectrum_window_audit(
         time_half, mu_half = _prefix_with_endpoint(
             result.t_au, result.mu_total_au, cutoff
         )
-        _, mu_dot_half = _prefix_with_endpoint(
-            result.t_au, result.mu_dot_total_au, cutoff
-        )
         half_result = argparse.Namespace(t_au=time_half, mu_total_au=mu_half)
         alpha_half, *_ = spectral_effective_alpha_grid(
             half_result,
@@ -290,13 +295,7 @@ def _spectrum_window_audit(
             ).quasistatic_work_loss_cm2,
             dtype=float,
         )
-        incident_half = np.asarray(pulse.field(time_half), dtype=float)
-        work_half_au = float(np.trapezoid(incident_half * mu_dot_half, time_half))
-        sigma_energy_half = float(
-            work_half_au
-            * AU_ENERGY_J
-            / pulse.fluence_j_cm2(eps_m=eps_m)
-        )
+        sigma_energy_half = _prefix_energy_transfer_cm2(result, pulse, eps_m, cutoff)
 
     supported = np.asarray(support, dtype=bool)
     if np.any(supported) and np.all(np.isfinite(sigma_half[supported])):
@@ -1336,6 +1335,11 @@ def calculate_payload(
             ),
         },
         "observable_definitions": {
+            "fourier_quadrature": "composite Simpson on the saved nonuniform time grid",
+            "energy_window_audit": (
+                "W_inc(T/2)/F and W_inc(T)/F from the same ODE work accumulator; "
+                "the accumulator is linearly interpolated at T/2"
+            ),
             "alpha_eff": "mu_total(E)/(eps_m E_inc(E)) from the nonlinear pulse trace",
             "sigma_qs_work_cm2": "k(E) Im(alpha_eff(E;F))/epsilon_0",
             "delta_sigma_qs_work_cm2": "hybrid minus bare-MNP result for the same branch/channel",

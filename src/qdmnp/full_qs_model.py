@@ -296,6 +296,15 @@ class FullQSSolveResult:
     diagnostics: FullQSSolveDiagnostics
 
     @property
+    def accumulated_work_au(self) -> np.ndarray:
+        """External work at each saved time, integrated as the last ODE state.
+
+        Use this history for window audits of W/F: re-integrating the sampled
+        dipole derivative mixes quadrature error with time-window truncation.
+        """
+        return self.y[-1]
+
+    @property
     def max_bloch_radius(self) -> float:
         return self.diagnostics.max_bloch_radius
 

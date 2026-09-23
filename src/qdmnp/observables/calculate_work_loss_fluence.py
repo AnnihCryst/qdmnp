@@ -284,6 +284,31 @@ def _prefix_with_endpoint(
     return prefix_time, prefix_signal
 
 
+def _prefix_energy_transfer_cm2(
+    result: object,
+    pulse: GaussianPulse,
+    eps_m: float,
+    cutoff_au: float,
+) -> float:
+    """Evaluate prefix W/F with the same estimator as the full result.
+
+    FQS integrates work as an ODE state; interpolate that accumulator at the
+    cutoff instead of applying lower-order quadrature to adaptive output nodes.
+    Legacy DD results have no accumulator and use sampled trapezoidal work for
+    both the full and truncated windows. The incident fluence stays unchanged.
+    """
+    work_history = getattr(result, "accumulated_work_au", None)
+    if work_history is not None:
+        _, work = _prefix_with_endpoint(result.t_au, work_history, cutoff_au)
+        work_au = float(work[-1])
+    else:
+        time, mu_dot = _prefix_with_endpoint(
+            result.t_au, result.mu_dot_total_au, cutoff_au
+        )
+        work_au = float(np.trapezoid(pulse.field(time) * mu_dot, time))
+    return float(work_au * AU_ENERGY_J / pulse.fluence_j_cm2(eps_m=eps_m))
+
+
 def _half_window_observables(
     result: object,
     pulse: GaussianPulse,
@@ -296,17 +321,13 @@ def _half_window_observables(
     if cutoff <= 8.0 * pulse.sigma_t_au:
         return complex(np.nan, np.nan), float("nan")
     time, mu_total = _prefix_with_endpoint(result.t_au, result.mu_total_au, cutoff)
-    _, mu_dot = _prefix_with_endpoint(result.t_au, result.mu_dot_total_au, cutoff)
     phase = np.exp(1j * pulse.omegaL_au * time)
     incident = pulse.field(time)
     e_omega = np.trapezoid(incident * phase, time)
     if abs(e_omega) < 1.0e-30:
         return complex(np.nan, np.nan), float("nan")
     alpha = complex(np.trapezoid(mu_total * phase, time) / (eps_m * e_omega))
-    work_au = float(np.trapezoid(incident * mu_dot, time))
-    sigma_energy = (
-        work_au * AU_ENERGY_J / pulse.fluence_j_cm2(eps_m=eps_m)
-    )
+    sigma_energy = _prefix_energy_transfer_cm2(result, pulse, eps_m, cutoff)
     return alpha, float(sigma_energy)
 
 

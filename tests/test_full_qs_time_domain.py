@@ -779,6 +779,11 @@ class FullQSPulseTests(unittest.TestCase):
             self.result.t_au,
         )
         work_accumulator_au = self.result.work_from_incident_field_j / AU_ENERGY_J
+        self.assertEqual(self.result.accumulated_work_au.shape, self.result.t_au.shape)
+        self.assertFalse(self.result.accumulated_work_au.flags.writeable)
+        self.assertAlmostEqual(
+            self.result.accumulated_work_au[-1], work_accumulator_au, places=20
+        )
         self.assertTrue(
             np.isclose(
                 work_quadrature_au,

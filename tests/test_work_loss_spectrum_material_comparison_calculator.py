@@ -12,6 +12,7 @@ from qdmnp.observables.calculate_work_loss_spectrum_material_comparison import (
     BRANCH_IDS,
     SCHEMA_NAME,
     _fourier_integral_grid,
+    _spectrum_window_audit,
     analytic_incident_field_ft_au,
     calculate_payload,
     energy_grid_resolution_diagnostics,
@@ -19,13 +20,65 @@ from qdmnp.observables.calculate_work_loss_spectrum_material_comparison import (
     spectral_effective_alpha_grid,
 )
 from qdmnp.observables.calculate_work_loss_fluence import (
+    _audit_work_observable_window,
     spectral_effective_alpha_au,
 )
-from qdmnp.rational_fit import GaussianPulse, au_to_eV, eV_to_au, fs_to_au
+from qdmnp.rational_fit import AU_ENERGY_J, GaussianPulse, au_to_eV, eV_to_au, fs_to_au
 from qdmnp.observables.work_spectrum_metrics import delta_window_diagnostics
 
 
 class WorkLossSpectrumFourierTests(unittest.TestCase):
+    def test_fourier_quadrature_resolves_gaussian_wings_on_nonuniform_grid(self) -> None:
+        pulse = GaussianPulse(
+            E0_au=2e-5, omegaL_au=float(eV_to_au(2.042)),
+            tau_au=float(fs_to_au(20)), tau_kind="fwhm_intensity",
+        )
+        # An adaptive solver changes its step near the pulse. On this grid,
+        # trapezoidal integration has a 0.74% error in the spectral wings.
+        time = np.concatenate((
+            np.arange(-10*pulse.sigma_t_au, 0.0, 3.0),
+            np.arange(0.0, 10*pulse.sigma_t_au, 6.0),
+        ))
+        energy = np.linspace(1.90, 2.18, 101)
+        actual = _fourier_integral_grid(time, pulse.field(time), energy)
+        expected = analytic_incident_field_ft_au(pulse, energy)
+        self.assertLess(np.max(np.abs(actual-expected)/np.abs(expected)), 1e-3)
+
+    def test_work_window_uses_the_ode_accumulator_and_detects_late_work(self) -> None:
+        pulse = GaussianPulse(
+            E0_au=2e-5, omegaL_au=float(eV_to_au(2.042)),
+            tau_au=float(fs_to_au(20)), tau_kind="fwhm_intensity",
+        )
+        time = np.linspace(-10*pulse.sigma_t_au, 40*pulse.sigma_t_au, 2001)
+        # A compact response with no Fourier tail after T/2. The independently
+        # integrated work state must be used, even if sampled quadrature differs.
+        mu = -pulse.field_dot(time)
+        work = np.where(time > 8*pulse.sigma_t_au, 1e-8, 0.0)
+        result = SimpleNamespace(
+            t_au=time, mu_total_au=mu, mu_dot_total_au=np.gradient(mu, time),
+            accumulated_work_au=work,
+            sigma_energy_transfer_cm2=work[-1]*AU_ENERGY_J/pulse.fluence_j_cm2(eps_m=2.25),
+        )
+        def spectrum_audit():
+            return _spectrum_window_audit(
+                result, pulse, 2.25, np.linspace(2.0, 2.08, 9),
+                minimum_incident_relative_amplitude=1e-3,
+                max_incident_ft_pointwise_relative_error=1e-3,
+                max_spectrum_window_relative_change=1e-3,
+                max_energy_window_relative_change=1e-3,
+            )
+        audit = spectrum_audit()
+        self.assertAlmostEqual(audit.energy_window_relative_change, 0.0)
+        self.assertTrue(audit.spectrum_window_converged)
+        self.assertTrue(_audit_work_observable_window(result, pulse, 2.25, 1e-3).accepted)
+
+        # The window gate must still reject a real 1% increment after T/2.
+        result.accumulated_work_au = np.where(time < 0.6*time[-1], 0.99*work, work)
+        audit = spectrum_audit()
+        self.assertAlmostEqual(audit.energy_window_relative_change, 0.01)
+        self.assertFalse(audit.spectrum_window_converged)
+        self.assertFalse(_audit_work_observable_window(result, pulse, 2.25, 1e-3).accepted)
+
     def test_metal_background_cannot_hide_unconverged_qd_contrast(self) -> None:
         bare = np.full(9, 1.0e-10)
         full = bare + 1.0e-14
