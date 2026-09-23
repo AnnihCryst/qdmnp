@@ -1,0 +1,989 @@
+[
+  {
+    "label": "carrier_2.002",
+    "artifact": "C:\\qdmnp\\results\\article_single_mnp_c12p5_a4p5\\data\\check_carrier_2.002_24196b6e74.npz",
+    "accepted": true,
+    "resolved_pairs_complete": false,
+    "all_pairs_resolved": false,
+    "required_channels": [
+      "side_long",
+      "side_trans_radial"
+    ],
+    "max_relative_threshold_change": 1.4171056636448078,
+    "isolated_relative_threshold_change": 1.385322614280851,
+    "nonrequired_max_relative_threshold_change": null,
+    "nonrequired_pairs_consistent": true,
+    "channels": [
+      "side_long",
+      "side_trans_radial"
+    ],
+    "gaps_nm": [
+      0.5
+    ],
+    "candidate_thresholds": [
+      [
+        null
+      ],
+      [
+        4.889602404363976e-05
+      ]
+    ],
+    "candidate_own_thresholds": [
+      [
+        null
+      ],
+      [
+        4.889602404363976e-05
+      ]
+    ],
+    "isolated_threshold": 0.00014710800856641135,
+    "candidate_status": [
+      [
+        "not_reached_first_lobe"
+      ],
+      [
+        "resolved_refined"
+      ]
+    ],
+    "best_channel_unchanged": true,
+    "best_configuration_unchanged": true,
+    "gaps_below_locality_advisory_gap_nm": [
+      0.5
+    ],
+    "carrier_energy_eV": 2.002
+  },
+  {
+    "label": "carrier_2.042",
+    "artifact": "C:\\qdmnp\\results\\article_single_mnp_c12p5_a4p5\\data\\fig03_master_520432de04.npz",
+    "derived_from_master": true,
+    "accepted": true,
+    "resolved_pairs_complete": true,
+    "all_pairs_resolved": true,
+    "required_channels": [
+      "side_long",
+      "side_trans_radial"
+    ],
+    "max_relative_threshold_change": 0.0,
+    "isolated_relative_threshold_change": 0.0,
+    "nonrequired_max_relative_threshold_change": null,
+    "nonrequired_pairs_consistent": true,
+    "channels": [
+      "side_long",
+      "side_trans_radial"
+    ],
+    "gaps_nm": [
+      0.5
+    ],
+    "candidate_thresholds": [
+      [
+        1.607525069686681e-05
+      ],
+      [
+        2.0229162828532845e-05
+      ]
+    ],
+    "candidate_own_thresholds": [
+      [
+        1.607525069686681e-05
+      ],
+      [
+        2.0229162828532845e-05
+      ]
+    ],
+    "isolated_threshold": 6.167216446349033e-05,
+    "candidate_status": [
+      [
+        "resolved_refined"
+      ],
+      [
+        "resolved_refined"
+      ]
+    ],
+    "best_channel_unchanged": true,
+    "best_configuration_unchanged": true,
+    "carrier_energy_eV": 2.042
+  },
+  {
+    "label": "carrier_2.082",
+    "artifact": "C:\\qdmnp\\results\\article_single_mnp_c12p5_a4p5\\data\\check_carrier_2.082_15b0c90d7e.npz",
+    "accepted": true,
+    "resolved_pairs_complete": false,
+    "all_pairs_resolved": false,
+    "required_channels": [
+      "side_long",
+      "side_trans_radial"
+    ],
+    "max_relative_threshold_change": 1.314249318338483,
+    "isolated_relative_threshold_change": 1.314249318338483,
+    "nonrequired_max_relative_threshold_change": null,
+    "nonrequired_pairs_consistent": true,
+    "channels": [
+      "side_long",
+      "side_trans_radial"
+    ],
+    "gaps_nm": [
+      0.5
+    ],
+    "candidate_thresholds": [
+      [
+        3.252186696527045e-05
+      ],
+      [
+        null
+      ]
+    ],
+    "candidate_own_thresholds": [
+      [
+        3.252186696527045e-05
+      ],
+      [
+        null
+      ]
+    ],
+    "isolated_threshold": 0.0001427247645700913,
+    "candidate_status": [
+      [
+        "resolved_refined"
+      ],
+      [
+        "not_reached_first_lobe"
+      ]
+    ],
+    "best_channel_unchanged": true,
+    "best_configuration_unchanged": true,
+    "gaps_below_locality_advisory_gap_nm": [
+      0.5
+    ],
+    "carrier_energy_eV": 2.082
+  },
+  {
+    "label": "higher_N",
+    "artifact": "C:\\qdmnp\\results\\article_single_mnp_c12p5_a4p5\\data\\check_higher_N_dbc1f87c30.npz",
+    "accepted": true,
+    "resolved_pairs_complete": true,
+    "all_pairs_resolved": true,
+    "required_channels": [
+      "side_long",
+      "side_trans_radial"
+    ],
+    "max_relative_threshold_change": 9.654669823866424e-05,
+    "isolated_relative_threshold_change": 0.0,
+    "nonrequired_max_relative_threshold_change": null,
+    "nonrequired_pairs_consistent": true,
+    "channels": [
+      "side_long",
+      "side_trans_radial"
+    ],
+    "gaps_nm": [
+      0.5
+    ],
+    "candidate_thresholds": [
+      [
+        1.607369868448867e-05
+      ],
+      [
+        2.022986390449378e-05
+      ]
+    ],
+    "candidate_own_thresholds": [
+      [
+        1.607369868448867e-05
+      ],
+      [
+        2.022986390449378e-05
+      ]
+    ],
+    "isolated_threshold": 6.167216446349033e-05,
+    "candidate_status": [
+      [
+        "resolved_refined"
+      ],
+      [
+        "resolved_refined"
+      ]
+    ],
+    "best_channel_unchanged": true,
+    "best_configuration_unchanged": true,
+    "gaps_below_locality_advisory_gap_nm": [
+      0.5
+    ]
+  },
+  {
+    "label": "fluence_refined",
+    "artifact": "C:\\qdmnp\\results\\article_single_mnp_c12p5_a4p5\\data\\check_fluence_refined_8750695ffa.npz",
+    "accepted": true,
+    "resolved_pairs_complete": true,
+    "all_pairs_resolved": true,
+    "required_channels": [
+      "side_long",
+      "side_trans_radial"
+    ],
+    "max_relative_threshold_change": 4.00505736686263e-06,
+    "isolated_relative_threshold_change": 4.00505736686263e-06,
+    "nonrequired_max_relative_threshold_change": null,
+    "nonrequired_pairs_consistent": true,
+    "channels": [
+      "side_long",
+      "side_trans_radial"
+    ],
+    "gaps_nm": [
+      0.5
+    ],
+    "candidate_thresholds": [
+      [
+        1.607525069686681e-05
+      ],
+      [
+        2.0229162828532845e-05
+      ]
+    ],
+    "candidate_own_thresholds": [
+      [
+        1.607525069686681e-05
+      ],
+      [
+        2.0229162828532845e-05
+      ]
+    ],
+    "isolated_threshold": 6.167241146404695e-05,
+    "candidate_status": [
+      [
+        "resolved_refined"
+      ],
+      [
+        "resolved_refined"
+      ]
+    ],
+    "best_channel_unchanged": true,
+    "best_configuration_unchanged": true,
+    "gaps_below_locality_advisory_gap_nm": [
+      0.5
+    ]
+  },
+  {
+    "label": "spatial_refined",
+    "artifact": "C:\\qdmnp\\results\\article_single_mnp_c12p5_a4p5\\data\\check_spatial_refined_39a585f8c7.npz",
+    "accepted": true,
+    "resolved_pairs_complete": true,
+    "all_pairs_resolved": true,
+    "required_channels": [
+      "side_long",
+      "side_trans_radial"
+    ],
+    "max_relative_threshold_change": 1.3240397667146908e-10,
+    "isolated_relative_threshold_change": 0.0,
+    "nonrequired_max_relative_threshold_change": null,
+    "nonrequired_pairs_consistent": true,
+    "channels": [
+      "side_long",
+      "side_trans_radial"
+    ],
+    "gaps_nm": [
+      0.5
+    ],
+    "candidate_thresholds": [
+      [
+        1.6075250694738383e-05
+      ],
+      [
+        2.0229162828534648e-05
+      ]
+    ],
+    "candidate_own_thresholds": [
+      [
+        1.6075250694738383e-05
+      ],
+      [
+        2.0229162828534648e-05
+      ]
+    ],
+    "isolated_threshold": 6.167216446349033e-05,
+    "candidate_status": [
+      [
+        "resolved_refined"
+      ],
+      [
+        "resolved_refined"
+      ]
+    ],
+    "best_channel_unchanged": true,
+    "best_configuration_unchanged": true,
+    "gaps_below_locality_advisory_gap_nm": [
+      0.5
+    ],
+    "spatial_order_check": {
+      "production_order": 80,
+      "check_order": 160,
+      "direction": "refined",
+      "kernel_order_limit": 320
+    }
+  },
+  {
+    "label": "time_step_refined",
+    "artifact": "C:\\qdmnp\\results\\article_single_mnp_c12p5_a4p5\\data\\check_time_step_refined_3fffc64349.npz",
+    "accepted": true,
+    "resolved_pairs_complete": true,
+    "all_pairs_resolved": true,
+    "required_channels": [
+      "side_long",
+      "side_trans_radial"
+    ],
+    "max_relative_threshold_change": 6.117053521492721e-07,
+    "isolated_relative_threshold_change": 1.9058952516193273e-07,
+    "nonrequired_max_relative_threshold_change": null,
+    "nonrequired_pairs_consistent": true,
+    "channels": [
+      "side_long",
+      "side_trans_radial"
+    ],
+    "gaps_nm": [
+      0.5
+    ],
+    "candidate_thresholds": [
+      [
+        1.607525063716094e-05
+      ],
+      [
+        2.0229175202820018e-05
+      ]
+    ],
+    "candidate_own_thresholds": [
+      [
+        1.607525063716094e-05
+      ],
+      [
+        2.0229175202820018e-05
+      ]
+    ],
+    "isolated_threshold": 6.167215270942178e-05,
+    "candidate_status": [
+      [
+        "resolved_refined"
+      ],
+      [
+        "resolved_refined"
+      ]
+    ],
+    "best_channel_unchanged": true,
+    "best_configuration_unchanged": true,
+    "gaps_below_locality_advisory_gap_nm": [
+      0.5
+    ]
+  },
+  {
+    "label": "energy_refined",
+    "artifact": "C:\\qdmnp\\results\\article_single_mnp_c12p5_a4p5\\data\\check_energy_refined_86205edf4e.npz",
+    "reference_artifact": "C:\\qdmnp\\results\\article_single_mnp_c12p5_a4p5\\data\\preflight_g0.5_b55e8dff27.npz",
+    "gap_nm": 0.5,
+    "accepted": true,
+    "spectrum_refinement_max_nrms": 0.000601798773794829,
+    "gain_refinement_max_relative_change": 0.0009031341824208283,
+    "unique_peak_shift_max_over_isolated_fwhm": 2.962015893251184e-05,
+    "unique_peak_width_max_relative_change": 0.0015083494427950983,
+    "feature_classification_preserved": true,
+    "isolated_feature_accepted": true
+  },
+  {
+    "label": "gap_low",
+    "accepted": false,
+    "error": "check_gap_low: CLI exited with 1; see C:\\qdmnp\\results\\article_single_mnp_c12p5_a4p5\\logs\\check_gap_low_f3af5058cf.log\n \"<frozen runpy>\", line 88, in _run_code\n  File \"C:\\qdmnp\\src\\qdmnp\\observables\\calculate_threshold_fluence_gap.py\", line 19, in <module>\n    main()\n    ~~~~^^\n  File \"C:\\qdmnp\\src\\qdmnp\\observables\\calculate_threshold_fluence_gap.py\", line 15, in main\n    return run_threshold_calculation(Path(__file__), argv)\n  File \"C:\\qdmnp\\src\\qdmnp\\observables\\gap_metrics_common.py\", line 2477, in run_threshold_calculation\n    payload, details = compute_threshold_payload(args)\n                       ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^\n  File \"C:\\qdmnp\\src\\qdmnp\\observables\\gap_metrics_common.py\", line 1720, in compute_threshold_payload\n    return _compute_threshold_payload(args)\n  File \"C:\\qdmnp\\src\\qdmnp\\observables\\gap_metrics_common.py\", line 1754, in _compute_threshold_payload\n    bundles.append(_build_channel(spec, float(gap), args, require_time_model=True))\n                   ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\qdmnp\\src\\qdmnp\\observables\\gap_metrics_common.py\", line 418, in _build_channel\n    fqs_model = FullQSSpheroidPulseModel(\n        dd_model,\n    ...<10 lines>...\n        max_reduction_normalized_error=args.reduction_max_tolerance,\n    )\n  File \"C:\\qdmnp\\src\\qdmnp\\full_qs_model.py\", line 489, in __init__\n    raise RuntimeError(message)\nRuntimeError: The retained spheroidal spatial series is not converged on the material-fit window: max half-order relative change=3.36565e-05, max tail-block relative mass=1.6878e-09, tolerance=2e-05, n_max=80.\n"
+  },
+  {
+    "label": "c_low",
+    "artifact": "C:\\qdmnp\\results\\article_single_mnp_c12p5_a4p5\\sensitivity_shapes_refined\\data\\check_c_low_7fe37f1cab.npz",
+    "accepted": true,
+    "resolved_pairs_complete": true,
+    "all_pairs_resolved": true,
+    "required_channels": [
+      "side_long",
+      "side_trans_radial"
+    ],
+    "max_relative_threshold_change": 0.13635187005021587,
+    "isolated_relative_threshold_change": 0.0,
+    "nonrequired_max_relative_threshold_change": null,
+    "nonrequired_pairs_consistent": true,
+    "channels": [
+      "side_long",
+      "side_trans_radial"
+    ],
+    "gaps_nm": [
+      0.5
+    ],
+    "candidate_thresholds": [
+      [
+        1.3883360202822985e-05
+      ],
+      [
+        1.9557954825927907e-05
+      ]
+    ],
+    "candidate_own_thresholds": [
+      [
+        1.3883360202822985e-05
+      ],
+      [
+        1.9557954825927907e-05
+      ]
+    ],
+    "isolated_threshold": 6.167216446349033e-05,
+    "candidate_status": [
+      [
+        "resolved_refined"
+      ],
+      [
+        "resolved_refined"
+      ]
+    ],
+    "best_channel_unchanged": true,
+    "best_configuration_unchanged": true,
+    "material_modes_used": 13,
+    "spatial_order_used": 160,
+    "replacement_receipt": "C:\\qdmnp\\results\\article_single_mnp_c12p5_a4p5\\sensitivity_shapes_refined\\rerun_receipt.json",
+    "relaxed_numerical_gates": {
+      "max-modal-normalized-rms": 0.12,
+      "max-modal-relative-error": 0.25,
+      "spatial-convergence-rtol": 0.0001
+    },
+    "gate_scope": "Unchanged shape-specific limits from original inputs"
+  },
+  {
+    "label": "a_low",
+    "artifact": "C:\\qdmnp\\results\\article_single_mnp_c12p5_a4p5\\data\\check_a_low_e3e634d229.npz",
+    "accepted": true,
+    "resolved_pairs_complete": true,
+    "all_pairs_resolved": true,
+    "required_channels": [
+      "side_long",
+      "side_trans_radial"
+    ],
+    "max_relative_threshold_change": 0.1657843469682161,
+    "isolated_relative_threshold_change": 0.0,
+    "nonrequired_max_relative_threshold_change": null,
+    "nonrequired_pairs_consistent": true,
+    "channels": [
+      "side_long",
+      "side_trans_radial"
+    ],
+    "gaps_nm": [
+      0.5
+    ],
+    "candidate_thresholds": [
+      [
+        1.8740275635997235e-05
+      ],
+      [
+        2.2091814855350403e-05
+      ]
+    ],
+    "candidate_own_thresholds": [
+      [
+        1.8740275635997235e-05
+      ],
+      [
+        2.2091814855350403e-05
+      ]
+    ],
+    "isolated_threshold": 6.167216446349033e-05,
+    "candidate_status": [
+      [
+        "resolved_refined"
+      ],
+      [
+        "resolved_refined"
+      ]
+    ],
+    "best_channel_unchanged": true,
+    "best_configuration_unchanged": true,
+    "gaps_below_locality_advisory_gap_nm": [
+      0.5
+    ],
+    "material_modes_used": 12,
+    "rejected_mode_counts": [],
+    "relaxed_numerical_gates": {
+      "max-modal-normalized-rms": 0.12,
+      "max-modal-relative-error": 0.25,
+      "spatial-convergence-rtol": 0.0001
+    }
+  },
+  {
+    "label": "exciton_low",
+    "artifact": "C:\\qdmnp\\results\\article_single_mnp_c12p5_a4p5\\data\\check_exciton_low_5a265e551d.npz",
+    "accepted": true,
+    "resolved_pairs_complete": true,
+    "all_pairs_resolved": true,
+    "required_channels": [
+      "side_long",
+      "side_trans_radial"
+    ],
+    "max_relative_threshold_change": 0.019786968307159758,
+    "isolated_relative_threshold_change": 0.010313582818643585,
+    "nonrequired_max_relative_threshold_change": null,
+    "nonrequired_pairs_consistent": true,
+    "channels": [
+      "side_long",
+      "side_trans_radial"
+    ],
+    "gaps_nm": [
+      0.5
+    ],
+    "candidate_thresholds": [
+      [
+        1.575717022079826e-05
+      ],
+      [
+        2.0531807024733736e-05
+      ]
+    ],
+    "candidate_own_thresholds": [
+      [
+        1.575717022079826e-05
+      ],
+      [
+        2.0531807024733736e-05
+      ]
+    ],
+    "isolated_threshold": 6.230822543928954e-05,
+    "candidate_status": [
+      [
+        "resolved_refined"
+      ],
+      [
+        "resolved_refined"
+      ]
+    ],
+    "best_channel_unchanged": true,
+    "best_configuration_unchanged": true,
+    "gaps_below_locality_advisory_gap_nm": [
+      0.5
+    ]
+  },
+  {
+    "label": "gamma1_low",
+    "artifact": "C:\\qdmnp\\results\\article_single_mnp_c12p5_a4p5\\data\\check_gamma1_low_a159871160.npz",
+    "accepted": true,
+    "resolved_pairs_complete": true,
+    "all_pairs_resolved": true,
+    "required_channels": [
+      "side_long",
+      "side_trans_radial"
+    ],
+    "max_relative_threshold_change": 0.00037577485241246933,
+    "isolated_relative_threshold_change": 0.00037577485241246933,
+    "nonrequired_max_relative_threshold_change": null,
+    "nonrequired_pairs_consistent": true,
+    "channels": [
+      "side_long",
+      "side_trans_radial"
+    ],
+    "gaps_nm": [
+      0.5
+    ],
+    "candidate_thresholds": [
+      [
+        1.6069269176414748e-05
+      ],
+      [
+        2.0221992798529993e-05
+      ]
+    ],
+    "candidate_own_thresholds": [
+      [
+        1.6069269176414748e-05
+      ],
+      [
+        2.0221992798529993e-05
+      ]
+    ],
+    "isolated_threshold": 6.16489896149911e-05,
+    "candidate_status": [
+      [
+        "resolved_refined"
+      ],
+      [
+        "resolved_refined"
+      ]
+    ],
+    "best_channel_unchanged": true,
+    "best_configuration_unchanged": true,
+    "gaps_below_locality_advisory_gap_nm": [
+      0.5
+    ]
+  },
+  {
+    "label": "dephasing_low",
+    "artifact": "C:\\qdmnp\\results\\article_single_mnp_c12p5_a4p5\\data\\check_dephasing_low_3cbf54c2a0.npz",
+    "accepted": true,
+    "resolved_pairs_complete": true,
+    "all_pairs_resolved": true,
+    "required_channels": [
+      "side_long",
+      "side_trans_radial"
+    ],
+    "max_relative_threshold_change": 0.023596977670447883,
+    "isolated_relative_threshold_change": 0.006136599563211664,
+    "nonrequired_max_relative_threshold_change": null,
+    "nonrequired_pairs_consistent": true,
+    "channels": [
+      "side_long",
+      "side_trans_radial"
+    ],
+    "gaps_nm": [
+      0.5
+    ],
+    "candidate_thresholds": [
+      [
+        1.6124156301079213e-05
+      ],
+      [
+        2.070650993208959e-05
+      ]
+    ],
+    "candidate_own_thresholds": [
+      [
+        1.6124156301079213e-05
+      ],
+      [
+        2.070650993208959e-05
+      ]
+    ],
+    "isolated_threshold": 6.129370708598136e-05,
+    "candidate_status": [
+      [
+        "resolved_refined"
+      ],
+      [
+        "resolved_refined"
+      ]
+    ],
+    "best_channel_unchanged": true,
+    "best_configuration_unchanged": true,
+    "gaps_below_locality_advisory_gap_nm": [
+      0.5
+    ]
+  },
+  {
+    "label": "gap_high",
+    "artifact": "C:\\qdmnp\\results\\article_single_mnp_c12p5_a4p5\\data\\check_gap_high_13c9dab5be.npz",
+    "accepted": true,
+    "resolved_pairs_complete": true,
+    "all_pairs_resolved": true,
+    "required_channels": [
+      "side_long",
+      "side_trans_radial"
+    ],
+    "max_relative_threshold_change": 0.03633600790488534,
+    "isolated_relative_threshold_change": 0.0,
+    "nonrequired_max_relative_threshold_change": null,
+    "nonrequired_pairs_consistent": true,
+    "channels": [
+      "side_long",
+      "side_trans_radial"
+    ],
+    "gaps_nm": [
+      0.7
+    ],
+    "candidate_thresholds": [
+      [
+        1.6659361133261178e-05
+      ],
+      [
+        2.096118764794976e-05
+      ]
+    ],
+    "candidate_own_thresholds": [
+      [
+        1.6659361133261178e-05
+      ],
+      [
+        2.096118764794976e-05
+      ]
+    ],
+    "isolated_threshold": 6.167216446349033e-05,
+    "candidate_status": [
+      [
+        "resolved_refined"
+      ],
+      [
+        "resolved_refined"
+      ]
+    ],
+    "best_channel_unchanged": true,
+    "best_configuration_unchanged": true,
+    "gaps_below_locality_advisory_gap_nm": [
+      0.7
+    ]
+  },
+  {
+    "label": "c_high",
+    "artifact": "C:\\qdmnp\\results\\article_single_mnp_c12p5_a4p5\\data\\check_c_high_f32b5df1fb.npz",
+    "accepted": true,
+    "resolved_pairs_complete": true,
+    "all_pairs_resolved": true,
+    "required_channels": [
+      "side_long",
+      "side_trans_radial"
+    ],
+    "max_relative_threshold_change": 0.12942740561534016,
+    "isolated_relative_threshold_change": 0.0,
+    "nonrequired_max_relative_threshold_change": null,
+    "nonrequired_pairs_consistent": true,
+    "channels": [
+      "side_long",
+      "side_trans_radial"
+    ],
+    "gaps_nm": [
+      0.5
+    ],
+    "candidate_thresholds": [
+      [
+        1.815582868917847e-05
+      ],
+      [
+        2.110199033421644e-05
+      ]
+    ],
+    "candidate_own_thresholds": [
+      [
+        1.815582868917847e-05
+      ],
+      [
+        2.110199033421644e-05
+      ]
+    ],
+    "isolated_threshold": 6.167216446349033e-05,
+    "candidate_status": [
+      [
+        "resolved_refined"
+      ],
+      [
+        "resolved_refined"
+      ]
+    ],
+    "best_channel_unchanged": true,
+    "best_configuration_unchanged": true,
+    "gaps_below_locality_advisory_gap_nm": [
+      0.5
+    ],
+    "material_modes_used": 12,
+    "rejected_mode_counts": [],
+    "relaxed_numerical_gates": {
+      "max-modal-normalized-rms": 0.12,
+      "max-modal-relative-error": 0.25,
+      "spatial-convergence-rtol": 0.0001
+    }
+  },
+  {
+    "label": "a_high",
+    "artifact": "C:\\qdmnp\\results\\article_single_mnp_c12p5_a4p5\\sensitivity_shapes_refined\\data\\check_a_high_57bebcc811.npz",
+    "accepted": true,
+    "resolved_pairs_complete": true,
+    "all_pairs_resolved": true,
+    "required_channels": [
+      "side_long",
+      "side_trans_radial"
+    ],
+    "max_relative_threshold_change": 0.155023388372295,
+    "isolated_relative_threshold_change": 0.0,
+    "nonrequired_max_relative_threshold_change": null,
+    "nonrequired_pairs_consistent": true,
+    "channels": [
+      "side_long",
+      "side_trans_radial"
+    ],
+    "gaps_nm": [
+      0.5
+    ],
+    "candidate_thresholds": [
+      [
+        1.3583210864904422e-05
+      ],
+      [
+        1.8854033671572698e-05
+      ]
+    ],
+    "candidate_own_thresholds": [
+      [
+        1.3583210864904422e-05
+      ],
+      [
+        1.8854033671572698e-05
+      ]
+    ],
+    "isolated_threshold": 6.167216446349033e-05,
+    "candidate_status": [
+      [
+        "resolved_refined"
+      ],
+      [
+        "resolved_refined"
+      ]
+    ],
+    "best_channel_unchanged": true,
+    "best_configuration_unchanged": true,
+    "material_modes_used": 13,
+    "spatial_order_used": 160,
+    "replacement_receipt": "C:\\qdmnp\\results\\article_single_mnp_c12p5_a4p5\\sensitivity_shapes_refined\\rerun_receipt.json",
+    "relaxed_numerical_gates": {
+      "max-modal-normalized-rms": 0.12,
+      "max-modal-relative-error": 0.25,
+      "spatial-convergence-rtol": 0.0001
+    },
+    "gate_scope": "Unchanged shape-specific limits from original inputs"
+  },
+  {
+    "label": "exciton_high",
+    "artifact": "C:\\qdmnp\\results\\article_single_mnp_c12p5_a4p5\\data\\check_exciton_high_a18b4cd092.npz",
+    "accepted": true,
+    "resolved_pairs_complete": true,
+    "all_pairs_resolved": true,
+    "required_channels": [
+      "side_long",
+      "side_trans_radial"
+    ],
+    "max_relative_threshold_change": 0.04237834982828326,
+    "isolated_relative_threshold_change": 0.011085023914982894,
+    "nonrequired_max_relative_threshold_change": null,
+    "nonrequired_pairs_consistent": true,
+    "channels": [
+      "side_long",
+      "side_trans_radial"
+    ],
+    "gaps_nm": [
+      0.5
+    ],
+    "candidate_thresholds": [
+      [
+        1.6756493294475987e-05
+      ],
+      [
+        2.038248195044027e-05
+      ]
+    ],
+    "candidate_own_thresholds": [
+      [
+        1.6756493294475987e-05
+      ],
+      [
+        2.038248195044027e-05
+      ]
+    ],
+    "isolated_threshold": 6.235580188145687e-05,
+    "candidate_status": [
+      [
+        "resolved_refined"
+      ],
+      [
+        "resolved_refined"
+      ]
+    ],
+    "best_channel_unchanged": true,
+    "best_configuration_unchanged": true,
+    "gaps_below_locality_advisory_gap_nm": [
+      0.5
+    ]
+  },
+  {
+    "label": "gamma1_high",
+    "artifact": "C:\\qdmnp\\results\\article_single_mnp_c12p5_a4p5\\data\\check_gamma1_high_23aa7cf65a.npz",
+    "accepted": true,
+    "resolved_pairs_complete": true,
+    "all_pairs_resolved": true,
+    "required_channels": [
+      "side_long",
+      "side_trans_radial"
+    ],
+    "max_relative_threshold_change": 0.0003759555809235149,
+    "isolated_relative_threshold_change": 0.0003759555809235149,
+    "nonrequired_max_relative_threshold_change": null,
+    "nonrequired_pairs_consistent": true,
+    "channels": [
+      "side_long",
+      "side_trans_radial"
+    ],
+    "gaps_nm": [
+      0.5
+    ],
+    "candidate_thresholds": [
+      [
+        1.6081235107026093e-05
+      ],
+      [
+        2.0236336054597714e-05
+      ]
+    ],
+    "candidate_own_thresholds": [
+      [
+        1.6081235107026093e-05
+      ],
+      [
+        2.0236336054597714e-05
+      ]
+    ],
+    "isolated_threshold": 6.169535045790801e-05,
+    "candidate_status": [
+      [
+        "resolved_refined"
+      ],
+      [
+        "resolved_refined"
+      ]
+    ],
+    "best_channel_unchanged": true,
+    "best_configuration_unchanged": true,
+    "gaps_below_locality_advisory_gap_nm": [
+      0.5
+    ]
+  },
+  {
+    "label": "dephasing_high",
+    "artifact": "C:\\qdmnp\\results\\article_single_mnp_c12p5_a4p5\\data\\check_dephasing_high_b4c18fbbb4.npz",
+    "accepted": true,
+    "resolved_pairs_complete": true,
+    "all_pairs_resolved": true,
+    "required_channels": [
+      "side_long",
+      "side_trans_radial"
+    ],
+    "max_relative_threshold_change": 0.01363385059661304,
+    "isolated_relative_threshold_change": 0.006159741793921869,
+    "nonrequired_max_relative_threshold_change": null,
+    "nonrequired_pairs_consistent": true,
+    "channels": [
+      "side_long",
+      "side_trans_radial"
+    ],
+    "gaps_nm": [
+      0.5
+    ],
+    "candidate_thresholds": [
+      [
+        1.6074193110494076e-05
+      ],
+      [
+        1.995336144483407e-05
+      ]
+    ],
+    "candidate_own_thresholds": [
+      [
+        1.6074193110494076e-05
+      ],
+      [
+        1.995336144483407e-05
+      ]
+    ],
+    "isolated_threshold": 6.205204907245771e-05,
+    "candidate_status": [
+      [
+        "resolved_refined"
+      ],
+      [
+        "resolved_refined"
+      ]
+    ],
+    "best_channel_unchanged": true,
+    "best_configuration_unchanged": true,
+    "gaps_below_locality_advisory_gap_nm": [
+      0.5
+    ]
+  }
+]

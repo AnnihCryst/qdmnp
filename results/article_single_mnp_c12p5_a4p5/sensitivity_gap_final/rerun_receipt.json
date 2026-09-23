@@ -1,0 +1,68 @@
+{
+  "scope": "Supplement for specified sensitivity cases; original full-run status is preserved",
+  "status": "complete",
+  "started_utc": "2026-09-23T14:14:49.189577+00:00",
+  "original_manifest": {
+    "path": "C:\\qdmnp\\results\\article_single_mnp_c12p5_a4p5\\manifest.json",
+    "sha256": "b483902f20c70e4f38d5820cec06b56b8814a0f0cedfcceecb7a8cebbe118b1f"
+  },
+  "original_complete_artifacts_verified": 47,
+  "script_sha256": "9d42c275fcf91dabfd1dbc4b7938d7d3179fbf330ee079a9d993c09e0a2a06f8",
+  "cases": [
+    "gap_low"
+  ],
+  "inherited_validation": {
+    "path": "C:\\qdmnp\\results\\article_single_mnp_c12p5_a4p5\\sensitivity_shapes_refined\\validation.json",
+    "sha256": "4e7d13840ed8eb304716db2a3d14dba0cb4b7ec5c806a52633c01c4fa95e0231",
+    "receipt_sha256": "8b95daddf8fdfc22c08ab2ce5ee14118a7d956aff6d6222aa90b8287417e69b2"
+  },
+  "initial_guess": null,
+  "source_changes_since_original": {
+    "src\\qdmnp\\full_qs_model.py": {
+      "original": "d89af5fc3b94e8554f0a92a5b6a2d3b44199e7bd537cf66be7fb3a90924f7afe",
+      "current": "6b692af78dedc378df5683e68483ca2dec4c9356d7be2fb4491a9d011eca5478"
+    },
+    "src\\qdmnp\\observables\\calculate_work_loss_fluence.py": {
+      "original": "5b1fef157e96f9b2fb8d069eccc9c4df4fb4fd032d230b6c36d4dff40abb7ca5",
+      "current": "bccaa119b4818b4ed4412ead882573853aed1bac81a8fad9a76ad27190d735d0"
+    },
+    "src\\qdmnp\\observables\\calculate_work_loss_spectrum_material_comparison.py": {
+      "original": "27c8c78975fb92bf83a82d65f69bfb3cacfbfe8424e68b21151cd56e928e2880",
+      "current": "06ec9ef9091da724333a3387690780b3ddce06de2ef5e926870a1a0c7d96e755"
+    },
+    "src\\qdmnp\\observables\\fit_options.py": {
+      "original": "8014d645a6e326eabe7bbaa206dc799742e2055011db6a19d60673f17efaf1a0",
+      "current": "8d3a8f8845a980f84657b8394eebed5df3e63653226f9f30530deae99d7ac2a2"
+    },
+    "src\\qdmnp\\passive_fit.py": {
+      "original": "dc9df28d9b999e49fbaf89749d2231898c594b08709b689bb9af9a988b574c76",
+      "current": "571bdd3282a082ed840aed0e6a95f5891a49beeb04d2e87397015212bd276e69"
+    },
+    "src\\qdmnp\\rational_fit.py": {
+      "original": "7affbe291d6690215565dd7d18543c64eae9e7c46cbb236c3829c2cfa39a5d79",
+      "current": "1a2751e886025cfcf872ea410311c5cfc385b04f6fe7c68dd3066e3fe9138f15"
+    }
+  },
+  "numerical_changes": {
+    "spatial_order": 160,
+    "shape_material_modes": 13
+  },
+  "physical_variations": "Exactly the offsets in the original validation configuration",
+  "acceptance_limits_relaxed": false,
+  "elapsed_s": 644.5242464000003,
+  "requested_cases_accepted": true,
+  "combined_ranking_accepted": true,
+  "original_artifacts_unchanged": true,
+  "artifacts": {
+    "C:\\qdmnp\\results\\article_single_mnp_c12p5_a4p5\\sensitivity_gap_final\\manifest.json": "0c886db8a0c9f76b448111903a0192fe1c783f19d4167feb9fd5801f34ef2257",
+    "C:\\qdmnp\\results\\article_single_mnp_c12p5_a4p5\\sensitivity_gap_final\\ranking_validation.json": "f760bafcf521410e3c2ea8a26da620f07760f09df7432aba6ac084fdde89a3d7",
+    "C:\\qdmnp\\results\\article_single_mnp_c12p5_a4p5\\sensitivity_gap_final\\resolved_inputs.json": "c77fe27dd8bd5a4bd84b28fd4c3baf2d0ffa0de95193caecd0bcb747f2d816d3",
+    "C:\\qdmnp\\results\\article_single_mnp_c12p5_a4p5\\sensitivity_gap_final\\units.json": "c754d212af3a5eeab20e92a797063e50c28e5750a950b77988f7d5098fdbd25f",
+    "C:\\qdmnp\\results\\article_single_mnp_c12p5_a4p5\\sensitivity_gap_final\\validation.csv": "7142638f28bb3caea998a82ea443537ab9b403b25f55c51fde6b2734e9c6f1cb",
+    "C:\\qdmnp\\results\\article_single_mnp_c12p5_a4p5\\sensitivity_gap_final\\validation.json": "b03b521805d290f29b789839365f46f3b8607c36830006d78dd8b3006579093e",
+    "C:\\qdmnp\\results\\article_single_mnp_c12p5_a4p5\\sensitivity_gap_final\\data\\check_gap_low_0c4ed22fed.npz": "3bda3f1a4eca50e88487f7a2ea09152f09f867e40b3a80fe9464dd7299151b9b",
+    "C:\\qdmnp\\results\\article_single_mnp_c12p5_a4p5\\sensitivity_gap_final\\figures\\validation_carrier.png": "3ee0fa270687a30b0222d230a0da56725b35f243d8cef0126a8bd6ae7080ebdb",
+    "C:\\qdmnp\\results\\article_single_mnp_c12p5_a4p5\\sensitivity_gap_final\\figures\\validation_sensitivity.png": "57f9bfad36cbf502de585d54b8b83ef0b2230ede298f2eb078cd392daeb4317d",
+    "C:\\qdmnp\\results\\article_single_mnp_c12p5_a4p5\\sensitivity_gap_final\\logs\\check_gap_low_0c4ed22fed.log": "d494bd78e9afaf65045c7a8cfbf4542966220f7702044be751ffa1df27a66b8f"
+  }
+}

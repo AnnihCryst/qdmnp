@@ -1779,6 +1779,7 @@ class HybridQDPlasmonModel:
                 focus_center=focus.focus_center_eV,
                 focus_half_width=focus.focus_half_width_eV,
                 focus_relative_error=focus.focus_relative_error,
+                initial_modes_eV=(focus.initial_modes_eV or {}).get(self.orientation),
             )
             n = self.n_modes
             refined_u = np.r_[physical_alpha_inf, trial[:n]/AU_ENERGY_EV**2,

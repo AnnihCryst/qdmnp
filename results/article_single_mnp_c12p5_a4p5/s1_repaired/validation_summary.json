@@ -1,0 +1,223 @@
+{
+  "status": "accepted_S1_only",
+  "original_artifacts_unchanged": 47,
+  "original_manifest_unchanged": true,
+  "all_provenance_hashes_match": true,
+  "branches": [
+    1,
+    12
+  ],
+  "fluence_J_cm2": [
+    5e-10,
+    1.6075481074536264e-05,
+    5.997127999634136e-05
+  ],
+  "energy_points": 8001,
+  "quality_gates": {
+    "max_delta_window_absolute_change_cm2": 0.0,
+    "max_delta_window_relative_change": 0.001,
+    "max_energy_grid_midpoint_normalized_error": 0.002,
+    "max_energy_window_relative_change": 0.001,
+    "max_incident_ft_pointwise_relative_error": 0.005,
+    "max_spectrum_window_relative_change": 0.001,
+    "minimum_incident_relative_amplitude": 0.01,
+    "multi_fit_accuracy_policy": "raise",
+    "note": "N=1 may miss accuracy; passivity and stability remain mandatory",
+    "one_fit_accuracy_policy": "warn"
+  },
+  "solver_success": true,
+  "t_final_reached": true,
+  "state_is_finite": true,
+  "response_tail_converged": true,
+  "spectrum_window_converged": true,
+  "incident_ft_converged": true,
+  "work_nonnegative_within_tolerance": true,
+  "density_matrix_positive": true,
+  "delta_window_converged": true,
+  "energy_grid_converged": true,
+  "energy_window_relative_change": {
+    "min": 0.0,
+    "max": 0.0,
+    "values": [
+      [
+        [
+          0.0,
+          0.0,
+          0.0
+        ]
+      ],
+      [
+        [
+          0.0,
+          0.0,
+          0.0
+        ]
+      ]
+    ]
+  },
+  "spectrum_window_max_normalized_change": {
+    "min": 1.1346740760982054e-07,
+    "max": 9.483084762317388e-07,
+    "values": [
+      [
+        [
+          1.1346740760982054e-07,
+          1.9237556780809293e-07,
+          5.4004478226865e-07
+        ]
+      ],
+      [
+        [
+          7.650542740158169e-07,
+          9.483084762317388e-07,
+          2.6723071452660434e-07
+        ]
+      ]
+    ]
+  },
+  "incident_ft_max_pointwise_relative_error": {
+    "min": 1.4276764065900413e-14,
+    "max": 0.0015071471460796125,
+    "values": [
+      [
+        [
+          1.4276764065900413e-14,
+          1.467033678780555e-14,
+          1.569229469097382e-14
+        ]
+      ],
+      [
+        [
+          0.0002694114760326072,
+          0.00076443752845989,
+          0.0015071471460796125
+        ]
+      ]
+    ]
+  },
+  "delta_window_max_normalized_change": {
+    "min": 1.8755655539747405e-06,
+    "max": 2.5459894608727465e-05,
+    "values": [
+      [
+        [
+          1.8755655539747405e-06,
+          3.474661812919818e-06,
+          1.3300497304204938e-05
+        ]
+      ],
+      [
+        [
+          4.997850466628861e-06,
+          9.628036982100694e-06,
+          2.5459894608727465e-05
+        ]
+      ]
+    ]
+  },
+  "energy_grid_midpoint_normalized_error": {
+    "min": 1.0892801747344128e-05,
+    "max": 0.0010365643015699468,
+    "values": [
+      [
+        [
+          [
+            3.8046579409411686e-05,
+            0.000628889813245288
+          ],
+          [
+            3.8157902053593755e-05,
+            0.000689199474244974
+          ],
+          [
+            3.4644816916271204e-05,
+            0.0008532453697882249
+          ]
+        ]
+      ],
+      [
+        [
+          [
+            0.00010578051789785982,
+            0.000691115153827317
+          ],
+          [
+            7.563906598230355e-05,
+            0.0007680839784352447
+          ],
+          [
+            1.0892801747344128e-05,
+            0.0010365643015699468
+          ]
+        ]
+      ]
+    ]
+  },
+  "response_tail_ratio": {
+    "min": 5.920626181441396e-12,
+    "max": 2.372493292891629e-06,
+    "values": [
+      [
+        [
+          5.920626181441396e-12,
+          1.904284072087462e-11,
+          2.4843476351123436e-10
+        ]
+      ],
+      [
+        [
+          2.372493292891629e-06,
+          2.0845236306388068e-08,
+          1.9317068592076052e-08
+        ]
+      ]
+    ]
+  },
+  "min_density_eigenvalue": {
+    "min": -3.3306690738754696e-16,
+    "max": -1.1102230246251565e-16,
+    "values": [
+      [
+        [
+          -3.3306690738754696e-16,
+          -1.1102230246251565e-16,
+          -3.3306690738754696e-16
+        ]
+      ],
+      [
+        [
+          -2.220446049250313e-16,
+          -2.220446049250313e-16,
+          -1.1102230246251565e-16
+        ]
+      ]
+    ]
+  },
+  "post_fs_effective": {
+    "min": 12000.0,
+    "max": 12000.0,
+    "values": [
+      [
+        [
+          12000.0,
+          12000.0,
+          12000.0
+        ]
+      ],
+      [
+        [
+          12000.0,
+          12000.0,
+          12000.0
+        ]
+      ]
+    ]
+  },
+  "full_regression_tests": {
+    "run": 395,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "log": "tests.log"
+  }
+}

@@ -1,2 +1,6 @@
 # Preserve archived results byte-for-byte, including logs and JSON metadata.
 /results/article_single_mnp/** -text whitespace=cr-at-eol
+/results/article_single_mnp_c12p5_a4p5/** -text whitespace=cr-at-eol
+/results/sensitivity_repair_tests.log -text whitespace=cr-at-eol
+# Keep whitespace emitted by the SVG renderer without changing archived hashes.
+/results/article_single_mnp_c12p5_a4p5/**/*.svg -whitespace

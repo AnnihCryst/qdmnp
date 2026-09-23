@@ -18,5 +18,6 @@ def parse_fit_refinement(text):
 def add_fit_refinement_argument(parser):
     parser.add_argument('--fit-refinement', type=parse_fit_refinement, default=None,
         help='JSON numerical options for positive-Lorentz refinement: focus_center_eV, '
-             'focus_half_width_eV, focus_relative_error, pole_bound_factor. '
+             'focus_half_width_eV, focus_relative_error, pole_bound_factor, '
+             'optional initial_modes_eV (long/trans lists of [strength_eV2, energy_eV, damping_eV]). '
              'Global accuracy/passivity gates still apply; omitted retains legacy fitting.')

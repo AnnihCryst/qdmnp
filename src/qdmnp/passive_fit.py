@@ -7,7 +7,7 @@ of a finite-band background, not measured resonances or an extrapolation.
 from __future__ import annotations
 from dataclasses import dataclass
 import numpy as np
-from scipy.optimize import least_squares, nnls
+from scipy.optimize import least_squares, minimize, nnls
 
 
 @dataclass(frozen=True)
@@ -16,6 +16,7 @@ class PassiveFitRefinement:
     focus_half_width_eV: float = .0075
     focus_relative_error: float = .0025
     pole_bound_factor: float = 4.
+    initial_modes_eV: dict | None = None
 
     def __post_init__(self):
         values = (self.focus_center_eV, self.focus_half_width_eV,
@@ -24,6 +25,20 @@ class PassiveFitRefinement:
             raise ValueError('Passive-fit refinement values must be finite and positive.')
         if self.focus_relative_error >= 1 or self.pole_bound_factor < 1:
             raise ValueError('Require focus_relative_error < 1 and pole_bound_factor >= 1.')
+        if self.initial_modes_eV is not None:
+            if not isinstance(self.initial_modes_eV, dict) or not self.initial_modes_eV:
+                raise ValueError('initial_modes_eV must map orientations to Lorentz-mode triples.')
+            normalized = {}
+            for orientation, modes in self.initial_modes_eV.items():
+                if orientation not in ('long', 'trans'):
+                    raise ValueError('Initial-mode orientations must be long or trans.')
+                values = np.asarray(modes)
+                if values.dtype.kind not in 'iuf' or values.ndim != 2 or values.shape[1] != 3 or not len(values):
+                    raise ValueError('Each initial mode must contain strength (eV^2), energy (eV), damping (eV).')
+                if not np.all(np.isfinite(values)) or np.any(values[:, 0] < 0) or np.any(values[:, 1:] <= 0):
+                    raise ValueError('Initial modes must have nonnegative strengths and positive energies/dampings.')
+                normalized[orientation] = tuple(tuple(float(x) for x in row) for row in values)
+            object.__setattr__(self, 'initial_modes_eV', normalized)
 
 
 def lorentz_values_jacobian(energy, u, alpha_inf):
@@ -36,10 +51,69 @@ def lorentz_values_jacobian(energy, u, alpha_inf):
     return values, jacobian
 
 
+def minimax_lorentz_candidate(energy, target, alpha_inf, initial, *, lower, upper,
+        nrms_limit, pointwise_limit, focus_center=None, focus_half_width=None,
+        focus_relative_error=.0025, max_iterations=600):
+    """Refine an explicit passive initial guess against the actual error limits.
+
+    The epigraph variable bounds every normalized error simultaneously; a soft
+    least-squares penalty can otherwise trade a failed maximum-error gate for a
+    slightly smaller RMS error. Success is judged from the returned coefficients
+    by the caller, never from the optimizer's status. The existing 1.1 allowance
+    on the additional focus objective is retained. No acceptance limit changes.
+    """
+    energy, target, initial = np.asarray(energy), np.asarray(target), np.asarray(initial, float)
+    lower, upper = np.asarray(lower), np.asarray(upper)
+    n = initial.size // 3
+    if initial.shape != lower.shape or initial.shape != upper.shape or initial.size != 3*n:
+        raise ValueError('Initial Lorentz parameters and bounds must have matching 3N shapes.')
+    if np.any(~np.isfinite(initial)) or np.any(initial < lower) or np.any(initial > upper):
+        raise ValueError('Initial Lorentz parameters must be finite and inside the declared bounds.')
+    scale = np.r_[np.maximum(initial[:n], .1), np.ones(2*n)]
+    x0 = initial / scale
+    inverse = 1 / target
+    norm, inverse_norm = np.linalg.norm(target), np.linalg.norm(inverse)
+    focus = np.zeros(len(energy), bool) if focus_center is None else abs(energy-focus_center) <= focus_half_width
+    limits = np.full(len(energy), pointwise_limit)
+    limits[focus] = min(pointwise_limit, 1.1*focus_relative_error)
+
+    def constraints(x):
+        value, jac = lorentz_values_jacobian(energy, x*scale, alpha_inf)
+        jac = jac*scale
+        delta, inverse_delta = value-target, 1/value-inverse
+        inverse_jac = -jac/value[:, None]**2
+        nr, ni = np.linalg.norm(delta)/norm, np.linalg.norm(inverse_delta)/inverse_norm
+        relative = abs(delta)/abs(target)
+        jr = (delta.conj()[:, None]*jac).real / np.maximum(abs(delta)*abs(target), 1e-100)[:, None]
+        jnr = np.sum((delta.conj()[:, None]*jac).real, axis=0) / max(np.linalg.norm(delta)*norm, 1e-100)
+        jni = np.sum((inverse_delta.conj()[:, None]*inverse_jac).real, axis=0) / max(np.linalg.norm(inverse_delta)*inverse_norm, 1e-100)
+        ratios = np.r_[relative/limits, nr/nrms_limit, ni/nrms_limit]
+        derivative = np.vstack((jr/limits[:, None], jnr/nrms_limit, jni/nrms_limit))
+        return ratios, derivative
+
+    initial_ratio = float(np.max(constraints(x0)[0]))
+    result = minimize(
+        lambda y: y[-1] + 1e-9*np.sum((y[:-1]-x0)**2),
+        np.r_[x0, initial_ratio+.01],
+        jac=lambda y: np.r_[2e-9*(y[:-1]-x0), 1.], method='SLSQP',
+        bounds=list(zip(np.r_[lower/scale, 0.], np.r_[upper/scale, np.inf])),
+        constraints={'type': 'ineq',
+                     'fun': lambda y: y[-1]-constraints(y[:-1])[0],
+                     'jac': lambda y: np.column_stack((-constraints(y[:-1])[1], np.ones(len(energy)+2)))},
+        options={'maxiter': max_iterations, 'ftol': 1e-10},
+    )
+    candidate = np.asarray(result.x[:-1])*scale
+    if np.any(~np.isfinite(candidate)):
+        return initial.copy()
+    # Preserve passivity/bounds even if a constrained iteration terminates early.
+    candidate = np.clip(candidate, lower, upper)
+    return candidate if np.max(constraints(candidate/scale)[0]) < initial_ratio else initial.copy()
+
+
 def positive_lorentz_candidate(energy, target, alpha_inf, n_modes, *,
         omega_bounds, gamma_bounds, strength_max, alpha_weight=1., inverse_weight=1.2,
         nrms_limit=.025, pointwise_limit=.05, focus_center=None, focus_half_width=None,
-        focus_relative_error=.0025):
+        focus_relative_error=.0025, initial_modes_eV=None):
     """Return passive coefficients; caller must independently enforce its gates.
 
     Positive matching pursuit + NNLS avoids nearly zero-strength inserted poles,
@@ -60,6 +134,20 @@ def positive_lorentz_candidate(energy, target, alpha_inf, n_modes, *,
     n = n_modes
     lo = np.r_[np.zeros(n), np.full(n, np.log(omega_bounds[0])), np.full(n, np.log(gamma_bounds[0]))]
     hi = np.r_[np.full(n, strength_max), np.full(n, np.log(omega_bounds[1])), np.full(n, np.log(gamma_bounds[1]))]
+
+    if initial_modes_eV is not None:
+        modes = np.asarray(initial_modes_eV, dtype=float)
+        if modes.shape != (n, 3):
+            raise ValueError('The explicit initial guess must contain exactly n_modes Lorentz triples.')
+        if np.any(~np.isfinite(modes)) or np.any(modes[:, 0] < 0) or np.any(modes[:, 1:] <= 0):
+            raise ValueError('The explicit initial guess is not a passive Lorentz representation.')
+        initial = np.r_[modes[:, 0], np.log(modes[:, 1]), np.log(modes[:, 2])]
+        return minimax_lorentz_candidate(
+            energy, target, alpha_inf, initial, lower=lo, upper=hi,
+            nrms_limit=nrms_limit, pointwise_limit=pointwise_limit,
+            focus_center=focus_center, focus_half_width=focus_half_width,
+            focus_relative_error=focus_relative_error,
+        )
 
     def objective(u):
         value, j = lorentz_values_jacobian(train_e, u, alpha_inf)

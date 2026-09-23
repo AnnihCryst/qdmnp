@@ -1,0 +1,10 @@
+Building one FQS branch, channel side_long (1/1) ...
+C:\qdmnp\src\qdmnp\observables\calculate_work_loss_spectrum_material_comparison.py:982: RuntimeWarning: The deliberately selected material Lorentz fit misses the configured accuracy gate: NRMS(alpha)=0.944272, NRMS(1/alpha)=0.56431, max normalized alpha error=0.996142; this is expected for a one-oscillator control but must be reported as an approximation, not as an accurate Au fit.
+  bundle = _build_channel_model(
+C:\qdmnp\src\qdmnp\observables\calculate_work_loss_fluence.py:760: RuntimeWarning: The transformed common-material realization does not meet the full-QS modal accuracy/passivity gate: max NRMS=0.94424, max relative=0.99563, K NRMS=0.37467, K max relative=0.47682, passive=True.
+  full_model = FullQSSpheroidPulseModel(
+Building multi FQS branch, channel side_long (1/1) ...
+  one/side_long: F=5e-10 J/cm^2 (1/3)
+  one/side_long: F=1.60755e-05 J/cm^2 (2/3)
+  one/side_long: F=5.99713e-05 J/cm^2 (3/3)
+  multi/side_long: F=5e-10 J/cm^2 (1/3)

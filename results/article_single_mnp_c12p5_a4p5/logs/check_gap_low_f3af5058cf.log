@@ -1,0 +1,26 @@
+Building pulse DD/FQS side_long, gap=0.3 nm ...
+Traceback (most recent call last):
+  File "<frozen runpy>", line 203, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "C:\qdmnp\src\qdmnp\observables\calculate_threshold_fluence_gap.py", line 19, in <module>
+    main()
+    ~~~~^^
+  File "C:\qdmnp\src\qdmnp\observables\calculate_threshold_fluence_gap.py", line 15, in main
+    return run_threshold_calculation(Path(__file__), argv)
+  File "C:\qdmnp\src\qdmnp\observables\gap_metrics_common.py", line 2477, in run_threshold_calculation
+    payload, details = compute_threshold_payload(args)
+                       ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "C:\qdmnp\src\qdmnp\observables\gap_metrics_common.py", line 1720, in compute_threshold_payload
+    return _compute_threshold_payload(args)
+  File "C:\qdmnp\src\qdmnp\observables\gap_metrics_common.py", line 1754, in _compute_threshold_payload
+    bundles.append(_build_channel(spec, float(gap), args, require_time_model=True))
+                   ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\qdmnp\src\qdmnp\observables\gap_metrics_common.py", line 418, in _build_channel
+    fqs_model = FullQSSpheroidPulseModel(
+        dd_model,
+    ...<10 lines>...
+        max_reduction_normalized_error=args.reduction_max_tolerance,
+    )
+  File "C:\qdmnp\src\qdmnp\full_qs_model.py", line 489, in __init__
+    raise RuntimeError(message)
+RuntimeError: The retained spheroidal spatial series is not converged on the material-fit window: max half-order relative change=3.36565e-05, max tail-block relative mass=1.6878e-09, tolerance=2e-05, n_max=80.

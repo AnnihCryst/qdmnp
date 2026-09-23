@@ -1,0 +1,15 @@
+{
+  "trapezoid": {
+    "incident_ft_max_pointwise_relative_error": 0.009880067060530292,
+    "incident_ft_max_normalized_error": 0.0014488195204601826,
+    "energy_window_relative_change": 0.0,
+    "spectrum_window_max_normalized_change": 5.873413689641155e-07
+  },
+  "simpson": {
+    "incident_ft_max_pointwise_relative_error": 0.0002694114760326072,
+    "incident_ft_max_normalized_error": 8.435486430826032e-05,
+    "energy_window_relative_change": 0.0,
+    "spectrum_window_max_normalized_change": 5.895141359938129e-07
+  },
+  "dipole_ft_max_normalized_difference": 0.001374632783201472
+}

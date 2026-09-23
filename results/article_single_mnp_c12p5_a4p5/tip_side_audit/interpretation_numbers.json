@@ -1,0 +1,36 @@
+{
+  "Lz": 0.11933878992049488,
+  "dielectric_denominator": [
+    0.7939913217605263,
+    0.1746384545332286
+  ],
+  "surface_field_gain": {
+    "axis": 153.05399866803305,
+    "side": 7.6597679061438795
+  },
+  "centre_distance_from_surface_nm": 2.5,
+  "first_profile_crossing_nm": 1.8243654469393376,
+  "geometries_at_carrier": {
+    "old": {
+      "axis": 51.35714139603605,
+      "side": 3.1933507431769486
+    },
+    "new": {
+      "axis": 1.7754989191800163,
+      "side": 3.996953264400382
+    }
+  },
+  "fields_at_new_plasmon_energy": {
+    "axis": 483.630776594811,
+    "side": 102.06616299460423
+  },
+  "original_thresholds_uJ_cm2": {
+    "axis_long": 49.22923544170759,
+    "axis_trans": 121.18358584661371,
+    "side_long": 16.07525069686681,
+    "side_trans_radial": 20.229162828532846,
+    "side_trans_tangential": null
+  },
+  "isolated_threshold_uJ_cm2": 61.672164463490326,
+  "scope": "bare MNP uniform-field formulas, no QD back-action; sampled pulse thresholds reported separately"
+}

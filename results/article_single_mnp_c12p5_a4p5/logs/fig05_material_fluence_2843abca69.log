@@ -1,0 +1,201 @@
+Calculating one branch with N=1 ...
+Building full-QS channel axis_long ...
+C:\qdmnp\src\qdmnp\observables\calculate_excitation_fluence.py:801: RuntimeWarning: The deliberately selected material Lorentz fit misses the configured accuracy gate: NRMS(alpha)=0.944272, NRMS(1/alpha)=0.56431, max normalized alpha error=0.996142; this is expected for a one-oscillator control but must be reported as an approximation, not as an accurate Au fit.
+  built.append((channel, *_build_channel_model(channel, settings)))
+C:\qdmnp\src\qdmnp\observables\calculate_excitation_fluence.py:493: RuntimeWarning: The transformed common-material realization does not meet the full-QS modal accuracy/passivity gate: max NRMS=0.94424, max relative=0.99563, K NRMS=0.58358, K max relative=0.79727, passive=True.
+  model = FullQSSpheroidPulseModel(
+Building full-QS channel axis_trans ...
+C:\qdmnp\src\qdmnp\observables\calculate_excitation_fluence.py:801: RuntimeWarning: The deliberately selected material Lorentz fit misses the configured accuracy gate: NRMS(alpha)=0.360862, NRMS(1/alpha)=0.31629, max normalized alpha error=0.490741; this is expected for a one-oscillator control but must be reported as an approximation, not as an accurate Au fit.
+  built.append((channel, *_build_channel_model(channel, settings)))
+C:\qdmnp\src\qdmnp\observables\calculate_excitation_fluence.py:493: RuntimeWarning: The transformed common-material realization does not meet the full-QS modal accuracy/passivity gate: max NRMS=0.39933, max relative=0.53595, K NRMS=0.38819, K max relative=0.52273, passive=True.
+  model = FullQSSpheroidPulseModel(
+Building full-QS channel side_long ...
+C:\qdmnp\src\qdmnp\observables\calculate_excitation_fluence.py:493: RuntimeWarning: The transformed common-material realization does not meet the full-QS modal accuracy/passivity gate: max NRMS=0.94424, max relative=0.99563, K NRMS=0.37467, K max relative=0.47682, passive=True.
+  model = FullQSSpheroidPulseModel(
+Building full-QS channel side_trans_radial ...
+C:\qdmnp\src\qdmnp\observables\calculate_excitation_fluence.py:493: RuntimeWarning: The transformed common-material realization does not meet the full-QS modal accuracy/passivity gate: max NRMS=0.77385, max relative=0.92803, K NRMS=0.35258, K max relative=0.45919, passive=True.
+  model = FullQSSpheroidPulseModel(
+Building full-QS channel side_trans_tangential ...
+C:\qdmnp\src\qdmnp\observables\calculate_excitation_fluence.py:493: RuntimeWarning: The transformed common-material realization does not meet the full-QS modal accuracy/passivity gate: max NRMS=0.39902, max relative=0.53559, K NRMS=0.33262, K max relative=0.45606, passive=True.
+  model = FullQSSpheroidPulseModel(
+P_exc(F): 325 FQS solves on 30 worker processes.
+[16/325] FQS solves done
+[32/325] FQS solves done
+[48/325] FQS solves done
+[64/325] FQS solves done
+[80/325] FQS solves done
+[96/325] FQS solves done
+[112/325] FQS solves done
+[128/325] FQS solves done
+[144/325] FQS solves done
+[160/325] FQS solves done
+[176/325] FQS solves done
+[192/325] FQS solves done
+[208/325] FQS solves done
+[224/325] FQS solves done
+[240/325] FQS solves done
+[256/325] FQS solves done
+[272/325] FQS solves done
+[288/325] FQS solves done
+[304/325] FQS solves done
+[320/325] FQS solves done
+[325/325] FQS solves done
+[1/65] fluence=5.000000e-10 J/cm^2, read=3600.000 fs
+[2/65] fluence=5.904033e-08 J/cm^2, read=3600.000 fs
+[3/65] fluence=2.149283e-07 J/cm^2, read=3600.000 fs
+[4/65] fluence=4.681640e-07 J/cm^2, read=3600.000 fs
+[5/65] fluence=8.187474e-07 J/cm^2, read=3600.000 fs
+[6/65] fluence=1.266678e-06 J/cm^2, read=3600.000 fs
+[7/65] fluence=1.811957e-06 J/cm^2, read=3600.000 fs
+[8/65] fluence=2.454584e-06 J/cm^2, read=3600.000 fs
+[9/65] fluence=3.194558e-06 J/cm^2, read=3600.000 fs
+[10/65] fluence=4.031879e-06 J/cm^2, read=3600.000 fs
+[11/65] fluence=4.966549e-06 J/cm^2, read=3600.000 fs
+[12/65] fluence=5.998566e-06 J/cm^2, read=3600.000 fs
+[13/65] fluence=7.127931e-06 J/cm^2, read=3600.000 fs
+[14/65] fluence=8.354643e-06 J/cm^2, read=3600.000 fs
+[15/65] fluence=9.678703e-06 J/cm^2, read=3600.000 fs
+[16/65] fluence=1.110011e-05 J/cm^2, read=3600.000 fs
+[17/65] fluence=1.261887e-05 J/cm^2, read=3600.000 fs
+[18/65] fluence=1.423497e-05 J/cm^2, read=3600.000 fs
+[19/65] fluence=1.594842e-05 J/cm^2, read=3600.000 fs
+[20/65] fluence=1.775922e-05 J/cm^2, read=3600.000 fs
+[21/65] fluence=1.966737e-05 J/cm^2, read=3600.000 fs
+[22/65] fluence=2.167286e-05 J/cm^2, read=3600.000 fs
+[23/65] fluence=2.377570e-05 J/cm^2, read=3600.000 fs
+[24/65] fluence=2.597589e-05 J/cm^2, read=3600.000 fs
+[25/65] fluence=2.827343e-05 J/cm^2, read=3600.000 fs
+[26/65] fluence=3.066831e-05 J/cm^2, read=3600.000 fs
+[27/65] fluence=3.316054e-05 J/cm^2, read=3600.000 fs
+[28/65] fluence=3.575012e-05 J/cm^2, read=3600.000 fs
+[29/65] fluence=3.843705e-05 J/cm^2, read=3600.000 fs
+[30/65] fluence=4.122133e-05 J/cm^2, read=3600.000 fs
+[31/65] fluence=4.410295e-05 J/cm^2, read=3600.000 fs
+[32/65] fluence=4.708192e-05 J/cm^2, read=3600.000 fs
+[33/65] fluence=5.015824e-05 J/cm^2, read=3600.000 fs
+[34/65] fluence=5.333190e-05 J/cm^2, read=3600.000 fs
+[35/65] fluence=5.660292e-05 J/cm^2, read=3600.000 fs
+[36/65] fluence=5.997128e-05 J/cm^2, read=3600.000 fs
+[37/65] fluence=6.343699e-05 J/cm^2, read=3600.000 fs
+[38/65] fluence=6.700005e-05 J/cm^2, read=3600.000 fs
+[39/65] fluence=7.066045e-05 J/cm^2, read=3600.000 fs
+[40/65] fluence=7.441820e-05 J/cm^2, read=3600.000 fs
+[41/65] fluence=7.827330e-05 J/cm^2, read=3600.000 fs
+[42/65] fluence=8.222575e-05 J/cm^2, read=3600.000 fs
+[43/65] fluence=8.627554e-05 J/cm^2, read=3600.000 fs
+[44/65] fluence=9.042269e-05 J/cm^2, read=3600.000 fs
+[45/65] fluence=9.466718e-05 J/cm^2, read=3600.000 fs
+[46/65] fluence=9.900902e-05 J/cm^2, read=3600.000 fs
+[47/65] fluence=1.034482e-04 J/cm^2, read=3600.000 fs
+[48/65] fluence=1.079847e-04 J/cm^2, read=3600.000 fs
+[49/65] fluence=1.126186e-04 J/cm^2, read=3600.000 fs
+[50/65] fluence=1.173498e-04 J/cm^2, read=3600.000 fs
+[51/65] fluence=1.221784e-04 J/cm^2, read=3600.000 fs
+[52/65] fluence=1.271043e-04 J/cm^2, read=3600.000 fs
+[53/65] fluence=1.321276e-04 J/cm^2, read=3600.000 fs
+[54/65] fluence=1.372482e-04 J/cm^2, read=3600.000 fs
+[55/65] fluence=1.424662e-04 J/cm^2, read=3600.000 fs
+[56/65] fluence=1.477815e-04 J/cm^2, read=3600.000 fs
+[57/65] fluence=1.531942e-04 J/cm^2, read=3600.000 fs
+[58/65] fluence=1.587042e-04 J/cm^2, read=3600.000 fs
+[59/65] fluence=1.643116e-04 J/cm^2, read=3600.000 fs
+[60/65] fluence=1.700163e-04 J/cm^2, read=3600.000 fs
+[61/65] fluence=1.758183e-04 J/cm^2, read=3600.000 fs
+[62/65] fluence=1.817177e-04 J/cm^2, read=3600.000 fs
+[63/65] fluence=1.877145e-04 J/cm^2, read=3600.000 fs
+[64/65] fluence=1.938086e-04 J/cm^2, read=3600.000 fs
+[65/65] fluence=2.000000e-04 J/cm^2, read=3600.000 fs
+Calculating multi branch with N=12 ...
+Building full-QS channel axis_long ...
+Building full-QS channel axis_trans ...
+Building full-QS channel side_long ...
+Building full-QS channel side_trans_radial ...
+Building full-QS channel side_trans_tangential ...
+P_exc(F): 325 FQS solves on 30 worker processes.
+[16/325] FQS solves done
+[32/325] FQS solves done
+[48/325] FQS solves done
+[64/325] FQS solves done
+[80/325] FQS solves done
+[96/325] FQS solves done
+[112/325] FQS solves done
+[128/325] FQS solves done
+[144/325] FQS solves done
+[160/325] FQS solves done
+[176/325] FQS solves done
+[192/325] FQS solves done
+[208/325] FQS solves done
+[224/325] FQS solves done
+[240/325] FQS solves done
+[256/325] FQS solves done
+[272/325] FQS solves done
+[288/325] FQS solves done
+[304/325] FQS solves done
+[320/325] FQS solves done
+[325/325] FQS solves done
+[1/65] fluence=5.000000e-10 J/cm^2, read=3600.000 fs
+[2/65] fluence=5.904033e-08 J/cm^2, read=3600.000 fs
+[3/65] fluence=2.149283e-07 J/cm^2, read=3600.000 fs
+[4/65] fluence=4.681640e-07 J/cm^2, read=3600.000 fs
+[5/65] fluence=8.187474e-07 J/cm^2, read=3600.000 fs
+[6/65] fluence=1.266678e-06 J/cm^2, read=3600.000 fs
+[7/65] fluence=1.811957e-06 J/cm^2, read=3600.000 fs
+[8/65] fluence=2.454584e-06 J/cm^2, read=3600.000 fs
+[9/65] fluence=3.194558e-06 J/cm^2, read=3600.000 fs
+[10/65] fluence=4.031879e-06 J/cm^2, read=3600.000 fs
+[11/65] fluence=4.966549e-06 J/cm^2, read=3600.000 fs
+[12/65] fluence=5.998566e-06 J/cm^2, read=3600.000 fs
+[13/65] fluence=7.127931e-06 J/cm^2, read=3600.000 fs
+[14/65] fluence=8.354643e-06 J/cm^2, read=3600.000 fs
+[15/65] fluence=9.678703e-06 J/cm^2, read=3600.000 fs
+[16/65] fluence=1.110011e-05 J/cm^2, read=3600.000 fs
+[17/65] fluence=1.261887e-05 J/cm^2, read=3600.000 fs
+[18/65] fluence=1.423497e-05 J/cm^2, read=3600.000 fs
+[19/65] fluence=1.594842e-05 J/cm^2, read=3600.000 fs
+[20/65] fluence=1.775922e-05 J/cm^2, read=3600.000 fs
+[21/65] fluence=1.966737e-05 J/cm^2, read=3600.000 fs
+[22/65] fluence=2.167286e-05 J/cm^2, read=3600.000 fs
+[23/65] fluence=2.377570e-05 J/cm^2, read=3600.000 fs
+[24/65] fluence=2.597589e-05 J/cm^2, read=3600.000 fs
+[25/65] fluence=2.827343e-05 J/cm^2, read=3600.000 fs
+[26/65] fluence=3.066831e-05 J/cm^2, read=3600.000 fs
+[27/65] fluence=3.316054e-05 J/cm^2, read=3600.000 fs
+[28/65] fluence=3.575012e-05 J/cm^2, read=3600.000 fs
+[29/65] fluence=3.843705e-05 J/cm^2, read=3600.000 fs
+[30/65] fluence=4.122133e-05 J/cm^2, read=3600.000 fs
+[31/65] fluence=4.410295e-05 J/cm^2, read=3600.000 fs
+[32/65] fluence=4.708192e-05 J/cm^2, read=3600.000 fs
+[33/65] fluence=5.015824e-05 J/cm^2, read=3600.000 fs
+[34/65] fluence=5.333190e-05 J/cm^2, read=3600.000 fs
+[35/65] fluence=5.660292e-05 J/cm^2, read=3600.000 fs
+[36/65] fluence=5.997128e-05 J/cm^2, read=3600.000 fs
+[37/65] fluence=6.343699e-05 J/cm^2, read=3600.000 fs
+[38/65] fluence=6.700005e-05 J/cm^2, read=3600.000 fs
+[39/65] fluence=7.066045e-05 J/cm^2, read=3600.000 fs
+[40/65] fluence=7.441820e-05 J/cm^2, read=3600.000 fs
+[41/65] fluence=7.827330e-05 J/cm^2, read=3600.000 fs
+[42/65] fluence=8.222575e-05 J/cm^2, read=3600.000 fs
+[43/65] fluence=8.627554e-05 J/cm^2, read=3600.000 fs
+[44/65] fluence=9.042269e-05 J/cm^2, read=3600.000 fs
+[45/65] fluence=9.466718e-05 J/cm^2, read=3600.000 fs
+[46/65] fluence=9.900902e-05 J/cm^2, read=3600.000 fs
+[47/65] fluence=1.034482e-04 J/cm^2, read=3600.000 fs
+[48/65] fluence=1.079847e-04 J/cm^2, read=3600.000 fs
+[49/65] fluence=1.126186e-04 J/cm^2, read=3600.000 fs
+[50/65] fluence=1.173498e-04 J/cm^2, read=3600.000 fs
+[51/65] fluence=1.221784e-04 J/cm^2, read=3600.000 fs
+[52/65] fluence=1.271043e-04 J/cm^2, read=3600.000 fs
+[53/65] fluence=1.321276e-04 J/cm^2, read=3600.000 fs
+[54/65] fluence=1.372482e-04 J/cm^2, read=3600.000 fs
+[55/65] fluence=1.424662e-04 J/cm^2, read=3600.000 fs
+[56/65] fluence=1.477815e-04 J/cm^2, read=3600.000 fs
+[57/65] fluence=1.531942e-04 J/cm^2, read=3600.000 fs
+[58/65] fluence=1.587042e-04 J/cm^2, read=3600.000 fs
+[59/65] fluence=1.643116e-04 J/cm^2, read=3600.000 fs
+[60/65] fluence=1.700163e-04 J/cm^2, read=3600.000 fs
+[61/65] fluence=1.758183e-04 J/cm^2, read=3600.000 fs
+[62/65] fluence=1.817177e-04 J/cm^2, read=3600.000 fs
+[63/65] fluence=1.877145e-04 J/cm^2, read=3600.000 fs
+[64/65] fluence=1.938086e-04 J/cm^2, read=3600.000 fs
+[65/65] fluence=2.000000e-04 J/cm^2, read=3600.000 fs
+Saved material-mode excitation-fluence comparison: C:\qdmnp\results\article_single_mnp_c12p5_a4p5\data\fig05_material_fluence_2843abca69.npz

@@ -1,0 +1,35 @@
+{
+  "accepted": false,
+  "selected_candidate_separated": true,
+  "sensitivity_checks_complete": true,
+  "ranking_preserved_in_tested_sensitivity_cases": false,
+  "selected_candidate_separated_in_sensitivity_cases": false,
+  "relative_numerical_allowance": 0.05,
+  "allowance_definition": "max(declared threshold tolerance, observed refinement changes); conservative resolution allowance, not a statistical confidence interval",
+  "indistinguishable_grid_candidates": [
+    {
+      "channel": "side_long",
+      "gap_nm": 0.5,
+      "threshold_J_cm2": 1.607525069686681e-05
+    },
+    {
+      "channel": "side_long",
+      "gap_nm": 0.75,
+      "threshold_J_cm2": 1.6809384728475787e-05
+    },
+    {
+      "channel": "side_long",
+      "gap_nm": 1.0,
+      "threshold_J_cm2": 1.7578800276626404e-05
+    }
+  ],
+  "recommended_gap_range_nm": [
+    0.5,
+    1.0
+  ],
+  "recommendation_is_a_range": true,
+  "plateau_is_one_contiguous_region_on_the_best_channel": true,
+  "separation_definition": "every candidate outside the resolution plateau is worse than the winner by more than the allowance",
+  "unresolved_potential_competitor_count": 0,
+  "scope": "configured discrete candidates and one-parameter sensitivity cases only; no global or ensemble optimum"
+}

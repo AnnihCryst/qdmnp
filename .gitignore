@@ -1,8 +1,10 @@
 .venv/
 __pycache__/
 *.py[cod]
-# Keep generated results local on this calculation branch.
+# Keep other generated results local; publish the validated article archive.
 /results/*
+!/results/article_single_mnp_c12p5_a4p5/
+!/results/sensitivity_repair_tests.log
 /articles/
 *.egg-info/
 build/
