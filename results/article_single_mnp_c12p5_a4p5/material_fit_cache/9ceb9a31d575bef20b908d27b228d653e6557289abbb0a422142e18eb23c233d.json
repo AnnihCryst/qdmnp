@@ -1,4 +1,0 @@
-{
-  "key": "{\"L\": 0.4367619286008783, \"alpha_weight\": 1.0, \"aspect\": 2.645502645502645, \"eps_m\": 2.25, \"inverse_weight\": 1.2, \"material_sha256\": \"33feed21a90c29701f3650593a70946a4ddf0eae4fbac828d9d1f125af53e348\", \"n_modes\": 1, \"optimizer_nrms\": 0.025, \"optimizer_pointwise\": 0.05, \"orientation\": \"trans\", \"refinement\": {\"focus_center_eV\": 2.042, \"focus_half_width_eV\": 0.0075, \"focus_relative_error\": 0.0025, \"pole_bound_factor\": 4.0}, \"refinement_source_sha256\": \"dc9df28d9b999e49fbaf89749d2231898c594b08709b689bb9af9a988b574c76\", \"seed\": 12345, \"source_sha256\": \"7affbe291d6690215565dd7d18543c64eae9e7c46cbb236c3829c2cfa39a5d79\", \"weight_center\": null, \"weight_sigma\": null, \"window\": [0.8, 3.5]}",
-  "sha256": "42794d21cc1976b5dd48e8cf7452f02ca0073ae3822a8c3edd7a283e497e9aa4"
-}

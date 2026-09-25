@@ -66,7 +66,7 @@ KERNELS = {
 }
 STAGES = (
     "material", "spectra", "preflight", "thresholds", "selection",
-    "validation", "material_effect", "dynamics", "work_spectrum", "report",
+    "validation", "material_effect", "dynamics", "work_spectrum", "article_diagnostics", "report",
 )
 
 
@@ -363,8 +363,9 @@ class ArticleRun:
     def common(self, config=None):
         return physical_arguments(config or self.config)
 
-    def fit_args(self, *, mode_key="material-fit-modes", count=None):
-        m, n = self.config["material"], self.config["numerics"]
+    def fit_args(self, *, mode_key="material-fit-modes", count=None, config=None):
+        cfg = config or self.config
+        m, n = cfg["material"], cfg["numerics"]
         return {mode_key: count or self.material_n, "fit-min-ev": m["fit_min_eV"], "fit-max-ev": m["fit_max_eV"],
                 "fit-refinement": json.dumps(m["refinement"], sort_keys=True) if m.get("refinement") else None,
                 "max-bright-fit-normalized-rms": m["max_bright_nrms"], "max-bright-fit-pointwise-relative-error": m["max_bright_pointwise_error"],
@@ -467,7 +468,7 @@ class ArticleRun:
 
     def material_spectrum(self, label, gap, *, count=None, config=None, overrides=None):
         s = self.config["spectrum"]
-        fit = self.fit_args(mode_key="multi-fit-modes", count=count)
+        fit = self.fit_args(mode_key="multi-fit-modes", count=count, config=config)
         # This calculator checks multi-mode fit accuracy unconditionally;
         # only its ONE-mode diagnostic branch has an accuracy policy switch.
         fit.pop("fit-quality-policy")
@@ -520,7 +521,7 @@ class ArticleRun:
         cfg = config or self.config
         p = cfg["pulse"]
         return {
-            "preset": "publication", **self.common(cfg), **self.fit_args(count=count), **self.temporal_args(config=cfg),
+            "preset": "publication", **self.common(cfg), **self.fit_args(count=count, config=cfg), **self.temporal_args(config=cfg),
             "gaps-nm": gaps if gaps is not None else cfg["geometry"]["gaps_nm"],
             "channels": channels if channels is not None else cfg["geometry"]["channels"],
             "carrier-energy-ev": p["carrier_energy_eV"], "fluence-min-j-cm2": p["fluence_min_J_cm2"],
@@ -579,6 +580,89 @@ class ArticleRun:
         self.state["selection"] = select_scenarios(data, self.config)
         write_json(self.directory / "selection.json", self.state["selection"])
 
+    def shape_validation_candidate(self, label, config, gaps, overrides):
+        """Certify a varied shape, refining numerics without weakening its gates.
+
+        A seed is computed from the native lower-c fit in THIS run. It is only
+        an optimizer starting point; the target shape must pass the ordinary
+        material and all-channel final-spectrum checks again.
+        """
+        v = self.config["validation"]
+        attempts = []
+        selected_overrides = dict(overrides)
+        ceiling = min(self.config["numerics"]["max_spatial_order"],
+                      spatial_order_limit(self.config["geometry"]["channels"]))
+
+        def certify(cfg, count, refinement):
+            while True:
+                order = selected_overrides.get("spatial-order-max", self.spatial_order)
+                try:
+                    paths = [self.material_spectrum("check_shape_"+label, gap, count=count,
+                                 config=cfg, overrides=selected_overrides) for gap in gaps]
+                    return cfg, count, dict(selected_overrides), {
+                        "material_modes_used": count, "spatial_order_used": order,
+                        "shape_spectrum_artifact": str(paths[0]),
+                        "shape_spectrum_artifacts": [str(p) for p in paths],
+                        "material_refinement": refinement, "refinement_attempts": list(attempts),
+                        "relaxed_numerical_gates": dict(overrides),
+                        "gate_scope": "Unchanged shape-specific limits from configured inputs",
+                    }
+                except StageError as exc:
+                    attempts.append({"material_modes": count, "spatial_order": order,
+                                     "refinement": refinement, "error": str(exc)})
+                    if "spatial" in str(exc).lower() and order < ceiling:
+                        selected_overrides["spatial-order-max"] = min(2*order, ceiling)
+                        continue
+                    raise
+
+        for count in v["shape_check_mode_candidates"]:
+            try:
+                return certify(config, count, "native")
+            except StageError as exc:
+                if not any(word in str(exc).lower() for word in ("fit", "accuracy", "modal", "observable")):
+                    raise
+        if v.get("shape_fit_fallback", "none") != "native_neighbor_minimax":
+            raise StageError(" | ".join(row["error"] for row in attempts))
+        from qdmnp.observables.article_fit_seed import native_material_seed
+        g, m = self.config["geometry"], self.config["material"]
+        count = max(v["shape_check_mode_candidates"])
+        modes, provenance = native_material_seed(
+            c_nm=g["c_nm"]*(1-v["shape_relative_offset"]), a_nm=g["a_nm"],
+            eps_m=self.config["medium"]["relative_permittivity"], n_modes=count,
+            fit_window_eV=(m["fit_min_eV"], m["fit_max_eV"]),
+            fit_refinement=m.get("refinement"), orientation="long",
+        )
+        cfg = deepcopy(config)
+        cfg["material"]["refinement"]["initial_modes_eV"] = {"long": modes}
+        # The independently validated repair uses the finest declared spatial
+        # order, keeping material-fit error distinct from series truncation.
+        selected_overrides["spatial-order-max"] = ceiling
+        candidate = certify(cfg, count, "native_neighbor_minimax")
+        candidate[3]["material_seed"] = provenance
+        return candidate
+
+    def refine_sensitivity_spatial_failure(self, item, outcome):
+        """Retry only a parameter-variation spatial rejection, within its limit."""
+        if not item["label"].endswith(("_low", "_high")):
+            return outcome
+        label, module, arguments = item["spec"]
+        arguments = dict(arguments)
+        ceiling = min(self.config["numerics"]["max_spatial_order"],
+                      spatial_order_limit(arguments["channels"]))
+        while isinstance(outcome, StageError) and "spatial" in str(outcome).lower():
+            order = arguments["spatial-order-max"]
+            if order >= ceiling:
+                break
+            item["extra"].setdefault("spatial_refinement_attempts", []).append(
+                {"spatial_order": order, "error": str(outcome)})
+            arguments["spatial-order-max"] = min(2*order, ceiling)
+            item["extra"]["spatial_order_used"] = arguments["spatial-order-max"]
+            try:
+                outcome = self.step(label, module, arguments)
+            except StageError as exc:
+                outcome = exc
+        return outcome
+
     def validation(self):
         selection = self.state["selection"]
         channels = list(dict.fromkeys([selection["best_channel"], selection["runner_up_channel"], selection["control_channel"]]))
@@ -628,8 +712,8 @@ class ArticleRun:
             check("fluence_refined", points=2*self.fluence_points-1)
             original_order = self.spatial_order
             limit = spatial_order_limit(channels)
-            # The side (equatorial) kernel supports orders <= 80. When doubling is
-            # impossible, compare with half the order instead: the threshold change
+            # When the kernel ceiling prevents doubling, compare with half the
+            # order instead: the threshold change
             # between n/2 and n bounds the remaining spatial error at n. The n/2 model
             # only reports its own half-order certificate; the production order keeps
             # the strict one in the master scan.
@@ -677,34 +761,19 @@ class ArticleRun:
                     cfg = deepcopy(self.config)
                     cfg[section][key] = cfg[section][key]*(1+sign*amount) if relative else cfg[section][key]+sign*amount
                     if parameter in ("c", "a"):
-                        # A varied shape needs its own validated material representation:
-                        # use the smallest declared pole count that passes the fit and
-                        # final-spectrum gates (N sensitivity itself is the higher_N check).
-                        # A +/-5 % shape is a robustness probe whose material is at the
-                        # identifiability limit (13 poles) and whose side kernel is at its
-                        # maximum order (80): the modal-transform and spatial-series gates
-                        # are relaxed for these checks only and recorded with the result.
+                        # Preserve the declared shape-specific limits. A rejected
+                        # material representation may use the configured numerical
+                        # fallback, but must pass the same final-spectrum checks.
                         relaxed = {"max-modal-normalized-rms": v["shape_check_max_modal_nrms"],
                                    "max-modal-relative-error": v["shape_check_max_modal_relative_error"],
                                    "spatial-convergence-rtol": v["shape_check_spatial_rtol"]}
-                        used, errors = None, []
-                        for n_modes in v["shape_check_mode_candidates"]:
-                            try:
-                                for gap in gaps:
-                                    self.material_spectrum("check_shape_"+parameter+"_"+suffix, gap, count=n_modes,
-                                                           config=cfg, overrides=relaxed)
-                                used = n_modes
-                                break
-                            except StageError as exc:
-                                errors.append(f"N={n_modes}: {exc}")
-                                if not any(word in str(exc).lower() for word in ("fit", "accuracy", "modal", "observable")):
-                                    break
-                        if used is None:
-                            planned.append({"label": parameter+"_"+suffix, "error": " | ".join(errors)})
+                        label = parameter+"_"+suffix
+                        try:
+                            cfg, used, overrides, details = self.shape_validation_candidate(label, cfg, gaps, relaxed)
+                        except (StageError, RuntimeError, ValueError) as exc:
+                            planned.append({"label": label, "error": str(exc)})
                             continue
-                        check(parameter+"_"+suffix, cfg, count=used, overrides=relaxed,
-                              extra={"material_modes_used": used, "rejected_mode_counts": [e.split(":")[0] for e in errors],
-                                     "relaxed_numerical_gates": relaxed})
+                        check(label, cfg, count=used, overrides=overrides, extra=details)
                         continue
                     check(parameter+"_"+suffix, cfg)
 
@@ -722,7 +791,7 @@ class ArticleRun:
             elif "error" in item:
                 record = {"label": item["label"], "accepted": False, "error": item["error"]}
             else:
-                outcome = outcomes[item["spec"][0]]
+                outcome = self.refine_sensitivity_spatial_failure(item, outcomes[item["spec"][0]])
                 if isinstance(outcome, Exception):
                     # Preserve a failed scientific check as a negative outcome. Never
                     # label the recommendation certified just because other plots exist.
@@ -962,8 +1031,27 @@ class ArticleRun:
                     continue
                 raise
         self.state["supp01_energy_points"] = args["energy-points"]
+        self.state["work_spectrum_artifact"] = str(path)
         self.audit_fit_identity(path)
         self.plot("supp01", "work_loss_spectrum_material_comparison", path)
+
+    def article_diagnostics(self):
+        """Regenerate the additional field and gain plots from this run alone."""
+        cfg, selection = self.config, self.state["selection"]
+        self.step("tip_side_fields", PREFIX+"article_field_diagnostic", {
+            "c-nm": cfg["geometry"]["c_nm"], "a-nm": cfg["geometry"]["a_nm"],
+            "eps-m": cfg["medium"]["relative_permittivity"],
+            "carrier-energy-ev": cfg["pulse"]["carrier_energy_eV"],
+            "energy-min-ev": min(1.6, cfg["pulse"]["carrier_energy_eV"]),
+            "energy-max-ev": max(2.2, cfg["pulse"]["carrier_energy_eV"]),
+            "qd-radius-nm": cfg["geometry"]["qd_radius_nm"],
+            "gap-nm": selection["best_gap_nm"], "dpi": cfg["output"]["dpi"],
+        }, suffix=".png")
+        spectral, thresholds = Path(self.state["spectral_master"]), Path(self.state["threshold_master"])
+        self.step("fixed_and_pulse_gain", PREFIX+"plot_fixed_and_pulse_gain", {
+            "spectral-artifact": spectral, "threshold-artifact": thresholds,
+            "dpi": cfg["output"]["dpi"],
+        }, suffix=".png", dependencies=[spectral, thresholds])
 
     def report(self):
         verdict = bool(not self.config["smoke"] and self.state.get("numerical_validation_accepted", False)

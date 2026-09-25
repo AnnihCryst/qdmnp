@@ -1,7 +1,8 @@
 """Verify saved article artifacts and export tables/figures, without new ODE runs.
 
-Run from the repository root. The historical manifest is never modified.
-The sensitivity supplement is optional while calculations are still running.
+Run from the repository root after the ordinary article pipeline completes.
+No archived diagnostics or test logs are required. ``--sensitivity`` explicitly
+selects the legacy supplemental-repair workflow for an older saved run.
 """
 from __future__ import annotations
 
@@ -21,6 +22,15 @@ from qdmnp.rational_fit import AU_ENERGY_EV, AU_DIPOLE_C_M, DEBYE_C_M
 ROOT = Path(__file__).resolve().parents[1]
 CHANNELS_RU = ["Торец, продольный", "Торец, поперечный", "Бок, продольный",
                "Бок, радиальный", "Бок, тангенциальный"]
+SENSITIVITY_LABELS = {
+    "gap_low": r"$g-\Delta g$", "gap_high": r"$g+\Delta g$",
+    "c_low": r"$c-\Delta c$", "c_high": r"$c+\Delta c$",
+    "a_low": r"$a=b-\Delta a$", "a_high": r"$a=b+\Delta a$",
+    "exciton_low": r"$E_q-\Delta E_q$", "exciton_high": r"$E_q+\Delta E_q$",
+    "gamma1_low": r"$\gamma_1-\Delta\gamma_1$", "gamma1_high": r"$\gamma_1+\Delta\gamma_1$",
+    "dephasing_low": r"$\gamma_\varphi-\Delta\gamma_\varphi$",
+    "dephasing_high": r"$\gamma_\varphi+\Delta\gamma_\varphi$",
+}
 
 
 def sha(path):
@@ -41,11 +51,150 @@ def clean(value):
     return value
 
 
+def completed_artifact(manifest, role):
+    """Select a recorded success, never a failed attempt or an unrecorded file."""
+    records = [r for k, r in manifest["steps"].items()
+               if k.startswith(role+":") and r.get("status") == "complete"
+               and Path(r["output"]).suffix == ".npz"]
+    if len(records) != 1:
+        raise RuntimeError(f"Expected exactly one completed NPZ for {role}; got {len(records)}")
+    return records[0]
+
+
+def load_work_spectrum(manifest, origin, verify, *, historical=False, figures=None):
+    """Native runs use their S1 step; old repairs require explicit selection."""
+    receipt_path = origin/"s1_repaired/rerun_receipt.json"
+    if historical and receipt_path.is_file():
+        receipt = json.loads(verify(receipt_path).read_text(encoding="utf-8"))
+        if receipt.get("status") != "complete" or receipt["original_manifest"]["sha256"] != sha(origin/"manifest.json"):
+            raise RuntimeError("S1 repair is incomplete or belongs to a different run")
+        for path, digest in receipt["artifacts"].items():
+            verify(path, digest)
+        source = verify(origin/"s1_repaired/supp01_work_spectrum.npz")
+        if figures is not None:
+            shutil.copyfile(verify(origin/"s1_repaired/supp01.png"), figures/"supp01.png")
+        description = "explicit historical s1_repaired receipt"
+    else:
+        record = completed_artifact(manifest, "supp01_work_spectrum")
+        source = verify(record["output"], record["sha256"])
+        description = "native completed supp01_work_spectrum manifest step"
+    with np.load(source, allow_pickle=False) as data:
+        return {key: data[key] for key in data.files}, description
+
+
+def check_source_identity(manifest, verify, *, historical=False):
+    """A new run must match the code used to compute it; archives report drift."""
+    mismatches = []
+    recorded = manifest["identity"]["source_sha256"]
+    if not recorded:
+        raise RuntimeError("Run has no recorded calculation-source hashes")
+    for relative, digest in recorded.items():
+        path = ROOT / relative
+        if not path.is_file() or sha(path) != digest:
+            mismatches.append(relative)
+        else:
+            verify(path, digest)
+    if mismatches and not historical:
+        raise RuntimeError("Calculation sources changed since this run: "+", ".join(mismatches))
+    return {"accepted": not mismatches, "historical_archive": historical,
+            "recorded_source_count": len(recorded), "mismatched_sources": mismatches}
+
+
+def shape_artifact(row, manifest):
+    """Use the accepted artifact recorded by validation, not a directory glob."""
+    path = row.get("shape_spectrum_artifact")
+    if path is None:
+        paths = row.get("shape_spectrum_artifacts", [])
+        path = paths[0] if paths else None
+    if path is None:
+        return completed_artifact(manifest, "check_shape_"+row["label"])
+    matches = [r for r in manifest["steps"].values()
+               if r.get("status") == "complete" and Path(r["output"]).resolve() == Path(path).resolve()]
+    if len(matches) != 1:
+        raise RuntimeError("Shape validation artifact is absent/ambiguous in manifest: "+str(path))
+    return matches[0]
+
+
+def audit_material_fit(data):
+    """Independent between-node reconstruction from the saved table and poles."""
+    request = json.loads(str(data["metadata_json"].item()))["requested_arguments"]
+    c_nm, a_nm, eps_m = request["c_nm"], request["a_nm"], request["eps_m"]
+    low, high = request["fit_min_ev"], request["fit_max_ev"]
+    audit_e = np.linspace(low+(high-low)*1e-5, high-(high-low)*1e-5, 8003)
+    eps = (np.interp(audit_e, data["material_energy_eV"], data["material_n"])
+           +1j*np.interp(audit_e, data["material_energy_eV"], data["material_k"]))**2
+    ecc = np.sqrt(1-(a_nm/c_nm)**2)
+    lz = (1-ecc**2)/(2*ecc**3)*(np.log((1+ecc)/(1-ecc))-2*ecc)
+    channels = list(data["channel_id"].astype(str))
+    result = {}
+    for orientation, dep, channel in (("long", lz, "axis_long"), ("trans", (1-lz)/2, "axis_trans")):
+        ci = channels.index(channel)
+        mask = data["fit_mode_mask"][1, ci].astype(bool)
+        target = (eps-eps_m)/(eps_m+dep*(eps-eps_m))
+        fitted = data["fit_alpha_inf"][1, ci]+np.sum(data["fit_strengths_eV2"][1, ci, mask]/
+            (data["fit_omega_modes_eV"][1, ci, mask]**2-audit_e[:, None]**2
+             -1j*audit_e[:, None]*data["fit_gamma_modes_eV"][1, ci, mask]), axis=1)
+        metrics = dict(max_relative=float(np.max(abs((fitted-target)/target))),
+                       nrms=float(np.linalg.norm(fitted-target)/np.linalg.norm(target)),
+                       inverse_nrms=float(np.linalg.norm(1/fitted-1/target)/np.linalg.norm(1/target)),
+                       min_imag=float(fitted.imag.min()), points=len(audit_e))
+        metrics["accepted"] = bool(metrics["max_relative"] <= request["max_bright_fit_pointwise_relative_error"]
+            and max(metrics["nrms"], metrics["inverse_nrms"]) <= request["max_bright_fit_normalized_rms"]
+            and metrics["min_imag"] >= 0)
+        result[orientation] = metrics
+    return result
+
+
+def sensitivity_table(validation, threshold, selection, tables):
+    """Export measured values/statuses, including unresolved or absent checks."""
+    channels = ["side_long", "side_trans_radial"]
+    nominal_channels = list(threshold["channel_id"].astype(str))
+    nominal_gap = float(selection["best_gap_nm"])
+    gi = int(np.flatnonzero(np.isclose(threshold["gap_nm"], nominal_gap, rtol=0, atol=1e-12))[0])
+    nominal = [float(threshold["threshold_fluence_j_cm2"][1, nominal_channels.index(c), gi])*1e6
+               for c in channels]
+
+    def formatted(value):
+        return "---" if value is None or not np.isfinite(value) else f"{value:.3f}".replace(".", ",")
+
+    lines = [r"\begin{tabular}{lrr}\toprule",
+             r"Вариация & Боковой продольный & Боковой радиальный\\\midrule",
+             "Номинальные параметры & "+" & ".join(map(formatted, nominal))+r"\\"]
+    by_label = {r["label"]: r for r in validation}
+    rows = []
+    for label, title in SENSITIVITY_LABELS.items():
+        row = by_label.get(label, {})
+        values, statuses = [], []
+        row_channels = row.get("channels", channels)
+        row_gaps = np.asarray(row.get("gaps_nm", [nominal_gap]), dtype=float)
+        gap_index = int(np.argmin(abs(row_gaps-nominal_gap)))
+        for channel in channels:
+            index = row_channels.index(channel) if channel in row_channels else None
+            raw = row.get("candidate_thresholds")
+            value = None if raw is None or index is None else raw[index][gap_index]
+            status = row.get("candidate_status")
+            statuses.append("not_performed" if status is None or index is None else status[index][gap_index])
+            values.append(None if value is None else float(value)*1e6)
+        lines.append(title+" & "+" & ".join(map(formatted, values))+r"\\")
+        rows.append(dict(label=label, accepted=row.get("accepted", False),
+                         side_long_uJ_cm2=values[0], side_radial_uJ_cm2=values[1],
+                         side_long_status=statuses[0], side_radial_status=statuses[1],
+                         error=row.get("error")))
+    lines.extend([r"\bottomrule\end{tabular}", ""])
+    (tables/"sensitivity_table.tex").write_text("\n".join(lines), encoding="utf-8")
+    with (tables/"sensitivity.csv").open("w", encoding="utf-8-sig", newline="") as stream:
+        writer = csv.DictWriter(stream, fieldnames=list(rows[0]))
+        writer.writeheader()
+        writer.writerows(clean(rows))
+    return rows
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run", type=Path, default=ROOT / "results/article_single_mnp_c12p5_a4p5")
     parser.add_argument("--output", type=Path, default=ROOT / "manuscript_c12p5_a4p5")
-    parser.add_argument("--sensitivity", type=Path)
+    parser.add_argument("--sensitivity", type=Path,
+                        help="Explicit legacy repair supplement; not needed for a new complete run")
     args = parser.parse_args()
     origin, dest = args.run.resolve(), args.output.resolve()
     figures, tables = dest / "figures", dest / "data"
@@ -60,7 +209,11 @@ def main():
         actual = sha(path)
         if digest is not None and actual != digest:
             raise RuntimeError(f"Artifact hash mismatch: {path}")
-        sources[str(path.relative_to(ROOT))] = actual
+        try:
+            source_name = str(path.resolve().relative_to(ROOT))
+        except ValueError:
+            source_name = str(path.resolve())
+        sources[source_name] = actual
         return path
 
     complete = [r for r in manifest["steps"].values() if r.get("status") == "complete"]
@@ -68,14 +221,14 @@ def main():
         verify(record["output"], record["sha256"])
     verify(manifest_path)
     checks["original_completed_artifacts_verified"] = len(complete)
+    if args.sensitivity is None and manifest.get("status") != "complete":
+        raise RuntimeError("Ordinary export requires a complete run; use --sensitivity only for a legacy repaired archive")
+    checks["calculation_source_identity"] = check_source_identity(
+        manifest, verify, historical=args.sensitivity is not None)
 
     def load(role):
-        records = [r for k, r in manifest["steps"].items()
-                   if k.startswith(role+":") and r.get("status") == "complete"
-                   and str(r["output"]).endswith(".npz")]
-        if len(records) != 1:
-            raise RuntimeError(f"Expected exactly one original NPZ for {role}")
-        with np.load(records[0]["output"], allow_pickle=False) as z:
+        record = completed_artifact(manifest, role)
+        with np.load(verify(record["output"], record["sha256"]), allow_pickle=False) as z:
             return {k: z[k] for k in z.files}
 
     def close(label, a, b, **kwargs):
@@ -90,13 +243,17 @@ def main():
     assert config["geometry"]["c_nm"] == 12.5 and config["geometry"]["a_nm"] == 4.5
     checks["requested_geometry"] = True
     # Independent two-level susceptibility in the declared external-dipole convention.
-    d = 13.9 * DEBYE_C_M / AU_DIPOLE_C_M
-    w0, w, gamma = 2.042/AU_ENERGY_EV, e/AU_ENERGY_EV, .001270134/AU_ENERGY_EV
+    qd = config["qd"]
+    qd_energy = qd["transition_energy_eV"]
+    eps_m = config["medium"]["relative_permittivity"]
+    d = qd["effective_dipole_debye"] * DEBYE_C_M / AU_DIPOLE_C_M
+    gamma_eV = qd["pure_dephasing_energy_meV"]*1e-3 + qd["population_decay_energy_neV"]*1e-9/2
+    w0, w, gamma = qd_energy/AU_ENERGY_EV, e/AU_ENERGY_EV, gamma_eV/AU_ENERGY_EV
     beta = 2*d*d*w0/(w0*w0+(gamma-1j*w)**2)
     response = beta*(1+spec["interaction_B"])/(1-beta*spec["interaction_K_au_minus3"])
     close("linear_transfer_from_B_K", response, spec["qd_dipole_over_field_au3"], rtol=2e-8, atol=1e-8)
     close("linear_spectrum_from_transfer", abs(response)**2, spec["qd_excitation_spectrum"], rtol=4e-8)
-    feature_mask = abs(e-2.042) <= .17
+    feature_mask = abs(e-config["spectrum"]["feature_center_eV"]) <= config["spectrum"]["feature_half_window_eV"]
     dd, fqs = spec["qd_excitation_spectrum"][0][...,feature_mask], spec["qd_excitation_spectrum"][1][...,feature_mask]
     delta = np.sqrt(np.trapezoid((dd-fqs)**2, e[feature_mask], axis=-1)
                     / np.trapezoid(fqs**2, e[feature_mask], axis=-1))
@@ -127,18 +284,10 @@ def main():
         writer = csv.DictWriter(f, fieldnames=list(rows[0])); writer.writeheader(); writer.writerows(clean(rows))
 
     for role, relative in manifest["figures"].items():
-        if role.startswith("validation_"):
-            continue  # Updated sensitivity figure comes from its own receipt.
         source = verify(origin/relative)
         shutil.copyfile(source, figures/(role+".png"))
-    s1_receipt_path = origin/"s1_repaired/rerun_receipt.json"
-    receipt = json.loads(verify(s1_receipt_path).read_text(encoding="utf-8"))
-    assert receipt["original_manifest"]["sha256"] == sha(manifest_path)
-    for path, digest in receipt["artifacts"].items():
-        verify(path, digest)
-    s1_path = verify(origin/"s1_repaired/supp01_work_spectrum.npz")
-    with np.load(s1_path, allow_pickle=False) as z:
-        s1 = {k:z[k] for k in z.files}
+    s1, checks["work_spectrum_source"] = load_work_spectrum(
+        manifest, origin, verify, historical=args.sensitivity is not None, figures=figures)
     close("work_spectrum_background_subtraction", s1["sigma_qs_work_cm2"]-s1["bare_mnp_sigma_qs_work_cm2"][:,:,None,:],
           s1["delta_sigma_qs_work_cm2"], rtol=0, atol=1e-25)
     assert np.all(s1["work_nonnegative_within_tolerance"])
@@ -146,8 +295,11 @@ def main():
     # Independently reconstruct the linear response on the FINAL S1 energy grid.
     # Use its saved N12 coefficients and both unreduced and reduced spatial
     # weights. This does not depend on the earlier diagnostic time trace.
-    ci, gi = list(spec["channel_id"]).index("side_long"), 0
-    assert str(s1["channel_key"][0]) == "side_long" and gaps[gi] == .5
+    selection = manifest["state"]["selection"]
+    s1_channel = str(s1["channel_key"][0])
+    ci = list(spec["channel_id"]).index(s1_channel)
+    gi = int(np.flatnonzero(np.isclose(gaps, selection["best_gap_nm"], rtol=0, atol=1e-12))[0])
+    orientation_index = 0 if s1_channel.endswith("long") else 1
     sw = s1["energy_eV"]/AU_ENERGY_EV
     h = s1["material_fit_alpha_inf_dimensionless"][1,0]+np.sum(
         s1["material_fit_strengths_au2"][1,0]/
@@ -155,7 +307,7 @@ def main():
          -1j*sw[:,None]*s1["material_fit_gamma_modes_au"][1,0]),axis=-1)
     interaction_j = spec["interaction_B"][1,ci,gi]/spec["interaction_A_au3"][1,ci,gi]
     np.testing.assert_allclose(interaction_j,interaction_j[0],rtol=1e-12)
-    a_fit = material["polarizability_scale_au3"][0]*h
+    a_fit = material["polarizability_scale_au3"][orientation_index]*h
     b_fit = a_fit*interaction_j[0]
     s_beta = 2*d*d*w0/(w0*w0+(gamma-1j*sw)**2)
     numerical_alpha = s1["alpha_eff_au3_real"][1,0,0]+1j*s1["alpha_eff_au3_imag"][1,0,0]
@@ -165,8 +317,8 @@ def main():
         key = "spatial_mode" if prefix == "spatial" else prefix
         dep = threshold[key+"_depolarization"][start:end]
         weights = threshold[key+"_reaction_weight_au_minus3"][start:end]
-        k_fit = np.sum(weights*h[:,None]/(1+(dep-material["depolarization_factor"][0])*h[:,None]),axis=-1)
-        reference_alpha = (a_fit+s_beta*(1+b_fit)**2/(1-s_beta*k_fit))/2.25
+        k_fit = np.sum(weights*h[:,None]/(1+(dep-material["depolarization_factor"][orientation_index])*h[:,None]),axis=-1)
+        reference_alpha = (a_fit+s_beta*(1+b_fit)**2/(1-s_beta*k_fit))/eps_m
         metrics = dict(points=len(sw), spatial_modes=len(weights),
             complex_max_normalized=float(np.max(abs(numerical_alpha-reference_alpha))/np.max(abs(reference_alpha))),
             complex_nrms=float(np.linalg.norm(numerical_alpha-reference_alpha)/np.linalg.norm(reference_alpha)),
@@ -174,8 +326,7 @@ def main():
         assert metrics["imag_max_normalized"] < .001
         final_s1_linear_audit[prefix] = metrics
     checks["final_S1_weak_spectrum_vs_independent_linear_solution"] = True
-    shutil.copyfile(verify(origin/"s1_repaired/supp01.png"), figures/"supp01.png")
-    mask = abs(s1["energy_eV"]-2.042) <= .01
+    mask = abs(s1["energy_eV"]-qd_energy) <= .01
     narrow = s1["delta_sigma_qs_work_cm2"][:,:,:,mask]
 
     validation = manifest["state"]["validation"]
@@ -203,58 +354,26 @@ def main():
         ranking = json.loads((supplement/"ranking_validation.json").read_text(encoding="utf-8"))
         for name in ("validation_sensitivity.png", "validation_carrier.png"):
             shutil.copyfile(verify(supplement/"figures"/name), figures/name)
-        labels = {
-            "gap_low": r"$g=0{,}3$ нм", "gap_high": r"$g=0{,}7$ нм",
-            "c_low": r"$c=11{,}875$ нм", "c_high": r"$c=13{,}125$ нм",
-            "a_low": r"$a=b=4{,}275$ нм", "a_high": r"$a=b=4{,}725$ нм",
-            "exciton_low": r"$E_q-5$ мэВ", "exciton_high": r"$E_q+5$ мэВ",
-            "gamma1_low": r"$\gamma_1-20\%$", "gamma1_high": r"$\gamma_1+20\%$",
-            "dephasing_low": r"$\gamma_\varphi-20\%$", "dephasing_high": r"$\gamma_\varphi+20\%$",
-        }
-        by_label = {r["label"]:r for r in validation}
-        lines = [r"\begin{tabular}{lrr}\toprule",
-                 r"Вариация & Боковой продольный & Боковой радиальный\\\midrule",
-                 r"Номинальные параметры & 16,075 & 20,229\\"]
-        sensitivity_csv = []
-        for label, title in labels.items():
-            row = by_label[label]
-            values = row.get("candidate_thresholds")
-            formatted = ["---", "---"] if values is None else [f"{v[0]*1e6:.3f}".replace('.', ',') if v[0] is not None else "---" for v in values]
-            lines.append(title+" & "+" & ".join(formatted)+r"\\")
-            sensitivity_csv.append(dict(label=label, accepted=row["accepted"],
-                side_long_uJ_cm2=None if values is None else values[0][0]*1e6,
-                side_radial_uJ_cm2=None if values is None else values[1][0]*1e6))
-        lines.extend([r"\bottomrule\end{tabular}", ""])
-        (tables/"sensitivity_table.tex").write_text("\n".join(lines),encoding="utf-8")
-        with (tables/"sensitivity.csv").open("w",encoding="utf-8-sig",newline="") as f:
-            writer=csv.DictWriter(f,fieldnames=list(sensitivity_csv[0])); writer.writeheader(); writer.writerows(sensitivity_csv)
-        # Check the newly seeded fits between their fitting nodes, independently
-        # reconstructing epsilon and spheroid factors from the saved table.
-        for label, c_nm, a_nm in (("c_low",11.875,4.5),("a_high",12.5,4.725)):
-            shape_dir = Path(by_label[label]["artifact"]).parent
-            candidates = list(shape_dir.glob("check_shape_"+label+"_*.npz"))
-            if len(candidates) != 1:
-                raise RuntimeError("Ambiguous refitted shape artifact: "+label)
-            with np.load(verify(candidates[0]),allow_pickle=False) as z:
-                audit_e = np.linspace(.800037,3.499971,8003)
-                eps = (np.interp(audit_e,z["material_energy_eV"],z["material_n"])
-                       +1j*np.interp(audit_e,z["material_energy_eV"],z["material_k"]))**2
-                ecc = np.sqrt(1-(a_nm/c_nm)**2)
-                lz = (1-ecc**2)/(2*ecc**3)*(np.log((1+ecc)/(1-ecc))-2*ecc)
-                independent_fit_audit[label] = {}
-                for ci, dep in ((0,lz),(1,(1-lz)/2)):
-                    target = (eps-2.25)/(2.25+dep*(eps-2.25))
-                    fitted = z["fit_alpha_inf"][1,ci]+np.sum(z["fit_strengths_eV2"][1,ci]/
-                        (z["fit_omega_modes_eV"][1,ci]**2-audit_e[:,None]**2
-                         -1j*audit_e[:,None]*z["fit_gamma_modes_eV"][1,ci]),axis=1)
-                    metrics = dict(max_relative=float(np.max(abs((fitted-target)/target))),
-                        nrms=float(np.linalg.norm(fitted-target)/np.linalg.norm(target)),
-                        inverse_nrms=float(np.linalg.norm(1/fitted-1/target)/np.linalg.norm(1/target)),
-                        min_imag=float(fitted.imag.min()), points=len(audit_e))
-                    assert metrics["max_relative"] <= .05 and metrics["nrms"] <= .025
-                    assert metrics["inverse_nrms"] <= .025 and metrics["min_imag"] >= 0
-                    independent_fit_audit[label][("long","trans")[ci]] = metrics
-        checks["new_material_fits_independent_8003_point_grid"] = True
+    sensitivity_table(validation, threshold, selection, tables)
+    by_label = {r["label"]: r for r in validation}
+    for label in ("c_low", "c_high", "a_low", "a_high"):
+        row = by_label.get(label)
+        if row is None or not row.get("accepted"):
+            independent_fit_audit[label] = {"status": "not_performed", "reason": "No accepted shape validation"}
+            continue
+        # The legacy receipt can inherit shape spectra from a prior supplement.
+        shape_manifest = manifest
+        if args.sensitivity is not None:
+            shape_manifest_path = Path(row["artifact"]).parent.parent/"manifest.json"
+            shape_manifest = json.loads(verify(shape_manifest_path).read_text(encoding="utf-8"))
+        record = shape_artifact(row, shape_manifest)
+        with np.load(verify(record["output"], record["sha256"]), allow_pickle=False) as data:
+            independent_fit_audit[label] = audit_material_fit(data)
+    completed_fit_audits = [metrics for case in independent_fit_audit.values()
+                           for metrics in case.values() if isinstance(metrics, dict) and "accepted" in metrics]
+    checks["new_material_fits_independent_8003_point_grid"] = {
+        "performed_orientations": len(completed_fit_audits),
+        "accepted": bool(completed_fit_audits) and all(m["accepted"] for m in completed_fit_audits)}
 
     plt.rcParams.update({"font.size":10, "axes.grid":True, "grid.alpha":.2})
     fig, axs = plt.subplots(1, 2, figsize=(10.8, 4.2), constrained_layout=True)
@@ -267,36 +386,51 @@ def main():
     axs[1].set_ylabel("Усиление слабой импульсной заселённости")
     axs[0].legend(fontsize=8)
     fig.savefig(figures/"fixed_and_pulse_gain.pdf"); plt.close(fig)
-    interp = json.loads(verify(origin/"tip_side_audit/interpretation_numbers.json").read_text(encoding="utf-8"))
-    shutil.copyfile(verify(origin/"tip_side_audit/tip_side_fields.png"), figures/"tip_side_fields.png")
-    controls = {}
-    for name in ("units.json", "s1_repaired/validation_summary.json", "s1_repaired/weak_linear_audit.json",
+    # Optional archival diagnostics are never prerequisites of a fresh export.
+    controls = {"units.json": json.loads(verify(origin/"units.json").read_text(encoding="utf-8"))}
+    for name in ("s1_repaired/validation_summary.json", "s1_repaired/weak_linear_audit.json",
                  "tip_side_audit/audit.json", "tip_side_audit/identity_checks.json",
                  "tip_side_audit/frequency_fit_check.json", "tip_side_audit/threshold_comparison.json",
                  "tip_side_audit/threshold_receipt.json"):
-        controls[name] = json.loads(verify(origin/name).read_text(encoding="utf-8"))
-    test_log = verify(ROOT/"results/sensitivity_repair_tests.log")
-    test_bytes = test_log.read_bytes()
-    test_text = test_bytes.decode("utf-16" if test_bytes.startswith((b"\xff\xfe",b"\xfe\xff")) else "utf-8")
-    assert "Ran 397 tests" in test_text and test_text.rstrip().endswith("OK")
-    checks["regression_tests"] = {"run":397,"failures":0,"errors":0,"log":str(test_log.relative_to(ROOT))}
-    verify(origin/"s1_fixed/weak_trace_diagnostic.npz",
-           controls["s1_repaired/weak_linear_audit.json"]["trace_sha256"])
-    controls["s1_repaired/weak_linear_audit.json"]["audited_trace"] = "s1_fixed/weak_trace_diagnostic.npz"
+        path = origin/name
+        controls[name] = (json.loads(verify(path).read_text(encoding="utf-8"))
+                          if args.sensitivity is not None and path.is_file()
+                          else {"status": "not_performed", "scope": "optional historical diagnostic"})
+    checks["regression_tests"] = {"status": "not_performed_by_exporter",
+                                  "reason": "Run the current test suite separately; no historical count is reused"}
+    weak_audit = controls["s1_repaired/weak_linear_audit.json"]
+    if "trace_sha256" in weak_audit:
+        verify(origin/"s1_fixed/weak_trace_diagnostic.npz", weak_audit["trace_sha256"])
+        weak_audit["audited_trace"] = "s1_fixed/weak_trace_diagnostic.npz"
+    if "tip_side_fields" in manifest["figures"]:
+        from qdmnp.observables.article_field_diagnostic import build_field_diagnostic
+        geometry = config["geometry"]
+        interp = build_field_diagnostic(c_nm=geometry["c_nm"], a_nm=geometry["a_nm"],
+            eps_m=eps_m, carrier_energy_eV=config["pulse"]["carrier_energy_eV"],
+            qd_radius_nm=geometry["qd_radius_nm"], gap_nm=selection["best_gap_nm"])["interpretation"]
+    elif args.sensitivity is not None and (origin/"tip_side_audit/interpretation_numbers.json").is_file():
+        interp = json.loads(verify(origin/"tip_side_audit/interpretation_numbers.json").read_text(encoding="utf-8"))
+        shutil.copyfile(verify(origin/"tip_side_audit/tip_side_fields.png"), figures/"tip_side_fields.png")
+    else:
+        interp = {"status": "not_performed", "reason": "No recorded field-diagnostic figure"}
     preflight = {}
-    for gap in ("0.5", "10.0", "12.0"):
-        data = load("preflight_g"+gap)
+    preflight_roles = sorted({key.split(":", 1)[0] for key, record in manifest["steps"].items()
+                              if key.startswith("preflight_g") and record.get("status") == "complete"})
+    for role in preflight_roles:
+        gap = role.removeprefix("preflight_g")
+        data = load(role)
         preflight[gap] = {k:data[k] for k in ("observable_fit_accepted", "observable_spectrum_nrms_error_vs_direct",
             "observable_shift_error_over_isolated_fwhm", "observable_width_relative_error_vs_direct",
             "observable_gain_relative_error_vs_direct")}
     sensitivity_rows = [{k:r.get(k) for k in ("label","accepted","candidate_thresholds","candidate_status","error")} for r in validation]
     evidence = dict(
-        scope="Saved c12.5 a4.5 article results; numerical supplement explicitly separate from original run",
+        scope=("Saved c12.5 a4.5 article results; explicitly selected historical supplement"
+               if args.sensitivity else "Fresh c12.5 a4.5 native article run; no historical diagnostics required"),
         original_run_status=manifest["status"], original_manifest_sha256=sha(manifest_path),
         checks=checks, config=config,
         material={k:material[k] for k in ("orientation_ids","branch_ids","depolarization_factor","nrms_alpha","nrms_inverse_alpha","lspr_peak_energy_eV","lspr_fwhm_eV","lspr_status")},
         channels=spec["channel_id"], gaps_nm=gaps, isolated_linewidth_eV=spec["isolated_fwhm_eV"],
-        near_gap_rows=[r for r in rows if r["gap_nm"]==.5],
+        near_gap_rows=[r for r in rows if r["gap_nm"]==selection["best_gap_nm"]],
         isolated_threshold_uJ_cm2=float(threshold["isolated_threshold_fluence_j_cm2"]*1e6),
         dd_spectral_boundary={k:spec[k] for k in ("dd_validity_gap_nm","dd_validity_status","dd_validity_supporting_points")},
         dd_threshold_boundary={k:threshold[k] for k in ("dd_validity_gap_nm","dd_validity_status","dd_validity_supporting_points")},

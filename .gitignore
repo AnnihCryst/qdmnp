@@ -1,10 +1,9 @@
 .venv/
 __pycache__/
 *.py[cod]
-# Keep other generated results local; publish the validated article archive.
+# Keep generated results local; retain the directory in fresh clones.
 /results/*
-!/results/article_single_mnp_c12p5_a4p5/
-!/results/sensitivity_repair_tests.log
+!/results/.gitkeep
 /articles/
 *.egg-info/
 build/

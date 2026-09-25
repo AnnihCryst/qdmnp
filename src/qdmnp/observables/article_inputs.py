@@ -78,6 +78,11 @@ def validate_inputs(config: dict) -> None:
             raise ValueError(f"{name}.enabled must be true or false.")
     if type(config["validation"].get("carrier_scan_in_ranking", True)) is not bool:
         raise ValueError("validation.carrier_scan_in_ranking must be true or false.")
+    fallback = config["validation"].get("shape_fit_fallback", "none")
+    if fallback not in ("none", "native_neighbor_minimax"):
+        raise ValueError("validation.shape_fit_fallback must be none or native_neighbor_minimax.")
+    if fallback != "none" and not config["material"].get("refinement"):
+        raise ValueError("The shape-fit fallback requires configured material.refinement.")
     if type(config["pulse"]["refine_threshold"]) is not bool:
         raise ValueError("pulse.refine_threshold must be true or false.")
 

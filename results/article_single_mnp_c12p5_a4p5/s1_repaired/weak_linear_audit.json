@@ -1,8 +1,0 @@
-{
-  "scope": "weak-pulse Fourier response versus independent linear frequency-domain solution, same N12 fit",
-  "trace_sha256": "936ba25aea9ea3bc6418537e984ba09fab1ac29f703544232da52396ff5527aa",
-  "energy_points": 625,
-  "alpha_max_normalized_difference": 0.00019476124208552968,
-  "alpha_normalized_rms_difference": 0.00010896523649933818,
-  "imag_alpha_max_normalized_difference": 0.0004319963473862389
-}

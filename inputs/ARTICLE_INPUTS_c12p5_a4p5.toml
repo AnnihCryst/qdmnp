@@ -112,6 +112,9 @@ enabled = true
 gap_offset_nm = 0.2
 shape_relative_offset = 0.05
 shape_check_mode_candidates = [12, 13]
+# Compute a native lower-c seed in the current run if ordinary shape fits fail.
+# It is only an optimizer start; all material and observable gates still apply.
+shape_fit_fallback = "native_neighbor_minimax"
 # Allow additional fit error during the +/-5% shape sensitivity checks.
 shape_check_max_modal_nrms = 0.12
 shape_check_max_modal_relative_error = 0.25
