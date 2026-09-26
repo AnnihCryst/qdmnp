@@ -52,7 +52,7 @@ Shah-подобный оптический показатель рассматр
 сертификаты. Соответствующий plotter получает только этот NPZ и не запускает
 тяжёлое вычисление заново.
 
-Старая программа `src/qdmnp/legacy_inverse_alpha_absorption.py` в этот план не
+Старая программа `src/legacy_inverse_alpha_absorption.py` в этот план не
 входит и не должна использоваться для данных статьи.
 
 ## 1. Итоговый минимальный набор
@@ -66,17 +66,17 @@ Shah-подобный оптический показатель рассматр
 
 | Рисунок статьи | Вычисляемая зависимость | Пары программ | Главный вопрос |
 |---|---|---|---|
-| 1 | \(\alpha_{\parallel,\perp}(E)\), \(\alpha^{-1}_{\parallel,\perp}(E)\): `direct`, \(N=1\), \(N=N_{\rm multi}\) | `src/qdmnp/calculate_material_dispersion_comparison.py` -> `src/qdmnp/plot_material_dispersion_comparison.py` | Действительно ли многополюсная реализация лучше описывает выбранную табличную дисперсию золота? |
-| 2a | \(G_{\rm exc}(g)\): DD и FQS | `src/qdmnp/calculate_excitation_gain_gap.py` -> `src/qdmnp/plot_excitation_gain_gap.py` | Усиливает или подавляет МНЧ слабополевой резонансный отклик КТ? |
-| 2b | \(\Delta E_{\rm res}(g)/\Gamma_0\): DD и FQS | `src/qdmnp/calculate_resonance_shift_gap.py` -> `src/qdmnp/plot_resonance_shift_gap.py` | Как смещается слабополевой резонанс и какие частоты проверить для короткого импульса? |
-| 2c | \(\Gamma_{\rm eff}(g)/\Gamma_0\): DD и FQS | `src/qdmnp/calculate_spectral_width_gap.py` -> `src/qdmnp/plot_spectral_width_gap.py` | Как изменяется рабочая ширина экситонного резонанса? |
-| 2d | \(\delta_{\rm spec}(g)\): DD относительно FQS | `src/qdmnp/calculate_model_discrepancy_gap.py` -> `src/qdmnp/plot_model_discrepancy_gap.py` | С какого зазора DD воспроизводит FQS с заранее выбранной точностью? |
-| 3a | \(\mathcal F_\eta(g)/\mathcal F_{\eta,0}\): DD и FQS | `src/qdmnp/calculate_threshold_fluence_gap.py` -> `src/qdmnp/plot_threshold_fluence_gap.py` | Во сколько раз меняется требуемый флюенс короткого импульса и какая конфигурация практически предпочтительна? |
-| 3b | \(\delta_{\mathcal F}(g)\): DD относительно FQS | `src/qdmnp/calculate_model_discrepancy_gap.py` -> `src/qdmnp/plot_model_discrepancy_gap.py`, повторно для порогового NPZ | С какого зазора DD воспроизводит именно нелинейный короткоимпульсный порог FQS? |
-| 4 | \(S(E)\): `direct`, \(N=1\), \(N=N_{\rm multi}\), FQS | `src/qdmnp/calculate_excitation_spectrum_material_comparison.py` -> `src/qdmnp/plot_excitation_spectrum_material_comparison.py` | Как ошибка материальной дисперсии переносится в положение, ширину и амплитуду КТ-селективного резонанса? |
-| 5 | \(P_{\rm exc}(\mathcal F)\): изолированная КТ, \(N=1\), \(N=N_{\rm multi}\), FQS | `src/qdmnp/calculate_excitation_fluence_material_comparison.py` -> `src/qdmnp/plot_excitation_fluence_material_comparison.py` | Как дисперсионная модель меняет нелинейное возбуждение КТ коротким импульсом и порог? |
-| 6 | \(\rho_{ee}(t)\): изолированная КТ, DD и FQS, общий \(N_{\rm multi}\) | `qd_mnp_calculate_population_dynamics.py --include-dd` -> `src/qdmnp/plot_population_dynamics.py` | Когда возникает различие моделей и какое возбуждение остаётся к общему моменту чтения? |
-| S1, необязательно | \(\sigma_{\rm QS,work}(E;\mathcal F_j)\), \(\Delta\sigma(E;\mathcal F_j)\): \(N=1\), \(N=N_{\rm multi}\), FQS | `src/qdmnp/calculate_work_loss_spectrum_material_comparison.py` -> `src/qdmnp/plot_work_loss_spectrum_material_comparison.py` | Какой оптический спектр сопровождает выбранный импульсный сценарий? |
+| 1 | \(\alpha_{\parallel,\perp}(E)\), \(\alpha^{-1}_{\parallel,\perp}(E)\): `direct`, \(N=1\), \(N=N_{\rm multi}\) | `src/observables/calculate_material_dispersion_comparison.py` -> `src/observables/plot_material_dispersion_comparison.py` | Действительно ли многополюсная реализация лучше описывает выбранную табличную дисперсию золота? |
+| 2a | \(G_{\rm exc}(g)\): DD и FQS | `src/observables/calculate_excitation_gain_gap.py` -> `src/observables/plot_excitation_gain_gap.py` | Усиливает или подавляет МНЧ слабополевой резонансный отклик КТ? |
+| 2b | \(\Delta E_{\rm res}(g)/\Gamma_0\): DD и FQS | `src/observables/calculate_resonance_shift_gap.py` -> `src/observables/plot_resonance_shift_gap.py` | Как смещается слабополевой резонанс и какие частоты проверить для короткого импульса? |
+| 2c | \(\Gamma_{\rm eff}(g)/\Gamma_0\): DD и FQS | `src/observables/calculate_spectral_width_gap.py` -> `src/observables/plot_spectral_width_gap.py` | Как изменяется рабочая ширина экситонного резонанса? |
+| 2d | \(\delta_{\rm spec}(g)\): DD относительно FQS | `src/observables/calculate_model_discrepancy_gap.py` -> `src/observables/plot_model_discrepancy_gap.py` | С какого зазора DD воспроизводит FQS с заранее выбранной точностью? |
+| 3a | \(\mathcal F_\eta(g)/\mathcal F_{\eta,0}\): DD и FQS | `src/observables/calculate_threshold_fluence_gap.py` -> `src/observables/plot_threshold_fluence_gap.py` | Во сколько раз меняется требуемый флюенс короткого импульса и какая конфигурация практически предпочтительна? |
+| 3b | \(\delta_{\mathcal F}(g)\): DD относительно FQS | `src/observables/calculate_model_discrepancy_gap.py` -> `src/observables/plot_model_discrepancy_gap.py`, повторно для порогового NPZ | С какого зазора DD воспроизводит именно нелинейный короткоимпульсный порог FQS? |
+| 4 | \(S(E)\): `direct`, \(N=1\), \(N=N_{\rm multi}\), FQS | `src/observables/calculate_excitation_spectrum_material_comparison.py` -> `src/observables/plot_excitation_spectrum_material_comparison.py` | Как ошибка материальной дисперсии переносится в положение, ширину и амплитуду КТ-селективного резонанса? |
+| 5 | \(P_{\rm exc}(\mathcal F)\): изолированная КТ, \(N=1\), \(N=N_{\rm multi}\), FQS | `src/observables/calculate_excitation_fluence_material_comparison.py` -> `src/observables/plot_excitation_fluence_material_comparison.py` | Как дисперсионная модель меняет нелинейное возбуждение КТ коротким импульсом и порог? |
+| 6 | \(\rho_{ee}(t)\): изолированная КТ, DD и FQS, общий \(N_{\rm multi}\) | `src/observables/calculate_population_dynamics.py --include-dd` -> `src/observables/plot_population_dynamics.py` | Когда возникает различие моделей и какое возбуждение остаётся к общему моменту чтения? |
+| S1, необязательно | \(\sigma_{\rm QS,work}(E;\mathcal F_j)\), \(\Delta\sigma(E;\mathcal F_j)\): \(N=1\), \(N=N_{\rm multi}\), FQS | `src/observables/calculate_work_loss_spectrum_material_comparison.py` -> `src/observables/plot_work_loss_spectrum_material_comparison.py` | Какой оптический спектр сопровождает выбранный импульсный сценарий? |
 
 Изображения `fig02a`--`fig02d` при вёрстке объединяются в рисунок 2,
 а `fig03a`--`fig03b` — в рисунок 3. В рисунок 6 объединяются ближний и дальний
@@ -1624,9 +1624,9 @@ $supp01Plot = Join-Path $resultDir "supp01_work_loss_spectrum_material.png"
 
 | Пара программ | Решение | Когда вернуть |
 |---|---|---|
-| `src/qdmnp/calculate_excitation_fluence.py` -> `src/qdmnp/plot_excitation_fluence.py` | Убрать из основного текста: производственная FQS-ветвь уже присутствует в сравнении рисунка 5, а пороги — в рисунке 3 | Только для отдельного расширенного обзора всех каналов при одном материальном fit |
-| `src/qdmnp/calculate_work_loss_fluence.py` -> `src/qdmnp/plot_work_loss_fluence.py` | Дополнение к задаче возбуждения | Вернуть, если нужна зависимость оптической работы от флюенса при фиксированной энергии |
-| `src/qdmnp/calculate_work_loss_spectrum_material_comparison.py` -> `src/qdmnp/plot_work_loss_spectrum_material_comparison.py` | Необязательный S1 | Рассчитывать при отдельной цели об оптическом спектре гибрида |
+| `src/observables/calculate_excitation_fluence.py` -> `src/observables/plot_excitation_fluence.py` | Убрать из основного текста: производственная FQS-ветвь уже присутствует в сравнении рисунка 5, а пороги — в рисунке 3 | Только для отдельного расширенного обзора всех каналов при одном материальном fit |
+| `src/observables/calculate_work_loss_fluence.py` -> `src/observables/plot_work_loss_fluence.py` | Дополнение к задаче возбуждения | Вернуть, если нужна зависимость оптической работы от флюенса при фиксированной энергии |
+| `src/observables/calculate_work_loss_spectrum_material_comparison.py` -> `src/observables/plot_work_loss_spectrum_material_comparison.py` | Необязательный S1 | Рассчитывать при отдельной цели об оптическом спектре гибрида |
 | \(G_{\rm exc}^{*}(g)\) при фиксированной энергии | Не отдельный основной рисунок; master-NPZ рисунка 2 уже содержит нужные данные | Перестроить без solve через `--gain-kind fixed`, если экспериментальный лазер не перестраивается |
 
 Временная пара `population_dynamics --include-dd` входит в обязательный

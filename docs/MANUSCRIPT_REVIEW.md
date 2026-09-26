@@ -4,7 +4,8 @@
 хешей, математических формул и количественных выводов выполнена 22 сентября:
 см. [MANUSCRIPT_RESULTS_AUDIT.md](MANUSCRIPT_RESULTS_AUDIT.md). Ниже сохранён
 объём предыдущей проверки; сведения о доступности данных и составе литературы
-относятся к той редакции.
+относятся к той редакции. Старая папка `manuscript` удалена из текущей версии;
+упомянутые ниже файлы рукописи доступны в истории Git.
 
 Дата: 21 сентября 2026 г. Эта записка сопровождает редакцию статьи;
 она не является отчётом о новом полном расчёте.
@@ -17,12 +18,10 @@
 
 ## Состав статьи
 
-Точка сборки — [main.tex](../manuscript/main.tex). Добавлены
-[аннотация](../manuscript/abstract.tex),
-[введение](../manuscript/introduction.tex),
-[экспериментальные рекомендации](../manuscript/experiment.tex),
-[заключение](../manuscript/conclusion.tex) и
-[использованные источники](../manuscript/references.tex).
+Точка сборки той редакции — `manuscript/main.tex`. Добавлены
+аннотация (`abstract.tex`), введение (`introduction.tex`),
+экспериментальные рекомендации (`experiment.tex`),
+заключение (`conclusion.tex`) и использованные источники (`references.tex`).
 Экспериментальная часть включается в обсуждение после результатов
 и анализа применимости. Список из 14 публикаций содержит источники,
 на которые ссылается эта редакция; расширенный обзор литературы
@@ -33,13 +32,13 @@
 | Предмет сверки | Реализация или документ |
 | --- | --- |
 | Геометрия, единицы, зазоры, параметры КТ и импульса | [ARTICLE_INPUTS.toml](../inputs/ARTICLE_INPUTS.toml), [описание входов](ARTICLE_INPUTS.md) |
-| Расчётные этапы и происхождение рисунков | [план](ARTICLE_RESULTS_PLAN.md), [pipeline.py](../src/qdmnp/pipeline.py), [run_article.py](../scripts/run_article.py) |
-| Уравнения Блоха, дисперсия, дипольная связь | [rational_fit.py](../src/qdmnp/rational_fit.py), [passive_fit.py](../src/qdmnp/passive_fit.py) |
-| Полная квазистатическая динамика | [full_qs_model.py](../src/qdmnp/full_qs_model.py), [modal_reduction.py](../src/qdmnp/modal_reduction.py) |
-| Поле сфероида у вершины и сбоку | [spheroid_green.py](../src/qdmnp/spheroid_green.py), [spheroid_equatorial.py](../src/qdmnp/spheroid_equatorial.py) |
-| Спектры, усиление, порог и статусы недостижения цели | [gap_metrics_common.py](../src/qdmnp/observables/gap_metrics_common.py), [threshold_metrics.py](../src/qdmnp/observables/threshold_metrics.py), [linear_spectrum.py](../src/qdmnp/linear_spectrum.py) |
+| Расчётные этапы и происхождение рисунков | [план](ARTICLE_RESULTS_PLAN.md), [pipeline.py](../src/pipeline.py), [run_article.py](../scripts/run_article.py) |
+| Уравнения Блоха, дисперсия, дипольная связь | [rational_fit.py](../src/rational_fit.py), [passive_fit.py](../src/passive_fit.py) |
+| Полная квазистатическая динамика | [full_qs_model.py](../src/full_qs_model.py), [modal_reduction.py](../src/modal_reduction.py) |
+| Поле сфероида у вершины и сбоку | [spheroid_green.py](../src/spheroid_green.py), [spheroid_equatorial.py](../src/spheroid_equatorial.py) |
+| Спектры, усиление, порог и статусы недостижения цели | [gap_metrics_common.py](../src/observables/gap_metrics_common.py), [threshold_metrics.py](../src/observables/threshold_metrics.py), [linear_spectrum.py](../src/linear_spectrum.py) |
 | Контроль точности и его ограничения | [протокол валидации](ARTICLE_PIPELINE_VALIDATION.md), [проверка малых зазоров](../tests/test_tight_gap_kernel_accuracy.py) |
-| Сравнение с Shah2013 | Предоставленный `shah2013.pdf`, [отдельный сценарий](../src/qdmnp/verification/shah2013_comparison.py), [публикация](https://doi.org/10.1103/PhysRevB.88.075411) |
+| Сравнение с Shah2013 | Предоставленный `shah2013.pdf`, [отдельный сценарий](../src/verification/shah2013_comparison.py), [публикация](https://doi.org/10.1103/PhysRevB.88.075411) |
 
 В рабочей копии отсутствует каталог `results/` с исходными массивами
 и `article_results.json`. Числа сверены с имеющейся рукописью,

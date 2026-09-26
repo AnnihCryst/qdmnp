@@ -147,7 +147,6 @@ class WorkLossSpectrumPlotterTests(unittest.TestCase):
         plotter = (
             Path(__file__).resolve().parents[1]
             / "src"
-            / "qdmnp"
             / "observables"
             / "plot_work_loss_spectrum_material_comparison.py"
         )

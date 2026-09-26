@@ -217,7 +217,7 @@ class ExcitationFluenceScriptTests(unittest.TestCase):
             self.assertGreater(figure.stat().st_size, 0)
 
         plot_source = Path(
-            "src/qdmnp/observables/plot_excitation_fluence.py"
+            "src/observables/plot_excitation_fluence.py"
         ).read_text(encoding="utf-8")
         imported_roots = {
             alias.name.split(".")[0]

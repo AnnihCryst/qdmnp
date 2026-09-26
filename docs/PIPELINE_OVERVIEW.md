@@ -43,8 +43,8 @@ N=12, пространственный порядок 160 (уточнение 32
 
 ## 1. Возбуждение экситона как функция флюенса
 
-- `src/qdmnp/calculate_excitation_fluence.py` — расчёт;
-- `src/qdmnp/plot_excitation_fluence.py` — построение.
+- `src/observables/calculate_excitation_fluence.py` — расчёт;
+- `src/observables/plot_excitation_fluence.py` — построение.
 
 Вычисляется
 
@@ -63,8 +63,8 @@ P_{\mathrm{exc}}(\mathcal F)=\rho_{ee}(t_{\mathrm{read}};\mathcal F).
 
 ## 2. Оптическая работа как функция флюенса
 
-- `src/qdmnp/calculate_work_loss_fluence.py` — расчёт;
-- `src/qdmnp/plot_work_loss_fluence.py` — построение.
+- `src/observables/calculate_work_loss_fluence.py` — расчёт;
+- `src/observables/plot_work_loss_fluence.py` — построение.
 
 Сохраняются две разные величины:
 
@@ -88,8 +88,8 @@ P_{\mathrm{exc}}(\mathcal F)=\rho_{ee}(t_{\mathrm{read}};\mathcal F).
 
 ## 2a. Shah-подобное оптическое сечение как функция энергии
 
-- `src/qdmnp/calculate_work_loss_spectrum_material_comparison.py` — расчёт;
-- `src/qdmnp/plot_work_loss_spectrum_material_comparison.py` — построение.
+- `src/observables/calculate_work_loss_spectrum_material_comparison.py` — расчёт;
+- `src/observables/plot_work_loss_spectrum_material_comparison.py` — построение.
 
 Для нескольких флюенсов, заранее выбранных по графику
 `P_exc(F)`, вычисляется
@@ -157,8 +157,8 @@ P_{\mathrm{exc}}(\mathcal F)=\rho_{ee}(t_{\mathrm{read}};\mathcal F).
 
 ## 3. Временная динамика населённости
 
-- `src/qdmnp/calculate_population_dynamics.py` — расчёт;
-- `src/qdmnp/plot_population_dynamics.py` — построение.
+- `src/observables/calculate_population_dynamics.py` — расчёт;
+- `src/observables/plot_population_dynamics.py` — построение.
 
 Вычисляется зависимость
 
@@ -198,11 +198,11 @@ P_{\mathrm{exc}}(\mathcal F)=\rho_{ee}(t_{\mathrm{read}};\mathcal F).
 
 | Зависимость | Расчёт | Построение | Физический вопрос |
 |---|---|---|---|
-| `G_exc(g)` | `src/qdmnp/calculate_excitation_gain_gap.py` | `src/qdmnp/plot_excitation_gain_gap.py` | Усиливает или подавляет МНЧ резонансное возбуждение КТ? |
-| `(E_res(g)-E_res,0)/Gamma0` | `src/qdmnp/calculate_resonance_shift_gap.py` | `src/qdmnp/plot_resonance_shift_gap.py` | Насколько смещается максимум возбуждения? |
-| `Gamma_eff(g)/Gamma0` | `src/qdmnp/calculate_spectral_width_gap.py` | `src/qdmnp/plot_spectral_width_gap.py` | Насколько меняется рабочее спектральное окно возбуждения? |
-| `F_eta(g)/F_eta,0` | `src/qdmnp/calculate_threshold_fluence_gap.py` | `src/qdmnp/plot_threshold_fluence_gap.py` | Во сколько раз меняется требуемый флюенс и, при одинаковом импульсе, пиковая интенсивность? |
-| `delta_spec(g)` и `delta_F(g)` | `src/qdmnp/calculate_model_discrepancy_gap.py` | `src/qdmnp/plot_model_discrepancy_gap.py` | Начиная с какого расстояния DD воспроизводит FQS с заданной точностью? |
+| `G_exc(g)` | `src/observables/calculate_excitation_gain_gap.py` | `src/observables/plot_excitation_gain_gap.py` | Усиливает или подавляет МНЧ резонансное возбуждение КТ? |
+| `(E_res(g)-E_res,0)/Gamma0` | `src/observables/calculate_resonance_shift_gap.py` | `src/observables/plot_resonance_shift_gap.py` | Насколько смещается максимум возбуждения? |
+| `Gamma_eff(g)/Gamma0` | `src/observables/calculate_spectral_width_gap.py` | `src/observables/plot_spectral_width_gap.py` | Насколько меняется рабочее спектральное окно возбуждения? |
+| `F_eta(g)/F_eta,0` | `src/observables/calculate_threshold_fluence_gap.py` | `src/observables/plot_threshold_fluence_gap.py` | Во сколько раз меняется требуемый флюенс и, при одинаковом импульсе, пиковая интенсивность? |
+| `delta_spec(g)` и `delta_F(g)` | `src/observables/calculate_model_discrepancy_gap.py` | `src/observables/plot_model_discrepancy_gap.py` | Начиная с какого расстояния DD воспроизводит FQS с заданной точностью? |
 
 Здесь `g` — расстояние поверхность–поверхность, а не расстояние между
 центрами. Для вершины `R=c+r_QD+g`, для боковой поверхности
@@ -362,9 +362,9 @@ API проекта:
 
 | Зависимость | Расчёт | Построение | Что сравнивается |
 |---|---|---|---|
-| `alpha(E)` и `1/alpha(E)` | `src/qdmnp/calculate_material_dispersion_comparison.py` | `src/qdmnp/plot_material_dispersion_comparison.py` | Прямая табличная поляризуемость сфероида, её `N=1` и `N>=2` причинные лоренцевы аппроксимации |
-| `S(E)=abs(p_QD/E_inc)^2` | `src/qdmnp/calculate_excitation_spectrum_material_comparison.py` | `src/qdmnp/plot_excitation_spectrum_material_comparison.py` | Последствия трёх представлений материала для слабополевого возбуждения КТ при одном и том же полном QS-ядре |
-| `P_exc(F)=rho_ee(t_read;F)` | `src/qdmnp/calculate_excitation_fluence_material_comparison.py` | `src/qdmnp/plot_excitation_fluence_material_comparison.py` | Нелинейная импульсная динамика для `N=1` и производственной многоосцилляторной реализации при полностью одинаковом сценарии |
+| `alpha(E)` и `1/alpha(E)` | `src/observables/calculate_material_dispersion_comparison.py` | `src/observables/plot_material_dispersion_comparison.py` | Прямая табличная поляризуемость сфероида, её `N=1` и `N>=2` причинные лоренцевы аппроксимации |
+| `S(E)=abs(p_QD/E_inc)^2` | `src/observables/calculate_excitation_spectrum_material_comparison.py` | `src/observables/plot_excitation_spectrum_material_comparison.py` | Последствия трёх представлений материала для слабополевого возбуждения КТ при одном и том же полном QS-ядре |
+| `P_exc(F)=rho_ee(t_read;F)` | `src/observables/calculate_excitation_fluence_material_comparison.py` | `src/observables/plot_excitation_fluence_material_comparison.py` | Нелинейная импульсная динамика для `N=1` и производственной многоосцилляторной реализации при полностью одинаковом сценарии |
 
 В первых двух расчётах ветвь `direct` использует интерполированные табличные
 оптические константы золота непосредственно в локально-квазистатической модели.

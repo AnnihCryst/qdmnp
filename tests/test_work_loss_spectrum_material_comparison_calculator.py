@@ -277,7 +277,6 @@ class WorkLossSpectrumCalculationTests(unittest.TestCase):
             cls.args,
             generator_path=Path(__file__).resolve().parents[1]
             / "src"
-            / "qdmnp"
             / "observables"
             / "calculate_work_loss_spectrum_material_comparison.py",
         )

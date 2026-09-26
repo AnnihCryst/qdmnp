@@ -14,10 +14,13 @@ dependencies = [
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
-# src layout: `uv sync` installs the project itself, so `import qdmnp` resolves
-# in the test suite and in every calculator subprocess without path juggling.
+# Source files live directly in src; installation keeps the qdmnp import name
+# for the test suite, calculator subprocesses and existing user scripts.
 [tool.setuptools]
-package-dir = {"" = "src"}
-
-[tool.setuptools.packages.find]
-where = ["src"]
+package-dir = {"qdmnp" = "src"}
+packages = [
+    "qdmnp",
+    "qdmnp.observables",
+    "qdmnp.verification",
+    "qdmnp.verification.literature_reproductions",
+]

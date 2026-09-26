@@ -1,5 +1,8 @@
 # Сверка статьи, математических ядер и выполненного расчёта
 
+Исторический протокол: старая папка `manuscript`, упомянутая ниже,
+удалена из текущей версии проекта и доступна в истории Git.
+
 Дата: 22 сентября 2026 г. Исходное состояние репозитория: `faf375b`.
 Проверен **сохранённый полный прогон** `results/article_single_mnp`, а не
 только рисунки или старые протоколы. Математические ядра, входные численные
@@ -44,7 +47,7 @@
 Файлы статьи, вычислительные ядра и архивные результаты при ней не изменены.
 
 Обновление 23 сентября: при подготовке новой геометрии исправлены начальные
-приближения однополюсной материальной подгонки в `src/qdmnp/rational_fit.py`.
+приближения однополюсной материальной подгонки в `src/rational_fit.py`.
 Поэтому текущий хеш этого исходника отличается от записанного в старом
 архиве; точное соответствие всех исходников относится к состоянию `c6208fe`.
 Рукопись и старые результаты сохранены. Подробности новой конфигурации и
@@ -98,12 +101,12 @@ K — поле, которое диполь КТ создаёт у себя че
 
 | Блок | Реализация | Что проверялось |
 |---|---|---|
-| Входы и единицы | [article_inputs.py](../src/qdmnp/observables/article_inputs.py), `load_inputs`, преобразования входов | Поверхностный зазор, дебаи, эВ/мэВ/нэВ, γφ и Γ₂, флюенс в среде |
-| Материал и DD | [rational_fit.py](../src/qdmnp/rational_fit.py), `MaterialDispersion`, `HybridQDPlasmonModel`, `interaction_factor`, `rhs` | Интерполяция n,k; поляризуемость; знак связи; Блох; мгновенный член α∞ |
-| Осевой FQS | [spheroid_green.py](../src/qdmnp/spheroid_green.py), `SpheroidGreenInteraction` | Ряд n при фиксированном m=0 или m=1, сферический предел |
-| Боковой FQS | [spheroid_equatorial.py](../src/qdmnp/spheroid_equatorial.py), `_enumerate_modes`, `_initialize_prolate`, `_bright_coupling` | n,m и сектор cos/sin, чётность, веса, светлая связь |
-| FQS во времени | [full_qs_model.py](../src/qdmnp/full_qs_model.py), `modal_susceptibility_from_fit`, `_evaluate_state_unchecked`, `_rhs_unchecked` | Общая материальная подгонка; обратная связь; поле на КТ и диполь МНЧ |
-| Редукция | [modal_reduction.py](../src/qdmnp/modal_reduction.py), `build_positive_dark_reduction` в `full_qs_model.py` | Положительные веса тёмных мод, сохранение светлой моды, проверка ошибки |
+| Входы и единицы | [article_inputs.py](../src/observables/article_inputs.py), `load_inputs`, преобразования входов | Поверхностный зазор, дебаи, эВ/мэВ/нэВ, γφ и Γ₂, флюенс в среде |
+| Материал и DD | [rational_fit.py](../src/rational_fit.py), `MaterialDispersion`, `HybridQDPlasmonModel`, `interaction_factor`, `rhs` | Интерполяция n,k; поляризуемость; знак связи; Блох; мгновенный член α∞ |
+| Осевой FQS | [spheroid_green.py](../src/spheroid_green.py), `SpheroidGreenInteraction` | Ряд n при фиксированном m=0 или m=1, сферический предел |
+| Боковой FQS | [spheroid_equatorial.py](../src/spheroid_equatorial.py), `_enumerate_modes`, `_initialize_prolate`, `_bright_coupling` | n,m и сектор cos/sin, чётность, веса, светлая связь |
+| FQS во времени | [full_qs_model.py](../src/full_qs_model.py), `modal_susceptibility_from_fit`, `_evaluate_state_unchecked`, `_rhs_unchecked` | Общая материальная подгонка; обратная связь; поле на КТ и диполь МНЧ |
+| Редукция | [modal_reduction.py](../src/modal_reduction.py), `build_positive_dark_reduction` в `full_qs_model.py` | Положительные веса тёмных мод, сохранение светлой моды, проверка ошибки |
 | Независимая пространственная сверка | [qd_mnp_bem_validation.py](../qd_mnp_bem_validation.py), [тесты](../tests/test_spheroid_bem_validation.py) | Независимость BEM, происхождение фикстуры, пять каналов и сферический предел |
 
 ### DD
@@ -218,7 +221,7 @@ flowchart TD
 | σ и Δσ, S1 | `calculate_work_loss_spectrum_material_comparison.py`, `supp01_work_spectrum_*.npz` | Фиксированная несущая; Фурье одной траектории для каждого F; 8001 энергия, конец окна 12000 фс |
 | Ранжирование и чувствительность | `pipeline.select_scenarios`, `compare_thresholds`, `assess_recommendation_ranking` | Основная карта всех кандидатов; дополнительные проверки выбранных каналов при одном номинальном зазоре |
 
-Все указанные калькуляторы находятся в [observables](../src/qdmnp/observables).
+Все указанные калькуляторы находятся в [observables](../src/observables).
 Plotter-ы используют сохранённые массивы. Полное определение импульса включает
 множитель n_m=√ε_m в падающем флюенсе и точную поправку вещественной гауссианы.
 Линейная формула β(1+B)/(1−βK), определения усилений и интегральная норма

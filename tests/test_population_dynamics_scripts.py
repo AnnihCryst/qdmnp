@@ -163,7 +163,7 @@ class PopulationDynamicsScriptTests(unittest.TestCase):
             matplotlib.pyplot.close(built)
 
         plot_source = Path(
-            "src/qdmnp/observables/plot_population_dynamics.py"
+            "src/observables/plot_population_dynamics.py"
         ).read_text(encoding="utf-8")
         imported_roots = {
             alias.name.split(".")[0]
@@ -222,7 +222,7 @@ class PopulationDynamicsScriptTests(unittest.TestCase):
 
 
 def artifact_script_name() -> str:
-    return "src/qdmnp/observables/calculate_population_dynamics.py"
+    return "src/observables/calculate_population_dynamics.py"
 
 
 if __name__ == "__main__":

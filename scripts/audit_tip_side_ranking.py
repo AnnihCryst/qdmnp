@@ -150,7 +150,7 @@ def main():
     fig.savefig(args.output/"tip_side_fields.png", dpi=200)
     plt.close(fig)
     report["source_sha256"] = {str(p): sha(p) for p in [Path(__file__), ROOT/"qd_mnp_bem_validation.py",
-        ROOT/"src/qdmnp/spheroid_green.py", ROOT/"src/qdmnp/spheroid_equatorial.py", ROOT/"src/qdmnp/rational_fit.py"]}
+        ROOT/"src/spheroid_green.py", ROOT/"src/spheroid_equatorial.py", ROOT/"src/rational_fit.py"]}
     write_json(args.output/"audit.json", report)
     print("Saved independent ranking audit:", args.output.resolve(), flush=True)
 

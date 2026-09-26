@@ -212,7 +212,6 @@ class SpectrumMaterialPlotTests(unittest.TestCase):
         plotter_path = (
             Path(__file__).resolve().parents[1]
             / "src"
-            / "qdmnp"
             / "observables"
             / "plot_excitation_spectrum_material_comparison.py"
         )
